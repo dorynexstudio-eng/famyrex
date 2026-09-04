@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 android { namespace = "com.famyrex.app"; compileSdk = 35
-    defaultConfig { applicationId = "com.famyrex.app"; minSdk = 26; targetSdk = 35; versionCode = 18; versionName = "1.8.0" }
+    defaultConfig { applicationId = "com.famyrex.app"; minSdk = 26; targetSdk = 35; versionCode = 19; versionName = "1.9.0" }
 }
 dependencies {
     implementation("androidx.webkit:webkit:1.14.0")
@@ -15,5 +15,6 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.7.6")
     implementation("androidx.compose.material3:material3:1.3.1")
     implementation("androidx.compose.ui:ui-tooling-preview:1.7.6")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
     debugImplementation("androidx.compose.ui:ui-tooling:1.7.6")
 }
