@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import kotlin.random.Random
 
 private const val PREFS = "famyrex_prefs"
@@ -128,13 +129,15 @@ fun RealAlertsScreen(context: Context, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FamilyScreen(family: FamilyState, onSave: (FamilyState) -> Unit, modifier: Modifier = Modifier) {
+    val localContext = LocalContext.current
     var parent by remember(family.parent) { mutableStateOf(family.parent) }
     var child by remember(family.child) { mutableStateOf(family.child) }
     var code by remember(family.code) { mutableStateOf(family.code) }
     var message by remember { mutableStateOf("") }
-    var monitoringEnabled by remember { mutableStateOf(CommunicationMonitoringSettings.isNotificationListenerEnabled(androidx.compose.ui.platform.LocalContext.current)) }
+    var monitoringEnabled by remember { mutableStateOf(CommunicationMonitoringSettings.isNotificationListenerEnabled(localContext)) }
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Familia", style = MaterialTheme.typography.headlineSmall) }
         item { Text("Configura el vínculo de forma transparente y con los permisos correspondientes.") }
@@ -146,8 +149,8 @@ fun FamilyScreen(family: FamilyState, onSave: (FamilyState) -> Unit, modifier: M
         item { HorizontalDivider() }
         item { Text("Supervisión de comunicaciones", style = MaterialTheme.typography.titleMedium) }
         item { Text(if (monitoringEnabled) "🟢 Activada. Famyrex puede analizar localmente señales presentes en notificaciones autorizadas." else "🟠 No activada. Sin este permiso Famyrex no podrá analizar las notificaciones de comunicación.") }
-        item { Button(onClick = { CommunicationMonitoringSettings.openSystemSettings(context = androidx.compose.ui.platform.LocalContext.current) }, Modifier.fillMaxWidth()) { Text(if (monitoringEnabled) "Revisar permiso de notificaciones" else "Activar supervisión transparente") } }
-        item { OutlinedButton(onClick = { monitoringEnabled = CommunicationMonitoringSettings.isNotificationListenerEnabled(androidx.compose.ui.platform.LocalContext.current) }, Modifier.fillMaxWidth()) { Text("Comprobar estado") } }
+        item { Button(onClick = { CommunicationMonitoringSettings.openSystemSettings(context = localContext) }, Modifier.fillMaxWidth()) { Text(if (monitoringEnabled) "Revisar permiso de notificaciones" else "Activar supervisión transparente") } }
+        item { OutlinedButton(onClick = { monitoringEnabled = CommunicationMonitoringSettings.isNotificationListenerEnabled(localContext) }, Modifier.fillMaxWidth()) { Text("Comprobar estado") } }
         item { Text("El servicio usa únicamente el texto que Android expone en las notificaciones. El texto original no se guarda; Famyrex conserva solo señales estructuradas cuando alcanzan el umbral de riesgo.") }
         item { HorizontalDivider() }
         item { Text("Privacidad", style = MaterialTheme.typography.titleMedium) }
