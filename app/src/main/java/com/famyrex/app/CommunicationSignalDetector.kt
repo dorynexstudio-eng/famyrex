@@ -2,7 +2,7 @@ package com.famyrex.app
 
 /**
  * Entrada normalizada para el detector. El texto completo debe vivir únicamente
- * en memoria durante el análisis; este modelo no lo almacena.
+ * en memoria durante el análisis; este modelo no lo almacena de forma persistente.
  */
 data class CommunicationObservation(
     val timestampMs: Long,
@@ -12,69 +12,168 @@ data class CommunicationObservation(
 )
 
 /**
- * Detector conservador de señales. Una coincidencia aislada nunca crea un incidente.
- * La correlación se hace sobre observaciones recientes y produce únicamente señales
- * estructuradas, sin conservar el contenido original.
+ * Detector conservador de secuencias. Analiza cada observación por separado para
+ * no perder quién dijo qué ni convertir una coincidencia genérica en un riesgo.
  */
 object CommunicationSignalDetector {
     private const val WINDOW_MS = 30 * 60 * 1000L
+    private const val MAX_OBSERVATIONS = 40
 
     fun detect(observations: List<CommunicationObservation>): CommunicationRiskSummary {
-        val recent = observations
-            .sortedBy { it.timestampMs }
-            .takeLast(40)
-            .filter { observations.lastOrNull()?.timestampMs?.minus(it.timestampMs) ?: 0L <= WINDOW_MS }
+        if (observations.isEmpty()) return CommunicationRiskEngine.evaluate(emptyList())
+
+        val ordered = observations.sortedBy { it.timestampMs }
+        val end = ordered.last().timestampMs
+        val recent = ordered
+            .filter { end - it.timestampMs in 0..WINDOW_MS }
+            .takeLast(MAX_OBSERVATIONS)
+            .map { it.copy(normalizedText = normalize(it.normalizedText)) }
+            .filter { it.normalizedText.isNotBlank() }
 
         if (recent.isEmpty()) return CommunicationRiskEngine.evaluate(emptyList())
 
         val signals = mutableListOf<CommunicationRiskSignal>()
-        val text = recent.joinToString(" ") { it.normalizedText.lowercase() }
-        val incoming = recent.count { it.isIncoming }
 
-        fun add(type: CommunicationRiskType, confidence: RiskConfidence, reason: String) {
+        fun add(type: CommunicationRiskType, confidence: RiskConfidence, reason: String, observation: CommunicationObservation) {
             signals += CommunicationRiskSignal(
                 type = type,
                 confidence = confidence,
                 reason = reason,
-                sourcePackage = recent.lastOrNull()?.sourcePackage,
-                timestampMs = recent.lastOrNull()?.timestampMs ?: System.currentTimeMillis()
+                sourcePackage = observation.sourcePackage,
+                timestampMs = observation.timestampMs
             )
         }
 
-        val personalInfo = listOf("dirección", "donde vives", "dónde vives", "colegio", "instituto", "ubicación", "telefono", "teléfono").count { text.contains(it) }
-        val secrecy = listOf("no se lo digas", "que quede entre nosotros", "en secreto", "no digas nada", "que nadie se entere").count { text.contains(it) }
-        val meeting = listOf("quedar", "vernos", "ven solo", "ven sola", "encuentro", "te recojo").count { text.contains(it) }
-        val sexual = listOf("foto desnuda", "nudes", "desnudo", "desnuda", "foto íntima", "foto intima").count { text.contains(it) }
-        val threats = listOf("te voy a hacer daño", "te haré daño", "te matare", "te mataré", "amenaza", "si hablas").count { text.contains(it) }
-        val harassment = listOf("idiota", "imbécil", "imbecil", "eres un inútil", "eres un inutil").count { text.contains(it) }
-        val selfHarm = listOf("quiero morir", "no quiero vivir", "hacerme daño", "hacerme dano", "suicid").count { text.contains(it) }
+        val observationsWith = recent.map { observation ->
+            ObservationFlags(
+                observation = observation,
+                personalInfo = containsAny(observation.normalizedText, PERSONAL_INFO),
+                secrecy = containsAny(observation.normalizedText, SECRECY),
+                meeting = containsAny(observation.normalizedText, MEETING),
+                sexual = containsAny(observation.normalizedText, SEXUAL),
+                threat = containsAny(observation.normalizedText, THREATS),
+                bullying = containsAny(observation.normalizedText, BULLYING),
+                selfHarm = containsAny(observation.normalizedText, SELF_HARM)
+            )
+        }
 
-        // Se exige contexto/repetición o combinación de señales antes de escalar.
-        if (personalInfo > 0 && (meeting > 0 || secrecy > 0)) {
-            add(CommunicationRiskType.GROOMING, RiskConfidence.MEDIUM,
-                "Solicitud de información personal combinada con secretismo o propuesta de encuentro.")
+        val personal = observationsWith.filter { it.personalInfo }
+        val secrets = observationsWith.filter { it.secrecy }
+        val meetings = observationsWith.filter { it.meeting }
+        val sexual = observationsWith.filter { it.sexual }
+        val threats = observationsWith.filter { it.threat }
+        val bullying = observationsWith.filter { it.bullying && it.observation.isIncoming }
+        val selfHarm = observationsWith.filter { it.selfHarm }
+
+        // Un encuentro normal no es suficiente. Buscamos dos señales contextuales.
+        if (personal.isNotEmpty() && (meetings.isNotEmpty() || secrets.isNotEmpty())) {
+            val evidence = personal.firstOrNull() ?: meetings.first()
+            add(
+                CommunicationRiskType.GROOMING,
+                if (secrets.isNotEmpty() && meetings.isNotEmpty()) RiskConfidence.MEDIUM else RiskConfidence.LOW,
+                "Se combinaron referencias a información personal con secretismo o propuesta de encuentro.",
+                evidence.observation
+            )
         }
-        if (sexual > 0 && (personalInfo > 0 || meeting > 0 || secrecy > 0)) {
-            add(CommunicationRiskType.SEXUAL_REQUEST, RiskConfidence.HIGH,
-                "Petición de contenido íntimo combinada con otra señal contextual.")
+
+        // Petición sexual + contexto adicional es considerablemente más relevante.
+        if (sexual.isNotEmpty() && (personal.isNotEmpty() || meetings.isNotEmpty() || secrets.isNotEmpty())) {
+            add(
+                CommunicationRiskType.SEXUAL_REQUEST,
+                RiskConfidence.HIGH,
+                "Petición de contenido íntimo combinada con otra señal contextual.",
+                sexual.last().observation
+            )
         }
-        if (threats > 0 && recent.size >= 2) {
-            add(CommunicationRiskType.THREAT, RiskConfidence.MEDIUM,
-                "Señales de amenaza dentro de una secuencia de comunicación.")
+
+        // Una amenaza debe ser una frase explícita y repetida en la ventana, o
+        // acompañarse de otra señal fuerte; no usamos la palabra genérica "amenaza".
+        if (threats.size >= 2 || (threats.isNotEmpty() && secrets.isNotEmpty())) {
+            add(
+                CommunicationRiskType.THREAT,
+                RiskConfidence.HIGH,
+                "Se detectó una amenaza explícita con repetición o contexto adicional.",
+                threats.last().observation
+            )
         }
-        if (harassment >= 2 && incoming >= 2) {
-            add(CommunicationRiskType.BULLYING, RiskConfidence.MEDIUM,
-                "Patrón repetido de lenguaje hostil en varias observaciones.")
+
+        // Hostigamiento repetido desde mensajes entrantes: atención, no acusación.
+        val bullyingSources = bullying.groupBy { it.observation.sourcePackage }
+        if (bullying.size >= 3 || bullyingSources.any { it.value.size >= 2 }) {
+            add(
+                CommunicationRiskType.BULLYING,
+                RiskConfidence.MEDIUM,
+                "Se detectó un patrón repetido de lenguaje hostil en mensajes entrantes.",
+                bullying.last().observation
+            )
         }
-        if (selfHarm > 0 && recent.size >= 2) {
-            add(CommunicationRiskType.SELF_HARM, RiskConfidence.MEDIUM,
-                "Señales de posible autolesión dentro de un contexto de comunicación.")
+
+        // Para autolesión, una expresión aislada genera señal interna pero no
+        // incidente: exigimos repetición o contexto para elevarla aquí.
+        if (selfHarm.size >= 2 || (selfHarm.isNotEmpty() && threats.isNotEmpty())) {
+            add(
+                CommunicationRiskType.SELF_HARM,
+                RiskConfidence.HIGH,
+                "Se detectaron expresiones de posible autolesión con repetición o contexto de amenaza.",
+                selfHarm.last().observation
+            )
         }
-        if (secrecy >= 2) {
-            add(CommunicationRiskType.SECRET_KEEPING, RiskConfidence.MEDIUM,
-                "Petición repetida de mantener la comunicación en secreto.")
+
+        if (secrets.size >= 2 && meetings.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SECRET_KEEPING,
+                RiskConfidence.MEDIUM,
+                "Se detectó secretismo repetido junto con una propuesta de encuentro.",
+                secrets.last().observation
+            )
         }
 
         return CommunicationRiskEngine.evaluate(signals)
     }
+
+    private data class ObservationFlags(
+        val observation: CommunicationObservation,
+        val personalInfo: Boolean,
+        val secrecy: Boolean,
+        val meeting: Boolean,
+        val sexual: Boolean,
+        val threat: Boolean,
+        val bullying: Boolean,
+        val selfHarm: Boolean
+    )
+
+    private fun normalize(text: String): String = text
+        .lowercase()
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+        .replace("ü", "u")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    private fun containsAny(text: String, phrases: List<String>): Boolean = phrases.any(text::contains)
+
+    private val PERSONAL_INFO = listOf(
+        "direccion", "donde vives", "colegio", "instituto", "ubicacion", "telefono", "numero de telefono"
+    )
+    private val SECRECY = listOf(
+        "no se lo digas", "que quede entre nosotros", "en secreto", "no digas nada", "que nadie se entere", "borra el mensaje"
+    )
+    private val MEETING = listOf(
+        "quedamos a solas", "ven a verme", "ven solo", "ven sola", "nos vemos a escondidas", "donde nos vemos", "ven sin tus padres", "te recojo"
+    )
+    private val SEXUAL = listOf(
+        "foto desnudo", "foto desnuda", "foto intima", "manda nudes", "manda nude", "desnudate", "contenido sexual"
+    )
+    private val THREATS = listOf(
+        "te voy a hacer daño", "te hare daño", "te matare", "si hablas te", "vas a pagar", "te voy a encontrar"
+    )
+    private val BULLYING = listOf(
+        "eres un inutil", "das asco", "nadie te quiere", "callate", "te vamos a echar", "todos se rien de ti"
+    )
+    private val SELF_HARM = listOf(
+        "quiero hacerme daño", "quiero hacerme dano", "quiero desaparecer", "no quiero vivir", "me quiero morir", "hacerme daño", "hacerme dano"
+    )
 }
