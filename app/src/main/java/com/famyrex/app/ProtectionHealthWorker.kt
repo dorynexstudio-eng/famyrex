@@ -13,6 +13,8 @@ class ProtectionHealthWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
+        GeofenceBootstrap.sync(context)
+
         val store = ProtectionHealthStore(context)
         val previous = store.load()
         val health = ProtectionHealthChecker.check(context)
