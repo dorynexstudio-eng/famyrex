@@ -31,7 +31,11 @@ object UsageAnalytics {
             val d = LocalDate.parse(it.date)
             !d.isBefore(previousStart) && d.isBefore(currentStart)
         }.sumOf { it.totalTimeMs } / 60_000L
-        val change = if (previous > 0) ((current - previous) * 100 / previous).toInt() else null
+        val change: Int? = if (previous > 0L) {
+            ((current - previous) * 100L / previous).toInt()
+        } else {
+            null
+        }
         return WeeklyTrend(current, previous, change)
     }
 
@@ -42,6 +46,10 @@ object UsageAnalytics {
             .mapNotNull { d -> d.topApps.firstOrNull { it.packageName == packageName }?.totalTimeMs }
         if (previous.isEmpty()) return null
         val avg = previous.average()
-        return if (avg > 0) (((todayMs - avg) / avg) * 100).toInt()) else null
+        return if (avg > 0.0) {
+            (((todayMs.toDouble() - avg) / avg) * 100.0).toInt()
+        } else {
+            null
+        }
     }
 }
