@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import kotlin.random.Random
 
 private const val PREFS = "famyrex_prefs"
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FamyrexApp(context: Context) {
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -168,9 +170,22 @@ private fun saveZones(prefs: android.content.SharedPreferences, zones: List<GeoZ
     prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply()
 }
 
+private fun lastKnownLocation(context: Context): android.location.Location? {
+    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    if (!fine && !coarse) return null
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    val provider = when {
+        fine && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+        locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+        else -> return null
+    }
+    return runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
+}
+
 @Composable
 fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<GeoZone>) -> Unit, modifier: Modifier = Modifier) {
-    var permissionGranted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
+    var permissionGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
     var status by remember { mutableStateOf("La ubicación aún no está activada.") }
     var name by remember { mutableStateOf("") }
     var radius by remember { mutableStateOf("150") }
@@ -182,7 +197,22 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
         item { Text(status) }
         item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nombre de la geozona") }, placeholder = { Text("Casa, colegio...") }) }
         item { OutlinedTextField(radius, { radius = it.filter(Char::isDigit).take(5) }, Modifier.fillMaxWidth(), label = { Text("Radio en metros") }) }
-        item { Button(enabled = permissionGranted && name.isNotBlank(), onClick = { val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager; val provider = if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER; val location = runCatching { lm.getLastKnownLocation(provider) }.getOrNull(); if (location != null) { onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f)); name = ""; status = "Geozona guardada con la última ubicación disponible." } else status = "No hay una ubicación disponible todavía. Activa el GPS y vuelve a intentarlo." }, Modifier.fillMaxWidth()) { Text("Guardar geozona en mi ubicación actual") } }
+        item {
+            Button(
+                enabled = permissionGranted && name.isNotBlank(),
+                onClick = {
+                    val location = lastKnownLocation(context)
+                    if (location != null) {
+                        onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f))
+                        name = ""
+                        status = "Geozona guardada con la última ubicación disponible."
+                    } else {
+                        status = "No hay una ubicación disponible todavía. Activa el GPS y vuelve a intentarlo."
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Guardar geozona en mi ubicación actual") }
+        }
         item { Text("Geozonas guardadas", style = MaterialTheme.typography.titleMedium) }
         if (zones.isEmpty()) item { Text("Todavía no hay geozonas configuradas.") }
         items(zones) { zone -> ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(zone.name, style = MaterialTheme.typography.titleMedium); Text("Radio: ${zone.radiusMeters.toInt()} m"); Text("Coordenadas: %.5f, %.5f".format(zone.latitude, zone.longitude)); TextButton(onClick = { onZonesChange(zones - zone) }) { Text("Eliminar") } } } }
