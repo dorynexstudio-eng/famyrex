@@ -1,15 +1,15 @@
 package com.famyrex.app
 
-import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.Manifest
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
-import androidx.core.content.ContextCompat
 
 class GeofenceManager(private val context: Context) {
     private val client: GeofencingClient = LocationServices.getGeofencingClient(context)
@@ -20,7 +20,7 @@ class GeofenceManager(private val context: Context) {
             context,
             9021,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
