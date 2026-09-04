@@ -23,11 +23,10 @@ class AlertStore(context: Context) {
         prefs.edit().putString("alerts", array.toString()).apply()
     }
 
-    /** Adds an alert only once, preventing repeated watchdog notifications. */
     fun appendIfNew(alert: SmartAlert): Boolean {
-        val existing = load()
-        if (existing.any { it.id == alert.id }) return false
-        save(listOf(alert) + existing)
+        val current = load()
+        if (current.any { it.id == alert.id }) return false
+        save(listOf(alert) + current)
         return true
     }
 
