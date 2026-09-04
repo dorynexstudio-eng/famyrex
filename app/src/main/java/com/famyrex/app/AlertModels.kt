@@ -13,8 +13,11 @@ enum class AlertType {
     GEOFENCE_EXIT,
     APP_INSTALLED,
     APP_UNINSTALLED,
-    EVASION_SIGNAL
+    EVASION_SIGNAL,
+    COMMUNICATION_RISK
 }
+
+enum class AlertLifecycleStatus { DETECTED, REVIEWED, CONFIRMED, DISMISSED, AUTO_DISMISSED, RESOLVED }
 
 data class SmartAlert(
     val id: String,
@@ -23,5 +26,6 @@ data class SmartAlert(
     val title: String,
     val message: String,
     val date: String,
-    val packageName: String? = null
+    val packageName: String? = null,
+    val lifecycleStatus: AlertLifecycleStatus = AlertLifecycleStatus.DETECTED
 )
