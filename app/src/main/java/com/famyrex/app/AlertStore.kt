@@ -18,6 +18,7 @@ class AlertStore(context: Context) {
                 put("message", a.message)
                 put("date", a.date)
                 put("packageName", a.packageName ?: "")
+                put("lifecycleStatus", a.lifecycleStatus.name)
             })
         }
         prefs.edit().putString("alerts", array.toString()).apply()
@@ -45,7 +46,10 @@ class AlertStore(context: Context) {
                             title = o.getString("title"),
                             message = o.getString("message"),
                             date = o.getString("date"),
-                            packageName = o.optString("packageName").ifBlank { null }
+                            packageName = o.optString("packageName").ifBlank { null },
+                            lifecycleStatus = runCatching {
+                                AlertLifecycleStatus.valueOf(o.optString("lifecycleStatus"))
+                            }.getOrDefault(AlertLifecycleStatus.DETECTED)
                         )
                     )
                 }
