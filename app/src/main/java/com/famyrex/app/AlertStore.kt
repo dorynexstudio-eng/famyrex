@@ -31,6 +31,13 @@ class AlertStore(context: Context) {
         return true
     }
 
+    fun replace(alert: SmartAlert): Boolean {
+        val current = load()
+        if (current.none { it.id == alert.id }) return false
+        save(current.map { if (it.id == alert.id) alert else it })
+        return true
+    }
+
     fun load(): List<SmartAlert> {
         val raw = prefs.getString("alerts", null) ?: return emptyList()
         return runCatching {
