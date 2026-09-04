@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class RiskIncidentStatus { DETECTED, REVIEWED, CONFIRMED, DISMISSED, RESOLVED }
+enum class RiskIncidentStatus { DETECTED, REVIEWED, CONFIRMED, DISMISSED, AUTO_DISMISSED, RESOLVED }
 
 data class RiskReason(
     val code: String,
