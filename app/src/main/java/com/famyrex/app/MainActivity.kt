@@ -54,8 +54,19 @@ data class FamilyState(val parent: String, val child: String, val code: String)
 data class GeoZone(val name: String, val latitude: Double, val longitude: Double, val radiusMeters: Float)
 
 class MainActivity : ComponentActivity() {
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FamyrexNotificationManager.ensureChannels(this)
+        FamyrexWorkScheduler.scheduleProtectionHealth(applicationContext)
+
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         setContent { FamyrexApp(applicationContext) }
     }
 }
