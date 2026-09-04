@@ -45,6 +45,25 @@ class ProtectionHealthWorker(
                 if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
             }
         }
+
+        val evasionSignals = EvasionSignalChecker.check(context)
+        evasionSignals.forEach { signal ->
+            val severity = when (signal.confidence) {
+                SignalConfidence.HIGH -> AlertSeverity.IMPORTANT
+                SignalConfidence.MEDIUM -> AlertSeverity.ATTENTION
+                SignalConfidence.LOW -> AlertSeverity.INFO
+            }
+            val alert = SmartAlert(
+                id = "evasion_${signal.key}",
+                type = AlertType.EVASION_SIGNAL,
+                severity = severity,
+                title = signal.title,
+                message = "${signal.detail} Nivel de confianza: ${signal.confidence.name.lowercase()}.",
+                date = now()
+            )
+            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+        }
+
         Result.success()
     }.getOrElse { Result.retry() }
 
