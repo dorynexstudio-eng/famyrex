@@ -12,7 +12,8 @@ enum class AlertType {
     GEOFENCE_ENTER,
     GEOFENCE_EXIT,
     APP_INSTALLED,
-    APP_UNINSTALLED
+    APP_UNINSTALLED,
+    EVASION_SIGNAL
 }
 
 data class SmartAlert(
