@@ -23,24 +23,34 @@ class AlertStore(context: Context) {
         prefs.edit().putString("alerts", array.toString()).apply()
     }
 
+    /** Adds an alert only once, preventing repeated watchdog notifications. */
+    fun appendIfNew(alert: SmartAlert): Boolean {
+        val existing = load()
+        if (existing.any { it.id == alert.id }) return false
+        save(listOf(alert) + existing)
+        return true
+    }
+
     fun load(): List<SmartAlert> {
         val raw = prefs.getString("alerts", null) ?: return emptyList()
-        val array = JSONArray(raw)
-        return buildList {
-            for (i in 0 until array.length()) {
-                val o = array.getJSONObject(i)
-                add(
-                    SmartAlert(
-                        id = o.getString("id"),
-                        type = AlertType.valueOf(o.getString("type")),
-                        severity = AlertSeverity.valueOf(o.getString("severity")),
-                        title = o.getString("title"),
-                        message = o.getString("message"),
-                        date = o.getString("date"),
-                        packageName = o.optString("packageName").ifBlank { null }
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val o = array.getJSONObject(i)
+                    add(
+                        SmartAlert(
+                            id = o.getString("id"),
+                            type = AlertType.valueOf(o.getString("type")),
+                            severity = AlertSeverity.valueOf(o.getString("severity")),
+                            title = o.getString("title"),
+                            message = o.getString("message"),
+                            date = o.getString("date"),
+                            packageName = o.optString("packageName").ifBlank { null }
+                        )
                     )
-                )
+                }
             }
-        }
+        }.getOrDefault(emptyList())
     }
 }
