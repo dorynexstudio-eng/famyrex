@@ -64,6 +64,13 @@ class ProtectionHealthWorker(
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
+        // El análisis de comportamiento trabaja únicamente con métricas agregadas
+        // y requiere historial suficiente para evitar falsas alarmas.
+        val behaviorAlerts = BehaviorPatternEngine.evaluate(UsageSnapshotStore(context).loadHistory())
+        behaviorAlerts.forEach { alert ->
+            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+        }
+
         Result.success()
     }.getOrElse { Result.retry() }
 
