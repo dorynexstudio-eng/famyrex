@@ -10,8 +10,10 @@ object FamyrexWorkScheduler {
     private const val PROTECTION_WORK = "famyrex_protection_health"
 
     fun scheduleProtectionHealth(context: Context) {
+        val appContext = context.applicationContext
+        GeofenceBootstrap.sync(appContext)
         val request = PeriodicWorkRequestBuilder<ProtectionHealthWorker>(15, TimeUnit.MINUTES).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        WorkManager.getInstance(appContext).enqueueUniquePeriodicWork(
             PROTECTION_WORK,
             ExistingPeriodicWorkPolicy.KEEP,
             request
