@@ -2,8 +2,8 @@ package com.famyrex.app
 
 /**
  * Regla de oro de Famyrex: una sospecha nunca se presenta como una acusación.
- * Los textos deben describir señales detectadas, no afirmar que una persona ha
- * cometido un daño o que el menor está necesariamente en peligro.
+ * Los textos describen señales detectadas, no afirman que una persona haya
+ * cometido un daño ni que el menor esté necesariamente en peligro.
  */
 object CommunicationRiskAlertFactory {
     fun createIncidentAlert(incident: CommunicationRiskIncident): SmartAlert {
@@ -30,6 +30,7 @@ object CommunicationRiskAlertFactory {
                 RiskIncidentStatus.REVIEWED -> AlertLifecycleStatus.REVIEWED
                 RiskIncidentStatus.CONFIRMED -> AlertLifecycleStatus.CONFIRMED
                 RiskIncidentStatus.DISMISSED -> AlertLifecycleStatus.DISMISSED
+                RiskIncidentStatus.AUTO_DISMISSED -> AlertLifecycleStatus.AUTO_DISMISSED
                 RiskIncidentStatus.RESOLVED -> AlertLifecycleStatus.RESOLVED
             }
         )
