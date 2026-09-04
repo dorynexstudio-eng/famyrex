@@ -10,7 +10,9 @@ enum class AlertType {
     PROTECTION_DEGRADED,
     PROTECTION_RESTORED,
     GEOFENCE_ENTER,
-    GEOFENCE_EXIT
+    GEOFENCE_EXIT,
+    APP_INSTALLED,
+    APP_UNINSTALLED
 }
 
 data class SmartAlert(
