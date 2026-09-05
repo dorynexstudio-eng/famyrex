@@ -12,9 +12,9 @@ class PairingCoordinator(
 
     fun validateCode(input: String, now: Long = System.currentTimeMillis()): Boolean =
         codeStore.current(now)?.let { current ->
-            input.filter(Char::isDigit) == current.code
+            PairingCodeProtocol.matches(input, current, now)
         } == true
 
     fun consumeCode(input: String, now: Long = System.currentTimeMillis()): Boolean =
-        codeStore.consume(input, now)
+        codeStore.consume(PairingCodeProtocol.normalize(input), now)
 }
