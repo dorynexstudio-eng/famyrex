@@ -6,7 +6,8 @@ package com.famyrex.app
  *
  * Una señal normal nunca debe convertirse por sí misma en una acusación.
  * Excepción de seguridad: una señal explícita de posible autolesión con
- * confianza HIGH se considera prioritaria y puede generar una alerta inmediata.
+ * confianza HIGH procedente de un asistente de IA se considera prioritaria
+ * y puede generar una alerta inmediata.
  */
 object CommunicationRiskEngine {
     fun evaluate(signals: List<CommunicationRiskSignal>): CommunicationRiskSummary {
@@ -16,7 +17,9 @@ object CommunicationRiskEngine {
 
         val distinct = signals.distinctBy { "${it.type}:${it.reason}" }
         val criticalSelfHarm = distinct.any {
-            it.type == CommunicationRiskType.SELF_HARM && it.confidence == RiskConfidence.HIGH
+            it.type == CommunicationRiskType.SELF_HARM &&
+                it.confidence == RiskConfidence.HIGH &&
+                AiConversationSafetyEngine.isAiAssistantPackage(it.sourcePackage)
         }
 
         if (criticalSelfHarm) {
