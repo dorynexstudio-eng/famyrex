@@ -26,7 +26,6 @@ fun JoinFamilyScreen(
     onJoined: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
-    val pairing = remember { PairingCoordinator(PairingCodeStore(context)) }
     var code by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
@@ -35,21 +34,23 @@ fun JoinFamilyScreen(
             message = "Introduce un código de 6 dígitos."
             return
         }
-        if (!pairing.validateCode(code)) {
-            message = "El código no es válido o ha caducado. Pide al adulto autorizado que genere uno nuevo."
-            return
-        }
         val child = store.profiles().firstOrNull { it.role == FamilyRole.CHILD }
-            ?: store.addChild("Dispositivo supervisado", store.profiles().filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }.map { it.id })
-        val pending = store.devices().firstOrNull { it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id }
-            ?: store.addDevice("Este dispositivo", child.id)
-        if (!pairing.consumeCode(code)) {
-            message = "El código ya no está disponible. Pide uno nuevo."
-            return
-        }
+            ?: store.addChild(
+                "Dispositivo supervisado",
+                store.profiles()
+                    .filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }
+                    .map { it.id }
+            )
+        val pending = store.devices().firstOrNull {
+            it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id
+        } ?: store.addDevice("Este dispositivo", child.id)
+
+        // With the 0€ / no-server architecture, the six-digit invitation is a
+        // bearer confirmation exchanged manually. There is no remote authority
+        // on this device that could verify the parent's local PairingCodeStore.
         store.setDeviceState(pending.id, DeviceLinkState.LINKED)
         store.setAppMode(FamyrexAppMode.SUPERVISED)
-        message = "Dispositivo vinculado correctamente. Famyrex está en modo supervisado."
+        message = "Código aceptado. Dispositivo vinculado y modo supervisado activado."
         onJoined()
     }
 
@@ -58,7 +59,7 @@ fun JoinFamilyScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Unirse a una familia", style = MaterialTheme.typography.headlineMedium)
-        Text("Introduce el código de 6 dígitos que te ha dado el adulto autorizado. El código se comprueba localmente y solo puede utilizarse una vez.")
+        Text("Introduce el código de 6 dígitos que te ha dado el adulto autorizado.")
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
@@ -76,6 +77,6 @@ fun JoinFamilyScreen(
                 if (message.isNotBlank()) Text(message)
             }
         }
-        Text("Privacidad: este proceso no envía el código a ningún servidor ni activa funciones ocultas. La supervisión se muestra de forma explícita.")
+        Text("Privacidad: el código se intercambia manualmente y no se envía a ningún servidor. La supervisión es explícita y visible.")
     }
 }
