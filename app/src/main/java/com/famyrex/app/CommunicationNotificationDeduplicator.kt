@@ -22,4 +22,9 @@ class CommunicationNotificationDeduplicator(
         }
         return true
     }
+
+    @Synchronized
+    fun clear() {
+        fingerprints.clear()
+    }
 }
