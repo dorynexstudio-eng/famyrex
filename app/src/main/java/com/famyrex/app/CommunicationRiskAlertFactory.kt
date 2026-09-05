@@ -12,6 +12,12 @@ object CommunicationRiskAlertFactory {
             .joinToString("; ") { it.title }
             .ifBlank { "varias señales compatibles con un posible riesgo" }
 
+        val directionText = when (incident.direction) {
+            CommunicationDirection.INCOMING -> "La señal procede de un mensaje recibido en el dispositivo."
+            CommunicationDirection.OUTGOING -> "La señal procede de lenguaje enviado desde el dispositivo; esto no determina por sí solo la intención ni la situación."
+            CommunicationDirection.UNKNOWN -> "No se ha podido determinar con fiabilidad la dirección del mensaje."
+        }
+
         val (title, prefix, action) = when (incident.type) {
             CommunicationRiskType.SELF_HARM -> Triple(
                 "Posible riesgo de autolesión",
@@ -33,11 +39,18 @@ object CommunicationRiskAlertFactory {
                 "Famyrex ha detectado señales compatibles con posible contacto inapropiado",
                 "Habla con el menor sin culpabilizarle y, si procede, ayúdale a bloquear o reportar el contacto."
             )
-            CommunicationRiskType.BULLYING -> Triple(
-                "Posible acoso",
-                "Famyrex ha detectado señales compatibles con posible acoso",
-                "Habla con el menor y valora si necesita apoyo adicional en casa o en el centro educativo."
-            )
+            CommunicationRiskType.BULLYING -> when (incident.direction) {
+                CommunicationDirection.OUTGOING -> Triple(
+                    "Lenguaje hostil enviado",
+                    "Famyrex ha detectado señales compatibles con lenguaje hostil enviado desde el dispositivo",
+                    "Habla con el menor sin etiquetarle y revisa el contexto, la frecuencia y cómo está evolucionando la situación."
+                )
+                else -> Triple(
+                    "Posible acoso",
+                    "Famyrex ha detectado señales compatibles con posible acoso",
+                    "Habla con el menor y valora si necesita apoyo adicional en casa o en el centro educativo."
+                )
+            }
             CommunicationRiskType.THREAT -> Triple(
                 "Posible amenaza",
                 "Famyrex ha detectado señales compatibles con una posible amenaza",
@@ -69,7 +82,7 @@ object CommunicationRiskAlertFactory {
                 "Señal temprana: conviene observar su evolución"
         }
 
-        val message = "$prefix. $progression. " +
+        val message = "$prefix. $progression. $directionText " +
             "Señales detectadas: $reasonText. " +
             "Confianza ${incident.confidence.name.lowercase()} y puntuación ${incident.score}/100. " +
             "Recomendación: $action " +
