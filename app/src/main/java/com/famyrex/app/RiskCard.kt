@@ -49,6 +49,8 @@ fun RiskCard(context: Context, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        FamilyIntelligenceCard(context)
+
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp)) {
                 Text("Nivel de riesgo", style = MaterialTheme.typography.titleMedium)
