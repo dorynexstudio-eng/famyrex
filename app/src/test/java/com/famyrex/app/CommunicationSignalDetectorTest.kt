@@ -117,6 +117,58 @@ class CommunicationSignalDetectorTest {
         assertTrue(!summary.shouldAlert)
     }
 
+    @Test
+    fun `single romantic conflict is early signal not alert`() {
+        val summary = CommunicationSignalDetector.detect(
+            listOf(obs(0, "a mi amiga le gusta el mismo chico"))
+        )
+
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.SOCIAL_CONFLICT })
+        assertEquals(RiskConfidence.LOW, summary.signals.first { it.type == CommunicationRiskType.SOCIAL_CONFLICT }.confidence)
+        assertTrue(!summary.shouldAlert)
+    }
+
+    @Test
+    fun `generic attraction phrase alone is ignored`() {
+        val summary = CommunicationSignalDetector.detect(
+            listOf(obs(0, "me gusta un chico"))
+        )
+
+        assertTrue(summary.signals.none { it.type == CommunicationRiskType.SOCIAL_CONFLICT })
+        assertTrue(!summary.shouldAlert)
+    }
+
+    @Test
+    fun `social conflict across three days escalates to medium`() {
+        val day = 24 * 60 * 60 * 1000L
+        val summary = CommunicationSignalDetector.detect(
+            listOf(
+                obs(0, "a mi amiga le gusta el mismo chico"),
+                obs(day, "esta celosa por el chico"),
+                obs(2 * day, "mis amigas se han puesto en mi contra")
+            )
+        )
+
+        val conflict = summary.signals.first { it.type == CommunicationRiskType.SOCIAL_CONFLICT }
+        assertEquals(RiskConfidence.MEDIUM, conflict.confidence)
+        assertTrue(!summary.shouldAlert)
+    }
+
+    @Test
+    fun `social conflict plus exclusion escalates but remains contextual`() {
+        val day = 24 * 60 * 60 * 1000L
+        val summary = CommunicationSignalDetector.detect(
+            listOf(
+                obs(0, "a mi amiga le gusta el mismo chico"),
+                obs(day, "me dejan de lado")
+            )
+        )
+
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.SOCIAL_CONFLICT })
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.SOCIAL_ISOLATION })
+        assertTrue(!summary.shouldAlert)
+    }
+
     private fun obs(timeMs: Long, text: String, incoming: Boolean = false) =
         CommunicationObservation(
             timestampMs = timeMs,
