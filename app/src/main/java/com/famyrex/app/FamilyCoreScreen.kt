@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.dp
 fun FamilyCoreScreen(
     context: Context,
     modifier: Modifier = Modifier,
-    onOpenParentalControl: () -> Unit = {}
+    onOpenParentalControl: () -> Unit = {},
+    onFamilyChanged: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
@@ -73,6 +74,7 @@ fun FamilyCoreScreen(
                             adultName = ""
                             profiles = store.profiles()
                             message = "Adulto autorizado añadido."
+                            onFamilyChanged()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Añadir adulto") }
@@ -97,6 +99,7 @@ fun FamilyCoreScreen(
                             childName = ""
                             profiles = store.profiles()
                             message = "Perfil infantil creado y vinculado a los adultos autorizados."
+                            onFamilyChanged()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Añadir hijo/a") }
@@ -127,6 +130,7 @@ fun FamilyCoreScreen(
                                 deviceName = ""
                                 devices = store.devices()
                                 message = "Dispositivo preparado para vincular con ${children.first().displayName}."
+                                onFamilyChanged()
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Preparar vinculación") }
