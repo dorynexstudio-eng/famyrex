@@ -51,6 +51,15 @@ object CommunicationRiskEngine {
         if (distinct.any { it.type == CommunicationRiskType.SOCIAL_ISOLATION } &&
             distinct.any { it.type == CommunicationRiskType.BULLYING }) score += 12
 
+        // El conflicto entre iguales es una señal temprana deliberadamente débil:
+        // una pelea, celos o rivalidad no deben convertirse en una alarma por sí solos.
+        val socialConflictCount = distinct.count { it.type == CommunicationRiskType.SOCIAL_CONFLICT }
+        if (socialConflictCount >= 2) score += 8
+        if (distinct.any { it.type == CommunicationRiskType.SOCIAL_CONFLICT } &&
+            distinct.any { it.type == CommunicationRiskType.BULLYING }) score += 12
+        if (distinct.any { it.type == CommunicationRiskType.SOCIAL_CONFLICT } &&
+            distinct.any { it.type == CommunicationRiskType.SOCIAL_ISOLATION }) score += 12
+
         score = score.coerceIn(0, 100)
 
         val confidence = when {
