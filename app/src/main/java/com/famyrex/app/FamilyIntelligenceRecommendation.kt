@@ -41,11 +41,11 @@ object FamilyIntelligenceRecommendationEngine {
             AlertType.COMMUNICATION_RISK,
             AlertType.APP_SPIKE,
             AlertType.PATTERN_CHANGE,
-            AlertType.PROTECTION_RESTORED,
             AlertType.GEOFENCE_ENTER,
             AlertType.GEOFENCE_EXIT,
             AlertType.APP_INSTALLED,
             AlertType.APP_UNINSTALLED -> FamilyIntelligenceRecommendationDestination.ALERTS
+            AlertType.PROTECTION_RESTORED -> FamilyIntelligenceRecommendationDestination.OBSERVE
             null -> when (recommendation.action) {
                 RecommendationAction.OBSERVE -> FamilyIntelligenceRecommendationDestination.OBSERVE
                 else -> FamilyIntelligenceRecommendationDestination.ALERTS
