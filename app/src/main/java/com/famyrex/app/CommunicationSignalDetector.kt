@@ -65,7 +65,6 @@ object CommunicationSignalDetector {
         val bullying = observationsWith.filter { it.bullying && it.observation.isIncoming }
         val selfHarm = observationsWith.filter { it.selfHarm }
 
-        // Pedir información personal por sí solo es una señal débil, no una acusación.
         if (personal.isNotEmpty()) {
             add(
                 CommunicationRiskType.GROOMING,
@@ -75,7 +74,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Un encuentro normal no es suficiente. Buscamos dos señales contextuales.
         if (personal.isNotEmpty() && (meetings.isNotEmpty() || secrets.isNotEmpty())) {
             val evidence = personal.first()
             add(
@@ -86,7 +84,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Petición sexual + contexto adicional es considerablemente más relevante.
         if (sexual.isNotEmpty() && (personal.isNotEmpty() || meetings.isNotEmpty() || secrets.isNotEmpty())) {
             add(
                 CommunicationRiskType.SEXUAL_REQUEST,
@@ -96,8 +93,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Una petición sexual acompañada de secretismo es una combinación fuerte.
-        // La señal de secretismo aquí es HIGH por el contexto, no por la palabra aislada.
         if (sexual.isNotEmpty() && secrets.isNotEmpty()) {
             add(
                 CommunicationRiskType.SECRET_KEEPING,
@@ -107,8 +102,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Una amenaza debe ser una frase explícita y repetida en la ventana, o
-        // acompañarse de otra señal fuerte; no usamos la palabra genérica "amenaza".
         if (threats.size >= 2 || (threats.isNotEmpty() && secrets.isNotEmpty())) {
             add(
                 CommunicationRiskType.THREAT,
@@ -118,7 +111,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Hostigamiento repetido desde mensajes entrantes: atención, no acusación.
         val bullyingSources = bullying.groupBy { it.observation.sourcePackage }
         if (bullying.size >= 3 || bullyingSources.any { it.value.size >= 2 }) {
             add(
@@ -129,8 +121,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Para autolesión, una expresión aislada genera señal interna pero no
-        // incidente: exigimos repetición o contexto para elevarla aquí.
         if (selfHarm.size >= 2 || (selfHarm.isNotEmpty() && threats.isNotEmpty())) {
             add(
                 CommunicationRiskType.SELF_HARM,
@@ -140,7 +130,6 @@ object CommunicationSignalDetector {
             )
         }
 
-        // Secretismo repetido junto con una propuesta de encuentro también eleva contexto.
         if (secrets.size >= 2 && meetings.isNotEmpty()) {
             add(
                 CommunicationRiskType.SECRET_KEEPING,
@@ -181,7 +170,7 @@ object CommunicationSignalDetector {
         "direccion", "donde vives", "colegio", "instituto", "ubicacion", "telefono", "numero de telefono"
     )
     private val SECRECY = listOf(
-        "no se lo digas", "que quede entre nosotros", "en secreto", "no digas nada", "que nadie se entere", "borra el mensaje"
+        "no se lo digas", "que quede entre nosotros", "en secreto", "es nuestro secreto", "no digas nada", "que nadie se entere", "borra el mensaje"
     )
     private val MEETING = listOf(
         "quedamos a solas", "ven a verme", "ven solo", "ven sola", "nos vemos a escondidas", "donde nos vemos", "ven sin tus padres", "te recojo"
