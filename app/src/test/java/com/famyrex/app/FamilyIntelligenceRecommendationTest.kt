@@ -19,57 +19,45 @@ class FamilyIntelligenceRecommendationTest {
 
     @Test
     fun communicationAlertsTakePriority() {
-        val result = FamilyIntelligenceRecommendationEngine.recommend(
-            summary(ParentalStatus.GREEN, alerts = 2),
-            null
-        )
+        val result = FamilyIntelligenceRecommendationEngine.recommend(summary(ParentalStatus.GREEN, alerts = 2), null)
         assertEquals("Revisar comunicaciones", result.title)
+        assertEquals(FamilyIntelligenceRecommendationDestination.ALERTS, result.destination)
     }
 
     @Test
     fun missingDataRecommendsCompletingProtection() {
-        val result = FamilyIntelligenceRecommendationEngine.recommend(
-            summary(ParentalStatus.WHITE, usageAccess = false, accessibilityEnabled = false),
-            null
-        )
+        val result = FamilyIntelligenceRecommendationEngine.recommend(summary(ParentalStatus.WHITE, usageAccess = false, accessibilityEnabled = false), null)
         assertEquals("Completar protección", result.title)
+        assertEquals(FamilyIntelligenceRecommendationDestination.PARENTAL_CONTROL, result.destination)
     }
 
     @Test
     fun redStatusRecommendsReviewingLimit() {
-        val result = FamilyIntelligenceRecommendationEngine.recommend(
-            summary(ParentalStatus.RED),
-            null
-        )
+        val result = FamilyIntelligenceRecommendationEngine.recommend(summary(ParentalStatus.RED), null)
         assertEquals("Revisar el límite", result.title)
+        assertEquals(FamilyIntelligenceRecommendationDestination.PARENTAL_CONTROL, result.destination)
     }
 
     @Test
     fun orangeStatusRecommendsReviewingRoutine() {
-        val result = FamilyIntelligenceRecommendationEngine.recommend(
-            summary(ParentalStatus.ORANGE),
-            null
-        )
+        val result = FamilyIntelligenceRecommendationEngine.recommend(summary(ParentalStatus.ORANGE), null)
         assertEquals("Revisar la rutina", result.title)
+        assertEquals(FamilyIntelligenceRecommendationDestination.PARENTAL_CONTROL, result.destination)
     }
 
     @Test
     fun increasingGreenTrendRecommendsObservation() {
         val trend = FamilyUsageTrendEvaluator.evaluate(listOf(100L, 100L, 150L))
-        val result = FamilyIntelligenceRecommendationEngine.recommend(
-            summary(ParentalStatus.GREEN),
-            trend
-        )
+        val result = FamilyIntelligenceRecommendationEngine.recommend(summary(ParentalStatus.GREEN), trend)
         assertEquals("Observar la evolución", result.title)
+        assertEquals(FamilyIntelligenceRecommendationDestination.OBSERVE, result.destination)
     }
 
     @Test
     fun stableGreenStatusDoesNotInventAProblem() {
         val trend = FamilyUsageTrendEvaluator.evaluate(listOf(100L, 105L, 102L))
-        val result = FamilyIntelligenceRecommendationEngine.recommend(
-            summary(ParentalStatus.GREEN),
-            trend
-        )
+        val result = FamilyIntelligenceRecommendationEngine.recommend(summary(ParentalStatus.GREEN), trend)
         assertEquals("Seguir observando", result.title)
+        assertEquals(FamilyIntelligenceRecommendationDestination.OBSERVE, result.destination)
     }
 }
