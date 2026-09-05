@@ -1,12 +1,12 @@
 package com.famyrex.app
 
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
-/**
- * Compact offline invitation. It contains a family id plus a secret fingerprint.
- * It is intentionally not a network credential and expires quickly.
- */
 data class OfflinePairingToken(
     val familyId: String,
     val secret: String,
@@ -15,6 +15,7 @@ data class OfflinePairingToken(
 
 object OfflinePairingTokenCodec {
     private const val SECRET_BYTES = 16
+    private const val CODE_LENGTH = 6
 
     fun create(familyId: String, now: Long, ttlMinutes: Long = 10): OfflinePairingToken {
         require(familyId.isNotBlank())
@@ -32,12 +33,33 @@ object OfflinePairingTokenCodec {
         val parts = value.trim().split(":")
         if (parts.size != 3) return null
         val expires = parts[2].toLongOrNull() ?: return null
-        if (parts[0].isBlank() || parts[1].length != SECRET_BYTES * 2 || expires <= now) return null
-        return OfflinePairingToken(parts[0], parts[1], expires)
+        if (parts[0].isBlank() || parts[1].length != SECRET_BYTES * 2 ||
+            !parts[1].all { it.isDigit() || it.lowercaseChar() in 'a'..'f' } || expires <= now
+        ) return null
+        return OfflinePairingToken(parts[0], parts[1].lowercase(), expires)
+    }
+
+    fun code(token: OfflinePairingToken): String {
+        val payload = "FAMYREX|${token.familyId}|${token.expiresAtMs}".toByteArray(StandardCharsets.UTF_8)
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(hexToBytes(token.secret), "HmacSHA256"))
+        val digest = mac.doFinal(payload)
+        val value = ByteBuffer.wrap(digest.copyOfRange(0, 4)).int.toLong() and 0x7fffffffL
+        return value.toString().takeLast(CODE_LENGTH).padStart(CODE_LENGTH, '0')
+    }
+
+    fun verify(value: String, expectedCode: String, now: Long): OfflinePairingToken? {
+        val token = decode(value, now) ?: return null
+        val normalized = expectedCode.filter(Char::isDigit)
+        if (normalized.length != CODE_LENGTH) return null
+        return token.takeIf { code(it) == normalized }
     }
 
     fun fingerprint(secret: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(secret.toByteArray())
         return digest.take(6).joinToString("") { "%02x".format(it) }
     }
+
+    private fun hexToBytes(value: String): ByteArray =
+        value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 }
