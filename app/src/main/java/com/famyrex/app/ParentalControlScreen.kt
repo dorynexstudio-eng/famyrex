@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import java.util.Calendar
 
 /** Pantalla de configuración local del control parental de Famyrex. */
 @Composable
@@ -41,7 +42,8 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
     var scheduleError by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
-    val usageAccess = remember { ParentalUsageMonitor(context).hasUsageAccess() }
+    val usageMonitor = remember { ParentalUsageMonitor(context) }
+    val usageAccess = remember { usageMonitor.hasUsageAccess() }
     val accessibilityEnabled = remember { isParentalAccessibilityEnabled(context) }
     val apps = remember {
         context.packageManager.getInstalledApplications(0)
@@ -49,6 +51,22 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
             .sortedBy { context.packageManager.getApplicationLabel(it).toString().lowercase() }
             .take(80)
     }
+    val usageByPackage = remember(usageAccess) {
+        if (!usageAccess) emptyMap() else {
+            usageMonitor.queryUsage(todayStartMs(), System.currentTimeMillis())
+                .groupBy { it.packageName }
+                .mapValues { (_, stats) -> stats.sumOf { it.totalTimeInForeground } }
+        }
+    }
+    val totalUsageMinutes = if (usageAccess) {
+        usageByPackage.values.sum() / 60_000L
+    } else null
+    val overallStatus = ParentalStatusEvaluator.overall(
+        usageAccess = usageAccess,
+        accessibilityEnabled = accessibilityEnabled,
+        totalUsageMinutes = totalUsageMinutes,
+        screenTimeLimit = config.screenTimeLimit
+    )
 
     fun save(next: ParentalControlConfig) {
         store.save(next)
@@ -80,8 +98,20 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Estado de protección", style = MaterialTheme.typography.titleMedium)
-                    Text(if (usageAccess) "🟢 Acceso al uso: activo" else "🟠 Acceso al uso: falta activarlo")
-                    Text(if (accessibilityEnabled) "🟢 Guardia parental: activa" else "🟠 Guardia parental: falta activarla")
+                    Text("${overallStatus.icon} ${overallStatus.label}", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        when (overallStatus) {
+                            ParentalStatus.WHITE -> "Famyrex todavía no tiene todos los datos o permisos necesarios para valorar la protección."
+                            ParentalStatus.RED -> "Se ha alcanzado un límite configurado. Revisa el uso antes de decidir qué hacer."
+                            ParentalStatus.ORANGE -> "El uso se acerca a un límite configurado. Conviene revisarlo."
+                            ParentalStatus.GREEN -> "No se ha alcanzado ningún límite global configurado con los datos disponibles."
+                        }
+                    )
+                    if (totalUsageMinutes != null) {
+                        Text("Uso de pantalla hoy: $totalUsageMinutes min")
+                    }
+                    Text(if (usageAccess) "🟢 Datos de uso disponibles" else "⚪ Datos de uso no disponibles")
+                    Text(if (accessibilityEnabled) "🟢 Guardia parental activa" else "🟠 Guardia parental no activa")
                     if (!usageAccess) Button(onClick = { openUsageSettings(context) }, Modifier.fillMaxWidth()) { Text("Activar acceso al uso") }
                     if (!accessibilityEnabled) Button(onClick = { openAccessibilitySettings(context) }, Modifier.fillMaxWidth()) { Text("Activar guardia parental") }
                     OutlinedButton(onClick = { openUsageSettings(context) }, Modifier.fillMaxWidth()) { Text("Revisar permisos de control") }
@@ -117,13 +147,15 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
 
         item { HorizontalDivider() }
         item { Text("Aplicaciones", style = MaterialTheme.typography.titleLarge) }
-        item { Text("Puedes bloquear una aplicación o asignarle un límite diario independiente.") }
+        item { Text("Puedes bloquear una aplicación o asignarle un límite diario independiente. El estado se basa en el uso real disponible en Android.") }
 
         items(apps, key = { it.packageName }) { app ->
             val restriction = config.appRestrictions.firstOrNull { it.packageName == app.packageName }
             val blocked = restriction?.blocked == true
             val currentLimit = restriction?.dailyMinutes
             val label = context.packageManager.getApplicationLabel(app).toString()
+            val usedMinutes = usageByPackage[app.packageName]?.div(60_000L)
+            val appStatus = ParentalStatusEvaluator.app(usageAccess, usedMinutes, restriction)
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(
                     Modifier.fillMaxWidth().padding(14.dp),
@@ -141,13 +173,16 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
                             updateAppRestriction(app.packageName, currentLimit, enabled)
                         })
                     }
+                    Text("${appStatus.icon} ${appStatus.label}")
                     Text(
                         when {
-                            blocked -> "🚫 Aplicación bloqueada"
-                            currentLimit != null -> "⏱️ Límite diario: $currentLimit min"
-                            else -> "Sin límite específico"
+                            usedMinutes != null && currentLimit != null -> "Uso hoy: $usedMinutes min de $currentLimit min"
+                            usedMinutes != null -> "Uso hoy: $usedMinutes min · Sin límite específico"
+                            !usageAccess -> "Uso hoy: ⚪ sin datos"
+                            else -> "Uso hoy: 0 min"
                         }
                     )
+                    if (blocked) Text("🚫 Aplicación bloqueada")
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
@@ -235,6 +270,13 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
         item { Text("Famyrex no oculta este control: el adulto debe activar explícitamente los permisos de Android y puede revisar la configuración desde el propio dispositivo.") }
     }
 }
+
+private fun todayStartMs(): Long = Calendar.getInstance().apply {
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
 
 private fun parseMinuteOfDay(value: String): Int? {
     val parts = value.trim().split(":")
