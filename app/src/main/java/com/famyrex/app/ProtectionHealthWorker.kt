@@ -24,19 +24,15 @@ class ProtectionHealthWorker(
         val incidentStore = ProtectionIncidentStore(context)
         val previousComponents = incidentStore.loadComponents()
         val currentComponents = ProtectionComponentChecker.check(context)
-        val transitions = ProtectionTransitionEngine.evaluate(
-            previous = previousComponents,
-            current = currentComponents,
-            nowMs = health.checkedAtMs
-        )
+        val transitions = ProtectionTransitionEngine.evaluate(previousComponents, currentComponents, health.checkedAtMs)
 
         transitions.forEach { event ->
             val critical = event.component.key == "notifications" ||
                 (event.component.key == "location" && FamilyZoneStore(context).load().any { it.enabled }) ||
                 event.component.key == "geofences"
 
-            when (event.kind) {
-                ProtectionTransition.Kind.DEGRADED -> {
+            when (event.transition) {
+                ProtectionTransition.DEGRADED -> {
                     incidentStore.markDegraded(event.component.key, event.sinceMs)
                     val since = incidentStore.degradedSince(event.component.key) ?: event.sinceMs
                     val alert = SmartAlert(
@@ -49,7 +45,7 @@ class ProtectionHealthWorker(
                     )
                     if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
                 }
-                ProtectionTransition.Kind.RESTORED -> {
+                ProtectionTransition.RESTORED -> {
                     val since = incidentStore.degradedSince(event.component.key)
                     val duration = since?.let { formatDuration(event.sinceMs - it) }
                     val alert = SmartAlert(
@@ -57,11 +53,7 @@ class ProtectionHealthWorker(
                         type = AlertType.PROTECTION_RESTORED,
                         severity = AlertSeverity.INFO,
                         title = "Protección restablecida: ${event.component.name}",
-                        message = if (duration != null) {
-                            "Famyrex vuelve a disponer de esta función. La incidencia duró aproximadamente $duration."
-                        } else {
-                            "Famyrex vuelve a disponer de esta función de protección."
-                        },
+                        message = if (duration != null) "Famyrex vuelve a disponer de esta función. La incidencia duró aproximadamente $duration." else "Famyrex vuelve a disponer de esta función de protección.",
                         date = now()
                     )
                     incidentStore.clearDegraded(event.component.key)
@@ -71,8 +63,7 @@ class ProtectionHealthWorker(
         }
         incidentStore.saveComponents(currentComponents)
 
-        if (previousHealth != null && !previousHealth.active && health.active &&
-            transitions.none { it.kind == ProtectionTransition.Kind.RESTORED }) {
+        if (previousHealth != null && !previousHealth.active && health.active && transitions.none { it.transition == ProtectionTransition.RESTORED }) {
             val alert = SmartAlert(
                 "protection_restored_global_${health.checkedAtMs}", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO,
                 "Protección restablecida", "Famyrex vuelve a disponer de las funciones de protección comprobadas.", now()
@@ -80,7 +71,6 @@ class ProtectionHealthWorker(
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
-        // Correlacionamos las señales técnicas antes de alertar para reducir falsos positivos.
         val evasionSignals = EvasionSignalChecker.check(context)
         val evasion = EvasionRiskEngine.evaluate(evasionSignals)
         if (evasionSignals.isNotEmpty()) {
@@ -97,12 +87,10 @@ class ProtectionHealthWorker(
         }
 
         val history = UsageSnapshotStore(context).loadHistory()
-        val behaviorAlerts = BehaviorPatternEngine.evaluate(history)
-        behaviorAlerts.forEach { alert ->
+        BehaviorPatternEngine.evaluate(history).forEach { alert ->
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
-        // Bienestar: solo eleva una señal cuando la tendencia es sostenida; no diagnostica ni acusa.
         val wellbeing = WellbeingTrendEngine.evaluate(history)
         if (wellbeing != null && wellbeing.score >= 35) {
             val alert = SmartAlert(
@@ -120,10 +108,7 @@ class ProtectionHealthWorker(
     }.getOrElse { Result.retry() }
 
     private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
-
-    private fun formatTime(timestampMs: Long): String =
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMs))
-
+    private fun formatTime(timestampMs: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMs))
     private fun formatDuration(durationMs: Long): String {
         val minutes = (durationMs / 60_000L).coerceAtLeast(0L)
         return when {
