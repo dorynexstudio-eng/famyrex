@@ -1,12 +1,13 @@
 package com.famyrex.app
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -23,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun FamyrexAlertsScreen(context: android.content.Context, modifier: Modifier = Modifier) {
+fun FamyrexAlertsScreen(context: Context, modifier: Modifier = Modifier) {
     val vm: AlertsViewModel = viewModel(factory = remember { AlertsViewModelFactory(context) })
     val alerts by vm.alerts.collectAsState()
 
@@ -44,7 +45,17 @@ fun FamyrexAlertsScreen(context: android.content.Context, modifier: Modifier = M
             }
         }
         items(alerts, key = { it.id }) { alert ->
-            AlertLifecycleCard(alert, onStatus = { status -> vm.updateStatus(alert, status) })
+            val incident = remember(alert.id, alert.lifecycleStatus) {
+                if (alert.type == AlertType.COMMUNICATION_RISK) {
+                    val incidentId = alert.id.removePrefix("communication_risk_")
+                    CommunicationRiskIncidentStore(context).load().firstOrNull { it.id == incidentId }
+                } else null
+            }
+            AlertLifecycleCard(
+                alert = alert,
+                incident = incident,
+                onStatus = { status -> vm.updateStatus(alert, status) }
+            )
         }
         item {
             OutlinedButton(onClick = vm::refresh, Modifier.fillMaxWidth()) { Text("Actualizar") }
@@ -53,17 +64,30 @@ fun FamyrexAlertsScreen(context: android.content.Context, modifier: Modifier = M
 }
 
 @Composable
-private fun AlertLifecycleCard(alert: SmartAlert, onStatus: (AlertLifecycleStatus) -> Unit) {
+private fun AlertLifecycleCard(
+    alert: SmartAlert,
+    incident: CommunicationRiskIncident?,
+    onStatus: (AlertLifecycleStatus) -> Unit
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(alert.title, style = MaterialTheme.typography.titleMedium)
-            Text("${alert.severity.name} · ${alert.lifecycleStatus.displayName()}")
-            Spacer(Modifier.height(6.dp))
+            Text("${alert.severity.displayName()} · ${alert.lifecycleStatus.displayName()}")
+            Spacer(Modifier.height(8.dp))
+
+            if (incident != null) {
+                CommunicationRiskDetails(incident)
+                Spacer(Modifier.height(8.dp))
+            }
+
             Text(alert.message)
             Spacer(Modifier.height(6.dp))
             Text(alert.date, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 if (alert.lifecycleStatus == AlertLifecycleStatus.DETECTED) {
                     Button(onClick = { onStatus(AlertLifecycleStatus.REVIEWED) }) { Text("Revisada") }
                     OutlinedButton(onClick = { onStatus(AlertLifecycleStatus.DISMISSED) }) { Text("Falso positivo") }
@@ -80,6 +104,47 @@ private fun AlertLifecycleCard(alert: SmartAlert, onStatus: (AlertLifecycleStatu
     }
 }
 
+@Composable
+private fun CommunicationRiskDetails(incident: CommunicationRiskIncident) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Detalle de la señal", style = MaterialTheme.typography.labelLarge)
+        Text("Gravedad: ${incident.score}/100 · ${incident.score.severityLabel()}")
+        Text("Confianza: ${incident.confidence.displayName()}")
+        Text("Dirección: ${incident.direction.displayName()}")
+        Text("Estado: ${incident.status.displayName()}")
+        Text("Evolución: ${incident.evolutionLabel()}")
+        Text("Señales relacionadas: ${incident.reasons.size}")
+        Text("No se muestra ni se guarda la conversación completa.", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+private fun AlertSeverity.displayName(): String = when (this) {
+    AlertSeverity.INFO -> "Información"
+    AlertSeverity.ATTENTION -> "Atención"
+    AlertSeverity.IMPORTANT -> "Importante"
+}
+
+private fun RiskConfidence.displayName(): String = when (this) {
+    RiskConfidence.LOW -> "Baja"
+    RiskConfidence.MEDIUM -> "Media"
+    RiskConfidence.HIGH -> "Alta"
+}
+
+private fun CommunicationDirection.displayName(): String = when (this) {
+    CommunicationDirection.INCOMING -> "Recibido"
+    CommunicationDirection.OUTGOING -> "Enviado desde el dispositivo"
+    CommunicationDirection.UNKNOWN -> "No determinada"
+}
+
+private fun RiskIncidentStatus.displayName(): String = when (this) {
+    RiskIncidentStatus.DETECTED -> "Detectada"
+    RiskIncidentStatus.REVIEWED -> "Revisada"
+    RiskIncidentStatus.CONFIRMED -> "Confirmada"
+    RiskIncidentStatus.DISMISSED -> "Descartada"
+    RiskIncidentStatus.AUTO_DISMISSED -> "Cerrada automáticamente"
+    RiskIncidentStatus.RESOLVED -> "Resuelta"
+}
+
 private fun AlertLifecycleStatus.displayName(): String = when (this) {
     AlertLifecycleStatus.DETECTED -> "Detectada"
     AlertLifecycleStatus.REVIEWED -> "Revisada"
@@ -87,4 +152,23 @@ private fun AlertLifecycleStatus.displayName(): String = when (this) {
     AlertLifecycleStatus.DISMISSED -> "Descartada por el adulto"
     AlertLifecycleStatus.AUTO_DISMISSED -> "Cerrada automáticamente"
     AlertLifecycleStatus.RESOLVED -> "Resuelta"
+}
+
+private fun Int.severityLabel(): String = when {
+    this >= 85 -> "alta"
+    this >= 70 -> "moderada-alta"
+    else -> "moderada"
+}
+
+private fun CommunicationRiskIncident.evolutionLabel(): String = when {
+    type == CommunicationRiskType.SELF_HARM && confidence == RiskConfidence.HIGH ->
+        "Intervención prioritaria"
+    type == CommunicationRiskType.SEXUAL_REQUEST && confidence == RiskConfidence.HIGH ->
+        "Intervención prioritaria"
+    reasons.size >= 3 && confidence == RiskConfidence.HIGH ->
+        "Escalada: varias señales relacionadas"
+    reasons.size >= 2 ->
+        "Acumulación de varias señales relacionadas"
+    else ->
+        "Señal temprana; observar evolución"
 }
