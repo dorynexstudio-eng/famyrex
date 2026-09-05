@@ -38,6 +38,30 @@ class AlertStore(context: Context) {
         return true
     }
 
+    /**
+     * Merges a detector refresh into the existing alert history by id.
+     * Alerts produced by other detectors are never discarded.
+     * Existing lifecycle status is preserved when an alert is refreshed.
+     */
+    fun mergeById(incoming: List<SmartAlert>) {
+        if (incoming.isEmpty()) return
+
+        val current = load()
+        val incomingById = incoming.associateBy { it.id }
+        val merged = current.map { existing ->
+            incomingById[existing.id]?.let { refreshed ->
+                refreshed.copy(lifecycleStatus = existing.lifecycleStatus)
+            } ?: existing
+        }.toMutableList()
+
+        val existingIds = current.mapTo(hashSetOf()) { it.id }
+        incoming.forEach { alert ->
+            if (alert.id !in existingIds) merged.add(0, alert)
+        }
+
+        save(merged)
+    }
+
     fun load(): List<SmartAlert> {
         val raw = prefs.getString("alerts", null) ?: return emptyList()
         return runCatching {
