@@ -7,7 +7,7 @@ enum class FamilyIntelligenceRecommendationDestination {
     OBSERVE
 }
 
-/** Recomendaciones deterministas basadas solo en señales observadas por Famyrex. */
+/** Recomendación adaptada a la navegación del Centro de inteligencia. */
 data class FamilyIntelligenceRecommendation(
     val title: String,
     val action: String,
@@ -15,7 +15,62 @@ data class FamilyIntelligenceRecommendation(
 )
 
 object FamilyIntelligenceRecommendationEngine {
+    /**
+     * Adaptador de compatibilidad para las llamadas existentes del Centro de inteligencia.
+     * La lógica nueva se alimenta de las alertas cuando están disponibles.
+     */
     fun recommend(
+        summary: FamilyIntelligenceSummary,
+        trend: FamilyUsageTrend?
+    ): FamilyIntelligenceRecommendation =
+        legacyRecommend(summary, trend)
+
+    /**
+     * Conecta el Centro de inteligencia con RecommendationEngine, que es la fuente única
+     * de recomendaciones derivadas de alertas locales y ya priorizadas por importancia.
+     */
+    fun recommend(
+        summary: FamilyIntelligenceSummary,
+        trend: FamilyUsageTrend?,
+        alerts: List<SmartAlert>
+    ): FamilyIntelligenceRecommendation {
+        val recommendation = RecommendationEngine.evaluate(alerts).firstOrNull()
+        if (recommendation != null) {
+            return FamilyIntelligenceRecommendation(
+                title = recommendation.title,
+                action = recommendation.message,
+                destination = destinationFor(recommendation, alerts)
+            )
+        }
+        return legacyRecommend(summary, trend)
+    }
+
+    private fun destinationFor(
+        recommendation: FamilyRecommendation,
+        alerts: List<SmartAlert>
+    ): FamilyIntelligenceRecommendationDestination {
+        val alert = recommendation.alertId?.let { id -> alerts.firstOrNull { it.id == id } }
+        return when (alert?.type) {
+            AlertType.NIGHT_USE,
+            AlertType.DAILY_LIMIT,
+            AlertType.EVASION_SIGNAL,
+            AlertType.PROTECTION_DEGRADED -> FamilyIntelligenceRecommendationDestination.PARENTAL_CONTROL
+            AlertType.COMMUNICATION_RISK,
+            AlertType.APP_SPIKE,
+            AlertType.PATTERN_CHANGE,
+            AlertType.PROTECTION_RESTORED,
+            AlertType.GEOFENCE_ENTER,
+            AlertType.GEOFENCE_EXIT,
+            AlertType.APP_INSTALLED,
+            AlertType.APP_UNINSTALLED -> FamilyIntelligenceRecommendationDestination.ALERTS
+            null -> when (recommendation.action) {
+                RecommendationAction.OBSERVE -> FamilyIntelligenceRecommendationDestination.OBSERVE
+                else -> FamilyIntelligenceRecommendationDestination.ALERTS
+            }
+        }
+    }
+
+    private fun legacyRecommend(
         summary: FamilyIntelligenceSummary,
         trend: FamilyUsageTrend?
     ): FamilyIntelligenceRecommendation {
