@@ -14,6 +14,7 @@ class ProtectionHealthWorker(
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
         GeofenceBootstrap.sync(context)
+        InstalledAppsReconciler.reconcile(context)
 
         val store = ProtectionHealthStore(context)
         val previous = store.load()
