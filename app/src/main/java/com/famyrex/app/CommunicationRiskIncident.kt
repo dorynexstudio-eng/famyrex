@@ -12,6 +12,11 @@ data class RiskReason(
     val detail: String
 )
 
+data class RiskIncidentStatusChange(
+    val status: RiskIncidentStatus,
+    val timestampMs: Long
+)
+
 data class CommunicationRiskIncident(
     val id: String,
     val createdAtMs: Long,
@@ -21,7 +26,8 @@ data class CommunicationRiskIncident(
     val reasons: List<RiskReason>,
     val sourcePackage: String?,
     val direction: CommunicationDirection = CommunicationDirection.UNKNOWN,
-    val status: RiskIncidentStatus = RiskIncidentStatus.DETECTED
+    val status: RiskIncidentStatus = RiskIncidentStatus.DETECTED,
+    val statusHistory: List<RiskIncidentStatusChange> = emptyList()
 )
 
 class CommunicationRiskIncidentStore(context: Context) {
@@ -49,6 +55,14 @@ class CommunicationRiskIncidentStore(context: Context) {
                         })
                     }
                 })
+                put("statusHistory", JSONArray().apply {
+                    item.statusHistory.forEach { change ->
+                        put(JSONObject().apply {
+                            put("status", change.status.name)
+                            put("timestampMs", change.timestampMs)
+                        })
+                    }
+                })
             })
         }
         prefs.edit().putString("items", array.toString()).apply()
@@ -56,7 +70,11 @@ class CommunicationRiskIncidentStore(context: Context) {
 
     fun updateStatus(id: String, status: RiskIncidentStatus): Boolean {
         val item = load().firstOrNull { it.id == id } ?: return false
-        save(item.copy(status = status))
+        if (item.status == status) return true
+
+        val now = System.currentTimeMillis()
+        val history = item.statusHistory + RiskIncidentStatusChange(status, now)
+        save(item.copy(status = status, statusHistory = history.takeLast(20)))
         return true
     }
 
@@ -74,6 +92,20 @@ class CommunicationRiskIncidentStore(context: Context) {
                             add(RiskReason(r.getString("code"), r.getString("title"), r.getString("detail")))
                         }
                     }
+                    val historyJson = o.optJSONArray("statusHistory") ?: JSONArray()
+                    val history = buildList {
+                        for (j in 0 until historyJson.length()) {
+                            val h = historyJson.getJSONObject(j)
+                            runCatching {
+                                add(
+                                    RiskIncidentStatusChange(
+                                        status = RiskIncidentStatus.valueOf(h.getString("status")),
+                                        timestampMs = h.getLong("timestampMs")
+                                    )
+                                )
+                            }
+                        }
+                    }
                     add(
                         CommunicationRiskIncident(
                             id = o.getString("id"),
@@ -86,7 +118,8 @@ class CommunicationRiskIncidentStore(context: Context) {
                             direction = runCatching { CommunicationDirection.valueOf(o.optString("direction")) }
                                 .getOrDefault(CommunicationDirection.UNKNOWN),
                             status = runCatching { RiskIncidentStatus.valueOf(o.optString("status")) }
-                                .getOrDefault(RiskIncidentStatus.DETECTED)
+                                .getOrDefault(RiskIncidentStatus.DETECTED),
+                            statusHistory = history
                         )
                     )
                 }
