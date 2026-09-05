@@ -28,4 +28,16 @@ class CommunicationNotificationDeduplicatorTest {
         assertTrue(deduplicator.shouldProcess("key", "messaging.a", "hola"))
         assertTrue(deduplicator.shouldProcess("key", "messaging.b", "hola"))
     }
+
+    @Test
+    fun `clear allows same notification to be processed again`() {
+        val deduplicator = CommunicationNotificationDeduplicator()
+
+        assertTrue(deduplicator.shouldProcess("key", "messaging.a", "hola"))
+        assertFalse(deduplicator.shouldProcess("key", "messaging.a", "hola"))
+
+        deduplicator.clear()
+
+        assertTrue(deduplicator.shouldProcess("key", "messaging.a", "hola"))
+    }
 }
