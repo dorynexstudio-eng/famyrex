@@ -8,8 +8,11 @@ data class FamilyIntelligenceSummary(
     val protectionReady: Boolean,
     val reasons: List<String>
 ) {
+    /** Requiere atención si hay un riesgo observado o si la protección aún no puede evaluarse por completo. */
     val actionRequired: Boolean
-        get() = parentalStatus == ParentalStatus.RED || communicationAlertCount > 0
+        get() = parentalStatus == ParentalStatus.RED ||
+            communicationAlertCount > 0 ||
+            !protectionReady
 }
 
 /**
