@@ -2,7 +2,6 @@ package com.famyrex.app
 
 import java.util.Calendar
 
-/** Resultado de evaluar las reglas parentales contra el uso actual. */
 data class ParentalRestrictionResult(
     val restricted: Boolean,
     val reasons: List<String>
@@ -12,7 +11,8 @@ object ParentalPolicyEngine {
     fun evaluate(
         config: ParentalControlConfig,
         packageName: String,
-        usedTodayMinutes: Long,
+        appUsedTodayMinutes: Long,
+        totalScreenTodayMinutes: Long = appUsedTodayMinutes,
         nowMs: Long = System.currentTimeMillis()
     ): ParentalRestrictionResult {
         val reasons = mutableListOf<String>()
@@ -20,14 +20,14 @@ object ParentalPolicyEngine {
         val minuteOfDay = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
 
         config.screenTimeLimit?.takeIf { it.enabled }?.let { limit ->
-            if (usedTodayMinutes >= limit.dailyMinutes) {
+            if (totalScreenTodayMinutes >= limit.dailyMinutes) {
                 reasons += "Se ha alcanzado el límite diario de pantalla."
             }
         }
 
         config.appRestrictions.firstOrNull { it.packageName == packageName }?.let { restriction ->
             if (restriction.blocked) reasons += "La aplicación está bloqueada por la configuración familiar."
-            if (restriction.dailyMinutes != null && usedTodayMinutes >= restriction.dailyMinutes) {
+            if (restriction.dailyMinutes != null && appUsedTodayMinutes >= restriction.dailyMinutes) {
                 reasons += "Se ha alcanzado el límite diario configurado para esta aplicación."
             }
         }
