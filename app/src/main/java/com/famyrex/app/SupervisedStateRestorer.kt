@@ -12,7 +12,10 @@ object SupervisedStateRestorer {
     fun restore(store: FamilyStore): Boolean {
         val identity = store.verifiedFamilyIdentity()
         val linked = store.devices().any { it.linkState == DeviceLinkState.LINKED }
-        if (!isRestorable(identity, linked)) return false
+        if (!isRestorable(identity, linked)) {
+            store.clearVerifiedFamilyIdentity()
+            return false
+        }
         store.setAppMode(FamyrexAppMode.SUPERVISED)
         return true
     }
