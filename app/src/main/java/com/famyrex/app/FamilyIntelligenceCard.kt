@@ -44,6 +44,7 @@ fun FamilyIntelligenceCard(
     val lifecycleOwner = LocalLifecycleOwner.current
     var summary by remember { mutableStateOf<FamilyIntelligenceSummary?>(null) }
     var trend by remember { mutableStateOf<FamilyUsageTrend?>(null) }
+    var alerts by remember { mutableStateOf<List<SmartAlert>>(emptyList()) }
 
     fun refresh() {
         val usageMonitor = ParentalUsageMonitor(context)
@@ -56,7 +57,9 @@ fun FamilyIntelligenceCard(
         } else null
         val screenLimit = ParentalControlStore(context).load().screenTimeLimit
         val parentalStatus = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, screenLimit)
-        val communicationAlertCount = AlertStore(context).load().count { alert ->
+        val currentAlerts = AlertStore(context).load()
+        alerts = currentAlerts
+        val communicationAlertCount = currentAlerts.count { alert ->
             alert.type == AlertType.COMMUNICATION_RISK && alert.lifecycleStatus !in setOf(
                 AlertLifecycleStatus.DISMISSED,
                 AlertLifecycleStatus.AUTO_DISMISSED,
@@ -83,7 +86,7 @@ fun FamilyIntelligenceCard(
 
     val current = summary ?: return
     val status = current.parentalStatus
-    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(current, trend)
+    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(current, trend, alerts)
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
