@@ -12,17 +12,22 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 @Composable
 fun RiskCard(context: Context, modifier: Modifier = Modifier) {
     var assessment by remember { mutableStateOf<RiskAssessment?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     fun refresh() {
         val alerts = AlertStore(context).load()
@@ -31,6 +36,14 @@ fun RiskCard(context: Context, modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(Unit) { refresh() }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
