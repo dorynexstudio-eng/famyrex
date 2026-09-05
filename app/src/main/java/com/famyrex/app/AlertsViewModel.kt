@@ -11,10 +11,15 @@ class AlertsViewModel(private val context: Context) : ViewModel() {
     private val _alerts = MutableStateFlow<List<SmartAlert>>(emptyList())
     val alerts: StateFlow<List<SmartAlert>> = _alerts.asStateFlow()
 
+    private val _recommendations = MutableStateFlow<List<FamilyRecommendation>>(emptyList())
+    val recommendations: StateFlow<List<FamilyRecommendation>> = _recommendations.asStateFlow()
+
     init { refresh() }
 
     fun refresh() {
-        _alerts.value = AlertStore(context).load()
+        val loadedAlerts = AlertStore(context).load()
+        _alerts.value = loadedAlerts
+        _recommendations.value = RecommendationEngine.evaluate(loadedAlerts)
     }
 
     fun updateStatus(alert: SmartAlert, status: AlertLifecycleStatus) {
