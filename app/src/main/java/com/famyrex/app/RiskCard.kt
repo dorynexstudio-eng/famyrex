@@ -94,5 +94,6 @@ fun RiskCard(context: Context, modifier: Modifier = Modifier) {
 
         DeviceSecurityCard(context)
         WellbeingCard(context)
+        DailyReportCard(context)
     }
 }
