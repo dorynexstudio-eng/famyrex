@@ -61,17 +61,20 @@ class CommunicationSignalDetectorTest {
             obs(2 * 60 * 1000L, "nadie te quiere", incoming = true)
         ))
         assertTrue(summary.signals.any { it.type == CommunicationRiskType.BULLYING })
+        assertTrue(summary.signals.any { it.direction == CommunicationDirection.INCOMING })
         assertTrue(!summary.shouldAlert)
     }
 
     @Test
-    fun `outgoing hostile language is not mislabeled as incoming bullying`() {
+    fun `outgoing hostile language produces an outgoing signal`() {
         val summary = CommunicationSignalDetector.detect(listOf(
             obs(0, "eres un inútil", incoming = false),
             obs(60 * 1000L, "das asco", incoming = false),
             obs(2 * 60 * 1000L, "nadie te quiere", incoming = false)
         ))
-        assertTrue(summary.signals.none { it.type == CommunicationRiskType.BULLYING })
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.BULLYING })
+        assertTrue(summary.signals.any { it.direction == CommunicationDirection.OUTGOING })
+        assertTrue(summary.signals.none { it.direction == CommunicationDirection.INCOMING })
         assertTrue(!summary.shouldAlert)
     }
 
@@ -82,7 +85,8 @@ class CommunicationSignalDetectorTest {
             obs(60 * 1000L, "das asco", incoming = false),
             obs(2 * 60 * 1000L, "nadie te quiere", incoming = true)
         ))
-        assertTrue(summary.signals.any { it.type == CommunicationRiskType.BULLYING })
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.BULLYING && it.direction == CommunicationDirection.INCOMING })
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.BULLYING && it.direction == CommunicationDirection.OUTGOING })
     }
 
     @Test
