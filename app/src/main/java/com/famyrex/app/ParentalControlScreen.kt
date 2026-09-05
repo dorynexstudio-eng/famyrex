@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,12 +28,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.util.Calendar
 
 /** Pantalla de configuración local del control parental de Famyrex. */
 @Composable
 fun ParentalControlScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val store = remember { ParentalControlStore(context) }
     var config by remember { mutableStateOf(store.load()) }
     var screenLimitEnabled by remember { mutableStateOf(config.screenTimeLimit?.enabled == true) }
@@ -41,17 +46,26 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
     var scheduleEnd by remember { mutableStateOf("07:00") }
     var scheduleError by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
+    var refreshToken by remember { mutableStateOf(0) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshToken++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val usageMonitor = remember { ParentalUsageMonitor(context) }
-    val usageAccess = remember { usageMonitor.hasUsageAccess() }
-    val accessibilityEnabled = remember { isParentalAccessibilityEnabled(context) }
+    val usageAccess = remember(refreshToken) { usageMonitor.hasUsageAccess() }
+    val accessibilityEnabled = remember(refreshToken) { isParentalAccessibilityEnabled(context) }
     val apps = remember {
         context.packageManager.getInstalledApplications(0)
             .filter { it.packageName != context.packageName }
             .sortedBy { context.packageManager.getApplicationLabel(it).toString().lowercase() }
             .take(80)
     }
-    val usageByPackage = remember(usageAccess) {
+    val usageByPackage = remember(usageAccess, refreshToken) {
         if (!usageAccess) emptyMap() else {
             usageMonitor.queryUsage(todayStartMs(), System.currentTimeMillis())
                 .groupBy { it.packageName }
