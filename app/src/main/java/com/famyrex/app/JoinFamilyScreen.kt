@@ -26,9 +26,30 @@ fun JoinFamilyScreen(
     onJoined: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
+    val existingIdentity = remember { store.verifiedFamilyIdentity() }
     var invitation by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
+
+    if (existingIdentity != null) {
+        Column(
+            modifier = modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Dispositivo vinculado", style = MaterialTheme.typography.headlineMedium)
+            Text("Este dispositivo ya pertenece a una familia Famyrex.")
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Familia: ${existingIdentity.familyId.take(12)}…")
+                    Text("Huella: ${existingIdentity.fingerprint}")
+                    Text("Vinculación local conservada tras reiniciar la aplicación.")
+                    Text("No es necesario introducir de nuevo la invitación mientras esta vinculación permanezca guardada en el dispositivo.")
+                }
+            }
+            Button(onClick = onJoined, modifier = Modifier.fillMaxWidth()) { Text("Continuar") }
+        }
+        return
+    }
 
     fun join() {
         val token = OfflinePairingTokenCodec.verify(invitation, code, System.currentTimeMillis())
@@ -40,17 +61,15 @@ fun JoinFamilyScreen(
         val child = store.profiles().firstOrNull { it.role == FamilyRole.CHILD }
             ?: store.addChild(
                 "Dispositivo supervisado",
-                store.profiles()
-                    .filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }
-                    .map { it.id }
+                store.profiles().filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }.map { it.id }
             )
-        val pending = store.devices().firstOrNull {
-            it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id
-        } ?: store.addDevice("Este dispositivo", child.id)
+        val pending = store.devices().firstOrNull { it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id }
+            ?: store.addDevice("Este dispositivo", child.id)
 
+        store.saveVerifiedFamilyIdentity(token.familyId, token.secret, OfflinePairingTokenCodec.fingerprint(token.secret))
         store.setDeviceState(pending.id, DeviceLinkState.LINKED)
         store.setAppMode(FamyrexAppMode.SUPERVISED)
-        message = "Invitación verificada para la familia ${token.familyId.take(12)}… Dispositivo vinculado y modo supervisado activado."
+        message = "Familia ${token.familyId.take(12)}… verificada y guardada en este dispositivo."
         onJoined()
     }
 
@@ -62,28 +81,12 @@ fun JoinFamilyScreen(
         Text("El adulto autorizado debe darte la clave de invitación y el código de 6 dígitos. Ambos se verifican localmente, sin enviar datos a ningún servidor.")
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = invitation,
-                    onValueChange = { invitation = it.trim() },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Clave de invitación") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = code,
-                    onValueChange = { code = it.filter(Char::isDigit).take(6) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Código de 6 dígitos") },
-                    singleLine = true
-                )
-                Button(
-                    enabled = invitation.isNotBlank() && code.length == 6,
-                    onClick = ::join,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Verificar y vincular") }
+                OutlinedTextField(invitation, { invitation = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Clave de invitación") }, singleLine = true)
+                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.fillMaxWidth(), label = { Text("Código de 6 dígitos") }, singleLine = true)
+                Button(enabled = invitation.isNotBlank() && code.length == 6, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text("Verificar y vincular") }
                 if (message.isNotBlank()) Text(message)
             }
         }
-        Text("Privacidad: la invitación se intercambia manualmente y se verifica completamente en este dispositivo. La supervisión es explícita y visible.")
+        Text("Privacidad: la invitación se intercambia manualmente y se verifica completamente en este dispositivo. La vinculación queda almacenada localmente.")
     }
 }
