@@ -18,13 +18,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
@@ -47,6 +49,7 @@ data class WellbeingCardState(
 fun WellbeingCard(context: Context) {
     var state by remember { mutableStateOf(WellbeingCardState(null, null, WellbeingStatus.UNKNOWN, 0)) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
     suspend fun refresh() {
         state = withContext(Dispatchers.IO) {
@@ -68,15 +71,16 @@ fun WellbeingCard(context: Context) {
                 null
             }
             val trend = WellbeingTrendEngine.evaluate(history)
+            val trendScore = trend?.score ?: 0
 
             val status = when {
                 assessment == null -> WellbeingStatus.UNKNOWN
                 assessment.todayMinutes >= assessment.goalMinutes * 1.25 -> WellbeingStatus.CONCERN
-                trend?.score ?: 0 >= 70 -> WellbeingStatus.CONCERN
+                trendScore >= 70 -> WellbeingStatus.CONCERN
                 assessment.nightMinutes >= 30L -> WellbeingStatus.ATTENTION
                 assessment.todayMinutes >= assessment.goalMinutes -> WellbeingStatus.ATTENTION
                 assessment.breakCount == 0 && intervals.size >= 4 -> WellbeingStatus.ATTENTION
-                trend?.score ?: 0 >= 35 -> WellbeingStatus.ATTENTION
+                trendScore >= 35 -> WellbeingStatus.ATTENTION
                 else -> WellbeingStatus.OK
             }
 
@@ -89,7 +93,7 @@ fun WellbeingCard(context: Context) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                kotlinx.coroutines.MainScope().launch { refresh() }
+                scope.launch { refresh() }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
