@@ -59,6 +59,7 @@ fun FamyrexApp(context: Context) {
     var tab by remember { mutableIntStateOf(0) }
     var family by remember { mutableStateOf(loadFamily(prefs)) }
     var zones by remember { mutableStateOf(loadZones(prefs)) }
+    var parentalControlOpen by remember { mutableStateOf(false) }
     MaterialTheme {
         Scaffold(
             topBar = { TopAppBar(title = { Text("Famyrex") }) },
@@ -66,7 +67,7 @@ fun FamyrexApp(context: Context) {
                 NavigationBar {
                     NavigationBarItem(tab == 0, { tab = 0 }, icon = {}, label = { Text("Inicio") })
                     NavigationBarItem(tab == 1, { tab = 1 }, icon = {}, label = { Text("Alertas") })
-                    NavigationBarItem(tab == 2, { tab = 2 }, icon = {}, label = { Text("Familia") })
+                    NavigationBarItem(tab == 2, { tab = 2; parentalControlOpen = false }, icon = {}, label = { Text("Familia") })
                     NavigationBarItem(tab == 3, { tab = 3 }, icon = {}, label = { Text("Ubicación") })
                     NavigationBarItem(tab == 4, { tab = 4 }, icon = {}, label = { Text("Asistente") })
                 }
@@ -75,7 +76,21 @@ fun FamyrexApp(context: Context) {
             when (tab) {
                 0 -> Dashboard(context, family, Modifier.padding(padding))
                 1 -> RealAlertsScreen(context, Modifier.padding(padding))
-                2 -> FamilyCoreScreen(context, Modifier.padding(padding))
+                2 -> if (parentalControlOpen) {
+                    ParentalControlScreen(
+                        context = context,
+                        modifier = Modifier.padding(padding),
+                        onBack = { parentalControlOpen = false }
+                    )
+                } else {
+                    FamilyCoreScreen(
+                        context = context,
+                        family = family,
+                        onSave = { family = it; saveFamily(prefs, it) },
+                        onOpenParentalControl = { parentalControlOpen = true },
+                        modifier = Modifier.padding(padding)
+                    )
+                }
                 3 -> LocationScreen(context, zones, { updated -> zones = updated; saveZones(prefs, updated) }, Modifier.padding(padding))
                 else -> FamilyAssistantScreen(context, Modifier.padding(padding))
             }
@@ -188,7 +203,13 @@ fun RealAlertsScreen(context: Context, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FamilyScreen(family: FamilyState, onSave: (FamilyState) -> Unit, modifier: Modifier = Modifier) {
+fun FamilyCoreScreen(
+    context: Context,
+    family: FamilyState,
+    onSave: (FamilyState) -> Unit,
+    onOpenParentalControl: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val localContext = LocalContext.current
     var parent by remember(family.parent) { mutableStateOf(family.parent) }
     var child by remember(family.child) { mutableStateOf(family.child) }
@@ -203,6 +224,19 @@ fun FamilyScreen(family: FamilyState, onSave: (FamilyState) -> Unit, modifier: M
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(code, { code = it.uppercase().take(8) }, Modifier.weight(1f), label = { Text("Código de vinculación") }); OutlinedButton(onClick = { code = randomCode(); message = "Código generado. Compártelo únicamente con la persona autorizada." }) { Text("Generar") } } }
         item { Button(onClick = { if (parent.isBlank() || child.isBlank() || code.length < 6) message = "Completa los campos y usa un código de 6–8 caracteres." else { onSave(FamilyState(parent.trim(), child.trim(), code)); message = "Familia guardada correctamente." } }, Modifier.fillMaxWidth()) { Text("Guardar configuración") } }
         if (message.isNotBlank()) item { Text(message) }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Control parental", style = MaterialTheme.typography.titleLarge)
+                    Text("Configura tiempo de pantalla, pausas y restricciones de aplicaciones en este dispositivo.")
+                    Button(onClick = onOpenParentalControl, modifier = Modifier.fillMaxWidth()) {
+                        Text("Abrir Control parental")
+                    }
+                }
+            }
+        }
+
         item { HorizontalDivider() }
         item { Text("Supervisión de comunicaciones", style = MaterialTheme.typography.titleMedium) }
         item { Text(if (monitoringEnabled) "🟢 Activada. Famyrex puede analizar localmente señales presentes en notificaciones autorizadas." else "🟠 No activada. Sin este permiso Famyrex no podrá analizar las notificaciones de comunicación.") }
@@ -271,6 +305,7 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
 private fun randomCode(): String = buildString { val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; repeat(8) { append(chars[Random.nextInt(chars.length)]) } }
 
 @Composable
-private fun RiskCard(assessment: RiskAssessment) {
+private fun RiskCard(context: Context) {
+    val assessment = remember(context) { RiskAssessmentEngine(context).evaluate() }
     Card(modifier = Modifier.fillMaxWidth()) { Column(modifier = Modifier.padding(16.dp)) { Text("Nivel de atención"); Text("${assessment.level.name} · ${assessment.score}/100", style = MaterialTheme.typography.titleLarge); assessment.reasons.take(4).forEach { reason -> Text("• $reason") } } }
 }
