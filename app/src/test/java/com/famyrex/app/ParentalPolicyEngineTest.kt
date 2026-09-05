@@ -26,9 +26,9 @@ class ParentalPolicyEngineTest {
         val config = ParentalControlConfig(
             pauseSchedules = listOf(PauseSchedule(22 * 60, 7 * 60))
         )
-        assertTrue(ParentalPolicyEngine.evaluate(config, "com.example", 0, timestamp(23, 0)).restricted)
-        assertTrue(ParentalPolicyEngine.evaluate(config, "com.example", 0, timestamp(6, 0)).restricted)
-        assertFalse(ParentalPolicyEngine.evaluate(config, "com.example", 0, timestamp(12, 0)).restricted)
+        assertTrue(ParentalPolicyEngine.evaluate(config, "com.example", 0, nowMs = timestamp(23, 0)).restricted)
+        assertTrue(ParentalPolicyEngine.evaluate(config, "com.example", 0, nowMs = timestamp(6, 0)).restricted)
+        assertFalse(ParentalPolicyEngine.evaluate(config, "com.example", 0, nowMs = timestamp(12, 0)).restricted)
     }
 
     private fun timestamp(hour: Int, minute: Int): Long =
