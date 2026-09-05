@@ -3,6 +3,7 @@ package com.famyrex.app
 import android.app.usage.UsageStats
 import android.content.Context
 import android.provider.Settings
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +22,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -112,6 +116,7 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
                     FamilyUsageTrendDirection.INSUFFICIENT_DATA -> "⚪ Tendencia: faltan datos"
                 }
                 Text("Tendencia · $trendText", style = MaterialTheme.typography.titleSmall)
+                FamilyUsageWeekChart(usageTrend.days)
                 usageTrend.previousAverageMinutes?.let { average ->
                     Text("Referencia: ${formatFamilyMinutes(average.toLong())} diarios de media en los días anteriores.")
                 } ?: Text("Necesitamos al menos 2 días de datos para comparar la evolución.")
@@ -130,6 +135,49 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
                 Text("• $reason")
             }
         }
+    }
+}
+
+@Composable
+private fun FamilyUsageWeekChart(days: List<Long>) {
+    if (days.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Uso de los últimos 7 días", style = MaterialTheme.typography.labelLarge)
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+        ) {
+            drawFamilyUsageBars(days)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            days.indices.forEach { index ->
+                Text(
+                    if (index == days.lastIndex) "Hoy" else "-${days.lastIndex - index}",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawFamilyUsageBars(days: List<Long>) {
+    val maxMinutes = maxOf(days.maxOrNull() ?: 0L, 1L).toFloat()
+    val slotWidth = size.width / days.size
+    val barWidth = slotWidth * 0.62f
+    val barColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+    days.forEachIndexed { index, minutes ->
+        val height = (minutes.toFloat() / maxMinutes) * size.height
+        val left = index * slotWidth + (slotWidth - barWidth) / 2f
+        drawRoundRect(
+            color = barColor,
+            topLeft = Offset(left, size.height - height),
+            size = Size(barWidth, height.coerceAtLeast(2f)),
+            cornerRadius = CornerRadius(6f, 6f)
+        )
     }
 }
 
