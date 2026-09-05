@@ -133,11 +133,18 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
 
             Spacer(Modifier.height(2.dp))
             Text(
+                FamilyIntelligenceExplanation.explain(current, trend),
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
                 when {
-                    current.actionRequired -> "Hay señales que conviene revisar hoy."
-                    status == ParentalStatus.WHITE -> "Famyrex aún no tiene evidencia suficiente para valorar todo el estado."
-                    else -> "No hay señales que requieran acción inmediata."
-                }
+                    current.actionRequired -> "Qué revisar: consulta las alertas y comprueba los límites o protecciones configurados."
+                    status == ParentalStatus.WHITE -> "Qué hacer: concede los permisos necesarios y activa la guardia parental para disponer de una valoración completa."
+                    status == ParentalStatus.ORANGE -> "Qué revisar: comprueba si el límite configurado sigue encajando con la rutina familiar."
+                    else -> "Qué hacer: no es necesaria una acción inmediata; puedes seguir observando la evolución."
+                },
+                style = MaterialTheme.typography.bodyMedium
             )
 
             current.reasons.take(3).forEach { reason ->
