@@ -41,7 +41,6 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
             val summary = CommunicationSignalDetector.detect(observations.toList())
             if (!summary.shouldAlert) return
 
-            if (hasRecentEquivalentIncident(summary, sbn.packageName, now)) return
             persistIncident(summary, sbn.packageName, now)
         }
     }
@@ -69,22 +68,20 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         }
     }
 
-    private fun hasRecentEquivalentIncident(
+    private fun findRecentEquivalentIncident(
         summary: CommunicationRiskSummary,
         sourcePackage: String,
         now: Long
-    ): Boolean {
-        val types = summary.signals.map { it.type }.distinct().sortedBy { it.name }
-        val directions = summary.signals.map { it.direction }.distinct().sortedBy { it.name }
-        return CommunicationRiskIncidentStore(this).load().any { incident ->
-            incident.sourcePackage == sourcePackage &&
-                now - incident.createdAtMs in 0..INCIDENT_COOLDOWN_MS &&
-                incident.direction in directions &&
-                incident.reasons.map { it.code }.sorted() ==
-                    types.map { type -> CommunicationRiskReasonCatalog.fromSignal(
-                        CommunicationRiskSignal(type, RiskConfidence.LOW, "")
-                    ).code }.sorted()
-        }
+    ): CommunicationRiskIncident? {
+        val directions = summary.signals.map { it.direction }.distinct()
+        return CommunicationRiskIncidentStore(this).load()
+            .asSequence()
+            .filter { incident ->
+                incident.sourcePackage == sourcePackage &&
+                    now - incident.createdAtMs in 0..INCIDENT_COOLDOWN_MS &&
+                    incident.direction in directions
+            }
+            .maxByOrNull { it.createdAtMs }
     }
 
     private fun persistIncident(
@@ -93,21 +90,31 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         timestampMs: Long
     ) {
         val signals = summary.signals
+        val store = CommunicationRiskIncidentStore(this)
+        val existing = findRecentEquivalentIncident(summary, sourcePackage, timestampMs)
+        val incidentId = existing?.id ?: "communication_${sourcePackage}_${timestampMs}_${summary.score}"
         val incident = CommunicationRiskIncident(
-            id = "communication_${sourcePackage}_${timestampMs}_${summary.score}",
-            createdAtMs = timestampMs,
+            id = incidentId,
+            createdAtMs = existing?.createdAtMs ?: timestampMs,
             type = signals.maxByOrNull { confidenceWeight(it.confidence) }?.type ?: return,
             confidence = summary.confidence,
             score = summary.score,
             reasons = signals.map(CommunicationRiskReasonCatalog::fromSignal)
                 .distinctBy { it.code },
             sourcePackage = sourcePackage,
-            direction = signals.firstOrNull()?.direction ?: CommunicationDirection.UNKNOWN
+            direction = signals.firstOrNull()?.direction ?: existing?.direction ?: CommunicationDirection.UNKNOWN,
+            status = existing?.status ?: RiskIncidentStatus.DETECTED,
+            statusHistory = existing?.statusHistory ?: emptyList()
         )
 
-        CommunicationRiskIncidentStore(this).save(incident)
+        store.save(incident)
         val alert = CommunicationRiskAlertFactory.createIncidentAlert(incident)
-        if (AlertStore(this).appendIfNew(alert)) {
+        val alerts = AlertStore(this)
+        if (existing != null) {
+            if (alerts.replace(alert)) {
+                FamyrexNotificationManager.notify(this, alert)
+            }
+        } else if (alerts.appendIfNew(alert)) {
             FamyrexNotificationManager.notify(this, alert)
         }
     }
