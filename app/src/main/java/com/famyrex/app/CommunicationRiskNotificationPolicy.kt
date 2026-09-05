@@ -21,12 +21,23 @@ object CommunicationRiskNotificationPolicy {
         val currentSeverity = severityFor(current.score)
         if (severityWeight(currentSeverity) > severityWeight(previousSeverity)) return true
 
-        val newTypes = current.reasons
+        // El tipo principal puede escalar aunque el score ya esté saturado en 100.
+        if (current.type != previous.type) return true
+
+        val newReasons = current.reasons
             .map { it.code }
             .toSet() - previous.reasons.map { it.code }.toSet()
-        if (newTypes.isNotEmpty() && current.score > previous.score) return true
+        if (newReasons.any(::isCriticalReason)) return true
+        if (newReasons.isNotEmpty() && current.score > previous.score) return true
 
         return false
+    }
+
+    private fun isCriticalReason(code: String): Boolean = when (code) {
+        "SELF_HARM_SIGNAL",
+        "SEXUAL_REQUEST",
+        "THREAT_SIGNAL" -> true
+        else -> false
     }
 
     private fun confidenceWeight(confidence: RiskConfidence): Int = when (confidence) {
