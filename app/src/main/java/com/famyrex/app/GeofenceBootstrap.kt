@@ -5,15 +5,17 @@ import java.util.UUID
 
 /**
  * Keeps the current location UI data connected to the real Android geofencing API.
- * Existing legacy zones are migrated once into FamilyZoneStore and then registered.
+ * Legacy zones are migrated idempotently so zones created after the first launch
+ * are also imported into FamilyZoneStore and registered with Android.
  */
 object GeofenceBootstrap {
-    private const val MIGRATED = "famyrex_geozones_migrated"
-
     fun sync(context: Context) {
+        val zoneStore = FamilyZoneStore(context)
+        val existingIds = zoneStore.load().mapTo(hashSetOf()) { it.id }
         val prefs = context.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE)
         val raw = prefs.getString("geo_zones", "").orEmpty()
-        if (raw.isNotBlank() && !prefs.getBoolean(MIGRATED, false)) {
+
+        if (raw.isNotBlank()) {
             raw.split(";").mapNotNull { row ->
                 val parts = row.split("|")
                 if (parts.size == 4) runCatching {
@@ -26,11 +28,12 @@ object GeofenceBootstrap {
                         enabled = true
                     )
                 }.getOrNull() else null
-            }.forEach { FamilyZoneStore(context).save(it) }
-            prefs.edit().putBoolean(MIGRATED, true).apply()
+            }.forEach { zone ->
+                if (zone.id !in existingIds) zoneStore.save(zone)
+            }
         }
 
-        FamilyZoneStore(context).load()
+        zoneStore.load()
             .filter { it.enabled }
             .forEach { zone ->
                 GeofenceManager(context).register(zone) { _, _ -> }
