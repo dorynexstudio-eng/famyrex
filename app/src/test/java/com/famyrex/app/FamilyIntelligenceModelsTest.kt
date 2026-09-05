@@ -7,7 +7,7 @@ import org.junit.Test
 
 class FamilyIntelligenceModelsTest {
     @Test
-    fun missingDataRemainsWhiteAndExplainsWhy() {
+    fun missingDataRemainsWhiteAndRequiresAction() {
         val summary = FamilyIntelligenceAggregator.summarize(
             parentalStatus = ParentalStatus.WHITE,
             totalScreenMinutes = null,
@@ -18,8 +18,38 @@ class FamilyIntelligenceModelsTest {
 
         assertEquals(ParentalStatus.WHITE, summary.parentalStatus)
         assertFalse(summary.protectionReady)
-        assertFalse(summary.actionRequired)
+        assertTrue(summary.actionRequired)
         assertEquals(3, summary.reasons.size)
+    }
+
+    @Test
+    fun missingUsageAccessRequiresActionEvenIfStatusWasNotWhite() {
+        val summary = FamilyIntelligenceAggregator.summarize(
+            parentalStatus = ParentalStatus.GREEN,
+            totalScreenMinutes = null,
+            communicationAlertCount = 0,
+            usageAccess = false,
+            accessibilityEnabled = true
+        )
+
+        assertFalse(summary.protectionReady)
+        assertTrue(summary.actionRequired)
+        assertTrue(summary.reasons.any { it.contains("datos de uso") })
+    }
+
+    @Test
+    fun missingAccessibilityRequiresAction() {
+        val summary = FamilyIntelligenceAggregator.summarize(
+            parentalStatus = ParentalStatus.GREEN,
+            totalScreenMinutes = 45,
+            communicationAlertCount = 0,
+            usageAccess = true,
+            accessibilityEnabled = false
+        )
+
+        assertFalse(summary.protectionReady)
+        assertTrue(summary.actionRequired)
+        assertTrue(summary.reasons.any { it.contains("guardia parental") })
     }
 
     @Test
@@ -52,7 +82,7 @@ class FamilyIntelligenceModelsTest {
     }
 
     @Test
-    fun greenWithoutAlertsNeedsNoAction() {
+    fun greenWithoutAlertsAndWithProtectionReadyNeedsNoAction() {
         val summary = FamilyIntelligenceAggregator.summarize(
             parentalStatus = ParentalStatus.GREEN,
             totalScreenMinutes = 45,
