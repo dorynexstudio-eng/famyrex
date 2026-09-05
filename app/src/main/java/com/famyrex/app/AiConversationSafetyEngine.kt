@@ -7,7 +7,7 @@ package com.famyrex.app
  * - analiza texto solo en memoria;
  * - no almacena la conversación ni devuelve el texto original;
  * - produce señales, no diagnósticos ni conclusiones sobre el menor;
- * - intenta usar contexto para reducir falsos positivos de ficción, tareas y preguntas hipotéticas.
+ * - usa contexto para reducir falsos positivos de ficción, tareas y preguntas hipotéticas.
  */
 object AiConversationSafetyEngine {
 
@@ -20,12 +20,11 @@ object AiConversationSafetyEngine {
 
     private val CONTEXT_EXEMPTIONS = listOf(
         "para una novela", "para mi novela", "para un cuento", "para una historia",
-        "estoy escribiendo una historia", "estoy escribiendo un cuento", "es ficción",
+        "estoy escribiendo una historia", "estoy escribiendo un cuento", "es ficcion",
         "en una novela", "en mi novela", "en una historia", "en mi historia",
         "para una tarea", "para un trabajo", "para clase", "es un ejercicio",
-        "es un ejemplo", "ejemplo hipotetico", "ejemplo hipotético", "hipoteticamente",
-        "hipotéticamente", "en teoria", "en teoría", "qué significa", "que significa",
-        "que pasa si", "qué pasa si", "personaje"
+        "es un ejemplo", "ejemplo hipotetico", "hipoteticamente", "en teoria",
+        "que significa", "que pasa si", "personaje"
     )
 
     fun analyze(
@@ -39,54 +38,18 @@ object AiConversationSafetyEngine {
         val matches = RULES.filter { rule -> rule.phrases.any(normalized::contains) }
         if (matches.isEmpty()) return emptyList()
 
-        val contextual = CONTEXT_EXEMPTIONS.any(normalized::contains)
-        return matches.mapNotNull { rule ->
-            val confidence = contextualize(rule, normalized, contextual)
-            if (confidence == null) return@mapNotNull null
+        // El contexto académico, hipotético o de ficción evita generar una señal personal.
+        // Es una salvaguarda deliberada para reducir falsos positivos.
+        if (CONTEXT_EXEMPTIONS.any(normalized::contains)) return emptyList()
 
+        return matches.map { rule ->
             CommunicationRiskSignal(
                 type = rule.category,
-                confidence = confidence,
-                reason = reasonFor(rule, contextual),
+                confidence = rule.confidence,
+                reason = rule.reason,
                 sourcePackage = sourcePackage,
                 timestampMs = timestampMs
             )
-        }
-    }
-
-    /**
-     * Un mensaje explícito en primera persona mantiene prioridad alta aunque sea una pregunta.
-     * El contexto de ficción/tarea, en cambio, evita convertir automáticamente una consulta
-     * hipotética en una señal personal.
-     */
-    private fun contextualize(
-        rule: Rule,
-        text: String,
-        contextual: Boolean
-    ): RiskConfidence? {
-        if (contextual) {
-            val personal = FIRST_PERSON_MARKERS.any(text::contains)
-            return if (personal && rule.category == CommunicationRiskType.SELF_HARM) {
-                RiskConfidence.MEDIUM
-            } else {
-                null
-            }
-        }
-
-        if (rule.category == CommunicationRiskType.SELF_HARM &&
-            EXPLICIT_SELF_HARM_ACTION.any(text::contains)
-        ) {
-            return RiskConfidence.HIGH
-        }
-
-        return rule.confidence
-    }
-
-    private fun reasonFor(rule: Rule, contextual: Boolean): String {
-        return if (contextual) {
-            "Se detectó una expresión sensible, pero el contexto parece hipotético, académico o de ficción; se reduce la confianza."
-        } else {
-            rule.reason
         }
     }
 
@@ -112,15 +75,6 @@ object AiConversationSafetyEngine {
         .replace("ü", "u")
         .replace(Regex("\\s+"), " ")
         .trim()
-
-    private val FIRST_PERSON_MARKERS = listOf(
-        "yo ", "me ", "mi ", "mis ", "quiero ", "no quiero ", "estoy ", "siento "
-    )
-
-    private val EXPLICIT_SELF_HARM_ACTION = listOf(
-        "como puedo suicidarme", "como puedo matarme", "como hacerme dano", "como hacerme daño",
-        "quiero suicidarme", "me quiero suicidar", "quiero hacerme dano", "quiero hacerme daño"
-    )
 
     private val RULES = listOf(
         Rule(
@@ -177,9 +131,9 @@ object AiConversationSafetyEngine {
             confidence = RiskConfidence.MEDIUM,
             reason = "El texto plantea una posible situación de aislamiento, rechazo o falta de apoyo social.",
             phrases = listOf(
-                "me dejan de lado", "me dejan de lado todas", "mis amigas me dejan de lado",
-                "mis amigos me dejan de lado", "nadie quiere estar conmigo", "me siento solo",
-                "me siento sola", "no tengo amigos", "no tengo amigas", "me han dejado de lado"
+                "me dejan de lado", "me dejando de lado", "dejando de lado", "mis amigas me dejan de lado",
+                "mis amigas me estén dejando de lado", "mis amigos me dejan de lado", "nadie quiere estar conmigo",
+                "me siento solo", "me siento sola", "no tengo amigos", "no tengo amigas", "me han dejado de lado"
             )
         ),
         Rule(
