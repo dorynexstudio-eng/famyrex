@@ -8,7 +8,7 @@ class SupervisedStateRestorerTest {
     private val validIdentity = VerifiedFamilyIdentity(
         familyId = "family-1",
         secret = "0123456789abcdef0123456789abcdef",
-        fingerprint = "0123456789ab",
+        fingerprint = "3eb1bd439947",
         verifiedAtMs = 123L
     )
 
@@ -25,7 +25,9 @@ class SupervisedStateRestorerTest {
 
     @Test
     fun malformedIdentityCannotRestore() {
-        val malformed = validIdentity.copy(secret = "short")
-        assertFalse(SupervisedStateRestorer.isRestorable(malformed, linkedDevice = true))
+        assertFalse(SupervisedStateRestorer.isRestorable(validIdentity.copy(secret = "short"), true))
+        assertFalse(SupervisedStateRestorer.isRestorable(validIdentity.copy(secret = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"), true))
+        assertFalse(SupervisedStateRestorer.isRestorable(validIdentity.copy(fingerprint = "000000000000"), true))
+        assertFalse(SupervisedStateRestorer.isRestorable(validIdentity.copy(verifiedAtMs = 0L), true))
     }
 }
