@@ -49,6 +49,15 @@ class FamilyIntelligenceRecommendationTest {
     }
 
     @Test
+    fun dismissedAlertsProduceNoRecommendation() {
+        val result = FamilyIntelligenceRecommendationEngine.recommend(
+            listOf(alert("dismissed-1", AlertType.DAILY_LIMIT, lifecycleStatus = AlertLifecycleStatus.DISMISSED))
+        )
+
+        assertNull(result)
+    }
+
+    @Test
     fun observationRecommendationMapsToObserve() {
         val result = FamilyIntelligenceRecommendationEngine.recommend(
             listOf(alert("restored-1", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO))
