@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OfflinePairingTokenTest {
@@ -23,6 +24,15 @@ class OfflinePairingTokenTest {
         val first = OfflinePairingTokenCodec.create("family-123", 1_000L)
         val second = OfflinePairingTokenCodec.create("family-123", 1_000L)
         assertNotEquals(first.secret, second.secret)
+    }
+
+    @Test
+    fun codeIsDeterministicAndVerifiable() {
+        val token = OfflinePairingTokenCodec.create("family-123", 1_000L, 10)
+        val code = OfflinePairingTokenCodec.code(token)
+        assertEquals(code, OfflinePairingTokenCodec.code(token))
+        assertNotNull(OfflinePairingTokenCodec.verify(OfflinePairingTokenCodec.encode(token), code, 1_001L))
+        assertNull(OfflinePairingTokenCodec.verify(OfflinePairingTokenCodec.encode(token), "000000", 1_001L).takeIf { code != "000000" })
     }
 
     @Test
