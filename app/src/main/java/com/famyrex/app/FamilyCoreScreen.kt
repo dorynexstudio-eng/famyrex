@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
@@ -70,7 +71,7 @@ fun FamilyCoreScreen(context: Context, modifier: Modifier = Modifier) {
                             profiles = store.profiles()
                             message = "Adulto autorizado añadido."
                         },
-                        Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth()
                     ) { Text("Añadir adulto") }
                 }
             }
@@ -94,7 +95,7 @@ fun FamilyCoreScreen(context: Context, modifier: Modifier = Modifier) {
                             profiles = store.profiles()
                             message = "Perfil infantil creado y vinculado a los adultos autorizados."
                         },
-                        Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth()
                     ) { Text("Añadir hijo/a") }
                 }
             }
@@ -124,7 +125,7 @@ fun FamilyCoreScreen(context: Context, modifier: Modifier = Modifier) {
                                 devices = store.devices()
                                 message = "Dispositivo preparado para vincular con ${children.first().displayName}."
                             },
-                            Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth()
                         ) { Text("Preparar vinculación") }
                     }
                 }
@@ -136,8 +137,14 @@ fun FamilyCoreScreen(context: Context, modifier: Modifier = Modifier) {
             Text("Modo de esta instalación", style = MaterialTheme.typography.titleMedium)
             Text("El modo supervisado está pensado para el dispositivo del menor: interfaz mínima y funciones de protección, sin panel de administración.")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { store.setAppMode(FamyrexAppMode.PARENT); message = "Esta instalación queda marcada como dispositivo de padres." }, Modifier.weight(1f)) { Text("Padres") }
-                OutlinedButton(onClick = { store.setAppMode(FamyrexAppMode.SUPERVISED); message = "Esta instalación queda marcada como dispositivo supervisado." }, Modifier.weight(1f)) { Text("Supervisado") }
+                OutlinedButton(
+                    onClick = { store.setAppMode(FamyrexAppMode.PARENT); message = "Esta instalación queda marcada como dispositivo de padres." },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Padres") }
+                OutlinedButton(
+                    onClick = { store.setAppMode(FamyrexAppMode.SUPERVISED); message = "Esta instalación queda marcada como dispositivo supervisado." },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Supervisado") }
             }
             Text("Modo actual: ${if (store.appMode() == FamyrexAppMode.PARENT) "PARENT" else "SUPERVISED"}")
         }
