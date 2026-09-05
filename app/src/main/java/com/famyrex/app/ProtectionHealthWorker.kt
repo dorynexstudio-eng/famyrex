@@ -104,6 +104,8 @@ class ProtectionHealthWorker(
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
+        // Solo marcamos latido correcto al completar todas las comprobaciones sin excepción.
+        ProtectionWatchdog(context).recordSuccess(health.checkedAtMs)
         Result.success()
     }.getOrElse { Result.retry() }
 
