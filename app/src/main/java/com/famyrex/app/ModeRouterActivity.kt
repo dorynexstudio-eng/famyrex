@@ -9,7 +9,7 @@ class ModeRouterActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val store = FamilyStore(applicationContext)
         val target = if (store.appMode() == FamyrexAppMode.SUPERVISED) {
-            if (store.devices().any { it.linkState == DeviceLinkState.LINKED }) {
+            if (SupervisedStateRestorer.restore(store)) {
                 Intent(this, SupervisedDeviceActivity::class.java)
             } else {
                 Intent(this, SupervisedOnboardingActivity::class.java)
