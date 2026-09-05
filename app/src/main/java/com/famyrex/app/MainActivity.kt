@@ -75,7 +75,7 @@ fun FamyrexApp(context: Context) {
             when (tab) {
                 0 -> Dashboard(context, family, Modifier.padding(padding))
                 1 -> RealAlertsScreen(context, Modifier.padding(padding))
-                2 -> FamilyScreen(family, { state -> family = state; saveFamily(prefs, state) }, Modifier.padding(padding))
+                2 -> FamilyCoreScreen(context, Modifier.padding(padding))
                 3 -> LocationScreen(context, zones, { updated -> zones = updated; saveZones(prefs, updated) }, Modifier.padding(padding))
                 else -> FamilyAssistantScreen(context, Modifier.padding(padding))
             }
@@ -95,11 +95,7 @@ private fun saveFamily(prefs: android.content.SharedPreferences, state: FamilySt
 fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifier) {
     val configured = family.parent.isNotBlank() && family.child.isNotBlank()
     var components by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
-
-    LaunchedEffect(Unit) {
-        components = ProtectionComponentChecker.check(context)
-    }
-
+    LaunchedEffect(Unit) { components = ProtectionComponentChecker.check(context) }
     val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
     val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }
     val overall = when {
@@ -107,7 +103,6 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
         degraded > 0 -> "🟠 PROTECCIÓN PARCIAL"
         else -> "🟢 PROTEGIDO"
     }
-
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Text("Panel de protección familiar", style = MaterialTheme.typography.headlineSmall)
@@ -123,9 +118,7 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
                     Spacer(Modifier.height(6.dp))
                     Text("$active capacidades activas · $degraded con atención")
                     Spacer(Modifier.height(10.dp))
-                    OutlinedButton(onClick = { components = ProtectionComponentChecker.check(context) }, Modifier.fillMaxWidth()) {
-                        Text("Comprobar todas ahora")
-                    }
+                    OutlinedButton(onClick = { components = ProtectionComponentChecker.check(context) }, Modifier.fillMaxWidth()) { Text("Comprobar todas ahora") }
                 }
             }
         }
@@ -260,20 +253,14 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
         item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nombre de la geozona") }, placeholder = { Text("Casa, colegio...") }) }
         item { OutlinedTextField(radius, { radius = it.filter(Char::isDigit).take(5) }, Modifier.fillMaxWidth(), label = { Text("Radio en metros") }) }
         item {
-            Button(
-                enabled = permissionGranted && name.isNotBlank(),
-                onClick = {
-                    val location = lastKnownLocation(context)
-                    if (location != null) {
-                        onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f))
-                        name = ""
-                        status = "Geozona guardada con la última ubicación disponible."
-                    } else {
-                        status = "No hay una ubicación disponible todavía. Activa el GPS y vuelve a intentarlo."
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Guardar geozona en mi ubicación actual") }
+            Button(enabled = permissionGranted && name.isNotBlank(), onClick = {
+                val location = lastKnownLocation(context)
+                if (location != null) {
+                    onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f))
+                    name = ""
+                    status = "Geozona guardada con la última ubicación disponible."
+                } else status = "No hay una ubicación disponible todavía. Activa el GPS y vuelve a intentarlo."
+            }, modifier = Modifier.fillMaxWidth()) { Text("Guardar geozona en mi ubicación actual") }
         }
         item { Text("Geozonas guardadas", style = MaterialTheme.typography.titleMedium) }
         if (zones.isEmpty()) item { Text("Todavía no hay geozonas configuradas.") }
