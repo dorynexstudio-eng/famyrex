@@ -65,9 +65,19 @@ object CommunicationSignalDetector {
         val bullying = observationsWith.filter { it.bullying && it.observation.isIncoming }
         val selfHarm = observationsWith.filter { it.selfHarm }
 
+        // Pedir información personal por sí solo es una señal débil, no una acusación.
+        if (personal.isNotEmpty()) {
+            add(
+                CommunicationRiskType.GROOMING,
+                RiskConfidence.LOW,
+                "Se solicitó información personal; por sí sola no implica una situación de riesgo.",
+                personal.first().observation
+            )
+        }
+
         // Un encuentro normal no es suficiente. Buscamos dos señales contextuales.
         if (personal.isNotEmpty() && (meetings.isNotEmpty() || secrets.isNotEmpty())) {
-            val evidence = personal.firstOrNull() ?: meetings.first()
+            val evidence = personal.first()
             add(
                 CommunicationRiskType.GROOMING,
                 if (secrets.isNotEmpty() && meetings.isNotEmpty()) RiskConfidence.MEDIUM else RiskConfidence.LOW,
@@ -83,6 +93,17 @@ object CommunicationSignalDetector {
                 RiskConfidence.HIGH,
                 "Petición de contenido íntimo combinada con otra señal contextual.",
                 sexual.last().observation
+            )
+        }
+
+        // Una petición sexual acompañada de secretismo es una combinación fuerte.
+        // La señal de secretismo aquí es HIGH por el contexto, no por la palabra aislada.
+        if (sexual.isNotEmpty() && secrets.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SECRET_KEEPING,
+                RiskConfidence.HIGH,
+                "Una petición de contenido íntimo aparece acompañada de una petición explícita de mantenerlo en secreto.",
+                secrets.last().observation
             )
         }
 
@@ -119,6 +140,7 @@ object CommunicationSignalDetector {
             )
         }
 
+        // Secretismo repetido junto con una propuesta de encuentro también eleva contexto.
         if (secrets.size >= 2 && meetings.isNotEmpty()) {
             add(
                 CommunicationRiskType.SECRET_KEEPING,
