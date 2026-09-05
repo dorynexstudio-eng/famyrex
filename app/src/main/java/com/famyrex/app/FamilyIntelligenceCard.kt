@@ -25,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -141,6 +143,7 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
 @Composable
 private fun FamilyUsageWeekChart(days: List<Long>) {
     if (days.isEmpty()) return
+    val barColor = MaterialTheme.colorScheme.primary
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Uso de los últimos 7 días", style = MaterialTheme.typography.labelLarge)
         Canvas(
@@ -148,7 +151,7 @@ private fun FamilyUsageWeekChart(days: List<Long>) {
                 .fillMaxWidth()
                 .height(100.dp)
         ) {
-            drawFamilyUsageBars(days)
+            drawFamilyUsageBars(days, barColor)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -164,11 +167,10 @@ private fun FamilyUsageWeekChart(days: List<Long>) {
     }
 }
 
-private fun DrawScope.drawFamilyUsageBars(days: List<Long>) {
+private fun DrawScope.drawFamilyUsageBars(days: List<Long>, barColor: Color) {
     val maxMinutes = maxOf(days.maxOrNull() ?: 0L, 1L).toFloat()
     val slotWidth = size.width / days.size
     val barWidth = slotWidth * 0.62f
-    val barColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
     days.forEachIndexed { index, minutes ->
         val height = (minutes.toFloat() / maxMinutes) * size.height
         val left = index * slotWidth + (slotWidth - barWidth) / 2f
