@@ -49,8 +49,23 @@ class ProtectionHealthWorker(
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
-        val behaviorAlerts = BehaviorPatternEngine.evaluate(UsageSnapshotStore(context).loadHistory())
+        val history = UsageSnapshotStore(context).loadHistory()
+        val behaviorAlerts = BehaviorPatternEngine.evaluate(history)
         behaviorAlerts.forEach { alert ->
+            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+        }
+
+        // Bienestar: solo eleva una señal cuando la tendencia es sostenida; no diagnostica ni acusa.
+        val wellbeing = WellbeingTrendEngine.evaluate(history)
+        if (wellbeing != null && wellbeing.score >= 35) {
+            val alert = SmartAlert(
+                id = "wellbeing_trend_${history.maxOf { it.date }}",
+                type = AlertType.PATTERN_CHANGE,
+                severity = if (wellbeing.score >= 70) AlertSeverity.IMPORTANT else AlertSeverity.ATTENTION,
+                title = wellbeing.title,
+                message = "${wellbeing.summary} ${wellbeing.recommendation}",
+                date = now()
+            )
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
