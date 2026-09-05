@@ -133,7 +133,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         val store = CommunicationRiskIncidentStore(this)
         val existing = findRecentEquivalentIncident(summary, sourcePackage, timestampMs)
         val incidentId = existing?.id ?: "communication_${sourcePackage}_${timestampMs}_${summary.score}"
-        val incident = CommunicationRiskIncident(
+        val detectedIncident = CommunicationRiskIncident(
             id = incidentId,
             createdAtMs = existing?.createdAtMs ?: timestampMs,
             type = CommunicationRiskTypeSelector.select(signals) ?: return,
@@ -146,6 +146,8 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
             status = existing?.status ?: RiskIncidentStatus.DETECTED,
             statusHistory = existing?.statusHistory ?: emptyList()
         )
+        val incident = existing?.let { CommunicationRiskIncidentEvolution.merge(it, detectedIncident) }
+            ?: detectedIncident
 
         store.save(incident)
         val alert = CommunicationRiskAlertFactory.createIncidentAlert(incident)
