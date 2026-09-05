@@ -18,57 +18,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
-        <activity
-            android:name=".SupervisedDeviceActivity"
-            android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="false" />
+        <activity android:name=".SupervisedDeviceActivity" android:exported="false" />
+        <activity android:name=".SupervisedOnboardingActivity" android:exported="false" />
 
-        <service
-            android:name=".FamyrexNotificationListenerService"
-            android:label="Famyrex · análisis de riesgos"
-            android:exported="true"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
+        <service android:name=".FamyrexNotificationListenerService" android:label="Famyrex · análisis de riesgos" android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
-
-        <service
-            android:name=".FamyrexParentalAccessibilityService"
-            android:label="Famyrex · control parental"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/famyrex_parental_accessibility_service" />
+        <service android:name=".FamyrexParentalAccessibilityService" android:label="Famyrex · control parental" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/famyrex_parental_accessibility_service" />
         </service>
-
-        <receiver
-            android:name=".GeofenceBroadcastReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".AppChangeReceiver"
-            android:exported="false">
+        <receiver android:name=".GeofenceBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".AppChangeReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_ADDED" />
                 <action android:name="android.intent.action.PACKAGE_REMOVED" />
                 <data android:scheme="package" />
             </intent-filter>
         </receiver>
-
-        <receiver
-            android:name=".BootCompletedReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
+        <receiver android:name=".BootCompletedReceiver" android:enabled="true" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
         </receiver>
     </application>
 </manifest>
