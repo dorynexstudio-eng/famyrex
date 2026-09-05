@@ -64,7 +64,9 @@ object CommunicationSignalDetector {
                 sexual = containsAny(observation.normalizedText, SEXUAL),
                 threat = containsAny(observation.normalizedText, THREATS),
                 bullying = containsAny(observation.normalizedText, BULLYING),
-                selfHarm = containsAny(observation.normalizedText, SELF_HARM)
+                selfHarm = containsAny(observation.normalizedText, SELF_HARM),
+                isolation = containsAny(observation.normalizedText, ISOLATION),
+                unknownContact = containsAny(observation.normalizedText, UNKNOWN_CONTACT)
             )
         }
 
@@ -75,6 +77,19 @@ object CommunicationSignalDetector {
         val threats = observationsWith.filter { it.threat }
         val bullying = observationsWith.filter { it.bullying && it.observation.isIncoming }
         val selfHarm = observationsWith.filter { it.selfHarm }
+        val isolation = observationsWith.filter { it.isolation }
+        val unknownContacts = observationsWith.filter { it.unknownContact }
+
+        // Señal temprana: una referencia a un contacto desconocido o nuevo no es
+        // una acusación. Se combina después con secreto, datos personales o sexo.
+        if (unknownContacts.isNotEmpty()) {
+            add(
+                CommunicationRiskType.GROOMING,
+                RiskConfidence.LOW,
+                "Se mencionó un contacto nuevo o desconocido; por sí solo no implica peligro.",
+                unknownContacts.first().observation
+            )
+        }
 
         if (personal.isNotEmpty()) {
             add(
@@ -85,6 +100,15 @@ object CommunicationSignalDetector {
             )
         }
 
+        if (unknownContacts.isNotEmpty() && (personal.isNotEmpty() || secrets.isNotEmpty() || meetings.isNotEmpty())) {
+            add(
+                CommunicationRiskType.GROOMING,
+                RiskConfidence.MEDIUM,
+                "Un contacto nuevo o desconocido aparece junto a secretismo, datos personales o una propuesta de encuentro.",
+                (personal.lastOrNull() ?: secrets.lastOrNull() ?: meetings.last()).observation
+            )
+        }
+
         if (personal.isNotEmpty() && (meetings.isNotEmpty() || secrets.isNotEmpty())) {
             val evidence = personal.first()
             add(
@@ -92,6 +116,15 @@ object CommunicationSignalDetector {
                 if (secrets.isNotEmpty() && meetings.isNotEmpty()) RiskConfidence.MEDIUM else RiskConfidence.LOW,
                 "Se combinaron referencias a información personal con secretismo o propuesta de encuentro.",
                 evidence.observation
+            )
+        }
+
+        if (sexual.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SEXUAL_REQUEST,
+                RiskConfidence.HIGH,
+                "Se detectó una petición de contenido íntimo.",
+                sexual.last().observation
             )
         }
 
@@ -123,12 +156,39 @@ object CommunicationSignalDetector {
         }
 
         val bullyingSources = bullying.groupBy { it.observation.sourcePackage }
+        if (bullying.isNotEmpty()) {
+            add(
+                CommunicationRiskType.BULLYING,
+                if (bullying.size >= 3 || bullyingSources.any { it.value.size >= 2 }) RiskConfidence.MEDIUM else RiskConfidence.LOW,
+                "Se detectó lenguaje hostil dirigido al menor; una señal aislada requiere contexto y seguimiento.",
+                bullying.last().observation
+            )
+        }
+
         if (bullying.size >= 3 || bullyingSources.any { it.value.size >= 2 }) {
             add(
                 CommunicationRiskType.BULLYING,
                 RiskConfidence.MEDIUM,
                 "Se detectó un patrón repetido de lenguaje hostil en mensajes entrantes.",
                 bullying.last().observation
+            )
+        }
+
+        if (isolation.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SOCIAL_ISOLATION,
+                if (isolation.size >= 2) RiskConfidence.MEDIUM else RiskConfidence.LOW,
+                "Se detectaron expresiones de posible aislamiento o exclusión social; conviene observar su evolución.",
+                isolation.last().observation
+            )
+        }
+
+        if (isolation.isNotEmpty() && bullying.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SOCIAL_ISOLATION,
+                RiskConfidence.MEDIUM,
+                "Las expresiones de aislamiento aparecen junto a lenguaje hostil dirigido al menor.",
+                isolation.last().observation
             )
         }
 
@@ -161,7 +221,9 @@ object CommunicationSignalDetector {
         val sexual: Boolean,
         val threat: Boolean,
         val bullying: Boolean,
-        val selfHarm: Boolean
+        val selfHarm: Boolean,
+        val isolation: Boolean,
+        val unknownContact: Boolean
     )
 
     private fun normalize(text: String): String = text
@@ -180,6 +242,10 @@ object CommunicationSignalDetector {
     private val PERSONAL_INFO = listOf(
         "direccion", "donde vives", "colegio", "instituto", "ubicacion", "telefono", "numero de telefono"
     )
+    private val UNKNOWN_CONTACT = listOf(
+        "no lo conozco", "no la conozco", "no conozco a este chico", "no conozco a esta chica",
+        "es un chico nuevo", "es una chica nueva", "persona nueva", "alguien que no conozco", "un desconocido"
+    )
     private val SECRECY = listOf(
         "no se lo digas", "que quede entre nosotros", "en secreto", "es nuestro secreto", "no digas nada", "que nadie se entere", "borra el mensaje"
     )
@@ -187,13 +253,16 @@ object CommunicationSignalDetector {
         "quedamos a solas", "ven a verme", "ven solo", "ven sola", "nos vemos a escondidas", "donde nos vemos", "ven sin tus padres", "te recojo"
     )
     private val SEXUAL = listOf(
-        "foto desnudo", "foto desnuda", "foto intima", "manda nudes", "manda nude", "desnudate", "contenido sexual"
+        "foto desnudo", "foto desnuda", "foto intima", "foto intimas", "fotos intimas", "manda nudes", "manda nude", "desnudate", "contenido sexual", "foto de tus partes", "fotos de tus partes", "fotos de tus partes intimas", "manda fotos de tu cuerpo"
     )
     private val THREATS = listOf(
         "te voy a hacer daño", "te hare daño", "te matare", "si hablas te", "vas a pagar", "te voy a encontrar"
     )
     private val BULLYING = listOf(
         "eres un inutil", "das asco", "nadie te quiere", "callate", "te vamos a echar", "todos se rien de ti"
+    )
+    private val ISOLATION = listOf(
+        "me dejan de lado", "me estan dejando de lado", "me dejan sola", "me dejan solo", "nadie quiere estar conmigo", "nadie me habla", "me excluyen", "no me incluyen", "me siento apartado", "me siento apartada", "no tengo amigos", "todas mis amigas me dejan de lado", "todos mis amigos me dejan de lado"
     )
     private val SELF_HARM = listOf(
         "quiero hacerme daño", "quiero hacerme dano", "quiero desaparecer", "no quiero vivir", "me quiero morir", "hacerme daño", "hacerme dano"
