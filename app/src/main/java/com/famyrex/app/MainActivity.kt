@@ -58,10 +58,37 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun FamyrexApp(context: Context) {
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    val familyStore = remember { FamilyStore(context) }
     var tab by remember { mutableIntStateOf(0) }
     var family by remember { mutableStateOf(loadFamily(prefs)) }
     var zones by remember { mutableStateOf(loadZones(prefs)) }
     var parentalControlOpen by remember { mutableStateOf(false) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    fun refreshFamily() {
+        val profiles = familyStore.profiles()
+        val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
+        val child = profiles.firstOrNull { it.role == FamilyRole.CHILD }
+        if (owner != null || child != null) {
+            family = FamilyState(
+                parent = owner?.displayName.orEmpty(),
+                child = child?.displayName.orEmpty(),
+                code = prefs.getString(KEY_CODE, "") ?: ""
+            )
+        } else {
+            family = loadFamily(prefs)
+        }
+    }
+
+    LaunchedEffect(Unit) { refreshFamily() }
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refreshFamily()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     MaterialTheme {
         Scaffold(
             topBar = { TopAppBar(title = { Text("Famyrex") }) },
@@ -101,6 +128,7 @@ fun FamyrexApp(context: Context) {
                     FamilyCoreScreen(
                         context = context,
                         onOpenParentalControl = { parentalControlOpen = true },
+                        onFamilyChanged = { refreshFamily() },
                         modifier = Modifier.padding(padding)
                     )
                 }
