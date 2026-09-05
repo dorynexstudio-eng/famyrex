@@ -90,6 +90,7 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
     val current = summary ?: return
     val status = current.parentalStatus
     val statusText = "${status.icon} ${status.label}"
+    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(current, trend)
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -138,12 +139,7 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
             )
 
             Text(
-                when {
-                    current.actionRequired -> "Qué revisar: consulta las alertas y comprueba los límites o protecciones configurados."
-                    status == ParentalStatus.WHITE -> "Qué hacer: concede los permisos necesarios y activa la guardia parental para disponer de una valoración completa."
-                    status == ParentalStatus.ORANGE -> "Qué revisar: comprueba si el límite configurado sigue encajando con la rutina familiar."
-                    else -> "Qué hacer: no es necesaria una acción inmediata; puedes seguir observando la evolución."
-                },
+                "${recommendation.title}: ${recommendation.action}",
                 style = MaterialTheme.typography.bodyMedium
             )
 
