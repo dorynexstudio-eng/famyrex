@@ -51,6 +51,28 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         }
     }
 
+    /**
+     * Android puede desconectar y volver a conectar el listener. Al perder la
+     * conexión descartamos el contexto temporal en memoria para no mezclar una
+     * sesión anterior con una nueva ni reutilizar deduplicaciones obsoletas.
+     */
+    override fun onListenerDisconnected() {
+        clearInMemoryContext()
+        super.onListenerDisconnected()
+    }
+
+    override fun onDestroy() {
+        clearInMemoryContext()
+        super.onDestroy()
+    }
+
+    private fun clearInMemoryContext() {
+        synchronized(observations) {
+            observations.clear()
+        }
+        notificationDeduplicator.clear()
+    }
+
     private fun extractNotificationText(notification: Notification): String {
         val extras = notification.extras
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
