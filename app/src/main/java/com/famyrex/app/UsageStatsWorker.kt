@@ -19,7 +19,8 @@ class UsageStatsWorker(appContext: Context, workerParams: WorkerParameters) : Co
         UsageIntervalStore(context).save(date, UsageInterval(System.currentTimeMillis(), delta.values.sum()))
         val history = UsageSnapshotStore(context).loadHistory()
         val intervals = UsageIntervalStore(context).load(date)
-        AlertStore(context).save(AlertEngine.evaluate(history, intervals, ProtectionSettingsStore(context).load()))
+        val usageAlerts = AlertEngine.evaluate(history, intervals, ProtectionSettingsStore(context).load())
+        AlertStore(context).mergeById(usageAlerts)
         AiAnalysisWorker.enqueue(context)
         Result.success()
     } catch (_: Exception) { Result.retry() }
