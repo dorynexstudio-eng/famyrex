@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import java.util.Calendar
 import kotlin.random.Random
 
 private const val PREFS = "famyrex_prefs"
@@ -148,13 +149,13 @@ fun Dashboard(
     }
 
     LaunchedEffect(Unit) { refreshDashboard() }
-    DisposableEffect(Unit) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refreshDashboard()
         }
-        val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer) }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
