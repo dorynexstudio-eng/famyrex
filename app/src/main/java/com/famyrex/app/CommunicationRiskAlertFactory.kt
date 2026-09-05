@@ -12,7 +12,24 @@ object CommunicationRiskAlertFactory {
             .joinToString("; ") { it.title }
             .ifBlank { "varias señales compatibles con un posible riesgo" }
 
-        val message = "Famyrex ha detectado varias señales compatibles con un posible riesgo: $reasonText. " +
+        val (title, prefix) = when (incident.type) {
+            CommunicationRiskType.SELF_HARM ->
+                "Posible riesgo de autolesión" to "Famyrex ha detectado una señal explícita compatible con posible autolesión"
+            CommunicationRiskType.SOCIAL_ISOLATION ->
+                "Posible aislamiento social" to "Famyrex ha detectado señales compatibles con posible aislamiento social"
+            CommunicationRiskType.GROOMING ->
+                "Posible contacto inapropiado" to "Famyrex ha detectado señales compatibles con posible contacto inapropiado"
+            CommunicationRiskType.BULLYING ->
+                "Posible acoso" to "Famyrex ha detectado señales compatibles con posible acoso"
+            CommunicationRiskType.THREAT ->
+                "Posible amenaza" to "Famyrex ha detectado señales compatibles con una posible amenaza"
+            CommunicationRiskType.SEXUAL_REQUEST ->
+                "Posible petición de contenido sexual" to "Famyrex ha detectado señales compatibles con una posible petición de contenido sexual"
+            CommunicationRiskType.SECRET_KEEPING ->
+                "Posible petición de secreto" to "Famyrex ha detectado señales compatibles con una posible petición de mantener un secreto"
+        }
+
+        val message = "$prefix: $reasonText. " +
             "Confianza ${incident.confidence.name.lowercase()} y puntuación ${incident.score}/100. " +
             "Revisa el contexto antes de sacar conclusiones."
 
@@ -20,7 +37,7 @@ object CommunicationRiskAlertFactory {
             id = "communication_risk_${incident.id}",
             type = AlertType.COMMUNICATION_RISK,
             severity = if (incident.score >= 85) AlertSeverity.IMPORTANT else AlertSeverity.ATTENTION,
-            title = "Posibles señales de riesgo",
+            title = title,
             message = message,
             date = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
                 .format(java.util.Date(incident.createdAtMs)),
