@@ -71,11 +71,27 @@ class CommunicationRiskIncidentStore(context: Context) {
     fun updateStatus(id: String, status: RiskIncidentStatus): Boolean {
         val item = load().firstOrNull { it.id == id } ?: return false
         if (item.status == status) return true
+        if (!isValidTransition(item.status, status)) return false
 
         val now = System.currentTimeMillis()
         val history = item.statusHistory + RiskIncidentStatusChange(status, now)
         save(item.copy(status = status, statusHistory = history.takeLast(20)))
         return true
+    }
+
+    private fun isValidTransition(
+        current: RiskIncidentStatus,
+        next: RiskIncidentStatus
+    ): Boolean = when (current) {
+        RiskIncidentStatus.DETECTED -> next == RiskIncidentStatus.REVIEWED ||
+            next == RiskIncidentStatus.DISMISSED ||
+            next == RiskIncidentStatus.AUTO_DISMISSED
+        RiskIncidentStatus.REVIEWED -> next == RiskIncidentStatus.CONFIRMED ||
+            next == RiskIncidentStatus.DISMISSED
+        RiskIncidentStatus.CONFIRMED -> next == RiskIncidentStatus.RESOLVED
+        RiskIncidentStatus.DISMISSED,
+        RiskIncidentStatus.AUTO_DISMISSED,
+        RiskIncidentStatus.RESOLVED -> false
     }
 
     fun load(): List<CommunicationRiskIncident> {
