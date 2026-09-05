@@ -35,8 +35,8 @@ class ProtectionHealthWorker(
                 (event.component.key == "location" && FamilyZoneStore(context).load().any { it.enabled }) ||
                 event.component.key == "geofences"
 
-            when (event.transition) {
-                ProtectionTransition.DEGRADED -> {
+            when (event.kind) {
+                ProtectionTransition.Kind.DEGRADED -> {
                     incidentStore.markDegraded(event.component.key, event.sinceMs)
                     val since = incidentStore.degradedSince(event.component.key) ?: event.sinceMs
                     val alert = SmartAlert(
@@ -49,7 +49,7 @@ class ProtectionHealthWorker(
                     )
                     if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
                 }
-                ProtectionTransition.RESTORED -> {
+                ProtectionTransition.Kind.RESTORED -> {
                     val since = incidentStore.degradedSince(event.component.key)
                     val duration = since?.let { formatDuration(event.sinceMs - it) }
                     val alert = SmartAlert(
@@ -71,8 +71,8 @@ class ProtectionHealthWorker(
         }
         incidentStore.saveComponents(currentComponents)
 
-        // Mantiene compatibilidad con el estado global y evita perder la alerta si una versión anterior detecta el cambio.
-        if (previousHealth != null && !previousHealth.active && health.active && transitions.none { it.transition == ProtectionTransition.RESTORED }) {
+        if (previousHealth != null && !previousHealth.active && health.active &&
+            transitions.none { it.kind == ProtectionTransition.Kind.RESTORED }) {
             val alert = SmartAlert(
                 "protection_restored_global_${health.checkedAtMs}", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO,
                 "Protección restablecida", "Famyrex vuelve a disponer de las funciones de protección comprobadas.", now()
