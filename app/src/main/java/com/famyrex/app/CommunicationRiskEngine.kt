@@ -13,7 +13,7 @@ object CommunicationRiskEngine {
             return CommunicationRiskSummary(0, RiskConfidence.LOW, emptyList())
         }
 
-        val distinct = signals.distinctBy { "${it.type}:${it.reason}:${it.sourcePackage}" }
+        val distinct = signals.distinctBy { "${it.type}:${it.reason}:${it.sourcePackage}:${it.direction}" }
 
         val criticalSelfHarm = distinct.any {
             it.type == CommunicationRiskType.SELF_HARM &&
