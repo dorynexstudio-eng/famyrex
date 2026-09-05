@@ -40,11 +40,14 @@ class AlertsViewModel(private val context: Context) : ViewModel() {
             }
         }
 
-        if (!alertStore.replace(alert.copy(lifecycleStatus = status))) {
-            // This should only happen if the alert disappeared concurrently.
-            // Refresh instead of exposing an in-memory status that was not persisted.
-            refresh()
-            return
+        val updatedAlert = alert.copy(lifecycleStatus = status)
+        if (!alertStore.replace(updatedAlert)) {
+            // The alert may have disappeared between the initial check and replace.
+            // Recover it instead of leaving a persisted incident without its UI alert.
+            if (!alertStore.appendIfNew(updatedAlert)) {
+                refresh()
+                return
+            }
         }
 
         refresh()
