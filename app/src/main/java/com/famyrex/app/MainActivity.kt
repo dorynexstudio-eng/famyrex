@@ -129,6 +129,7 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
                 }
             }
         }
+        item { RiskCard(context) }
         item { Text("Estado de cada protección", style = MaterialTheme.typography.titleLarge) }
         items(components, key = { it.key }) { component ->
             ElevatedCard(Modifier.fillMaxWidth()) {
