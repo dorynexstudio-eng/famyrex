@@ -27,17 +27,14 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun DailyReportScreen(context: Context, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    var report by remember { mutableStateOf<DailyReportData?>(null) }
+    var report by remember { mutableStateOf<UsageReport?>(null) }
 
     LaunchedEffect(Unit) {
         report = runCatching {
-            val usage = UsageRepository(context).loadSnapshots().firstOrNull()
-            val alerts = AlertStore(context).load()
-            val generated = ReportEngine.generateDaily(context)
-            DailyReportData(
-                usageMinutes = usage?.totalMinutes ?: 0L,
-                alerts = alerts.size,
-                reportText = generated.toString()
+            ReportEngine.build(
+                history = UsageSnapshotStore(context).loadHistory(),
+                alerts = AlertStore(context).load(),
+                period = ReportPeriod.DAILY
             )
         }.getOrNull()
     }
@@ -62,29 +59,36 @@ fun DailyReportScreen(context: Context, onBack: () -> Unit, modifier: Modifier =
                     Column(Modifier.padding(18.dp)) {
                         Text("Resumen", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(8.dp))
-                        Text("Uso registrado: ${data.usageMinutes} min")
-                        Text("Alertas almacenadas: ${data.alerts}")
+                        Text("Periodo: ${data.startDate}")
+                        Text("Uso total: ${data.totalMinutes} min")
+                        Text("Media diaria: ${data.averageDailyMinutes} min")
+                        Text("Alertas: ${data.alertCount} · importantes: ${data.importantAlertCount}")
+                        data.trendPercent?.let { Text("Tendencia: ${if (it >= 0) "+" else ""}$it%") }
                     }
                 }
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(18.dp)) {
-                        Text("Informe generado", style = MaterialTheme.typography.titleMedium)
+                        Text("Lectura del periodo", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(8.dp))
-                        Text(data.reportText)
+                        Text(data.narrative)
+                        data.peakDate?.let {
+                            Spacer(Modifier.height(6.dp))
+                            Text("Pico de uso: $it · ${data.peakMinutes} min")
+                        }
                     }
                 }
             }
+            if (data.topApps.isNotEmpty()) {
+                item { Text("Aplicaciones con más uso", style = MaterialTheme.typography.titleMedium) }
+                items(data.topApps.take(10), key = { it.packageName }) { app ->
+                    Text("${app.label}: ${app.totalMinutes} min")
+                }
+            }
             item {
-                Text("El informe es una representación de las señales disponibles localmente. La ausencia de datos no implica que todo esté bien.")
+                Text("Este informe representa únicamente las señales disponibles localmente. La ausencia de datos no implica que todo esté bien.")
             }
         }
     }
 }
-
-data class DailyReportData(
-    val usageMinutes: Long,
-    val alerts: Int,
-    val reportText: String
-)
