@@ -1,0 +1,90 @@
+package com.famyrex.app
+
+import android.content.Context
+import android.provider.Settings
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+@Composable
+fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
+    val store = remember { FamilyStore(context) }
+    var status by remember { mutableStateOf<ParentalStatus?>(null) }
+    var childName by remember { mutableStateOf("") }
+
+    fun refresh() {
+        childName = store.profiles().firstOrNull { it.role == FamilyRole.CHILD }?.displayName.orEmpty()
+        val usage = ParentalUsageMonitor(context)
+        val usageAccess = usage.hasUsageAccess()
+        val accessibilityEnabled = isSupervisedAccessibilityEnabled(context)
+        val totalMinutes = if (usageAccess) {
+            val start = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            usage.queryUsage(start, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L
+        } else null
+        val limit = ParentalControlStore(context).load().screenTimeLimit
+        status = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, limit)
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
+    Column(
+        modifier = modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Famyrex", style = MaterialTheme.typography.headlineMedium)
+        Text("Dispositivo supervisado", style = MaterialTheme.typography.headlineSmall)
+        Text(if (childName.isBlank()) "Este dispositivo está configurado para supervisión familiar." else "Perfil supervisado: $childName")
+
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val current = status
+                val symbol = when (current) {
+                    ParentalStatus.GREEN -> "🟢"
+                    ParentalStatus.ORANGE -> "🟠"
+                    ParentalStatus.RED -> "🔴"
+                    ParentalStatus.WHITE, null -> "⚪"
+                }
+                val label = when (current) {
+                    ParentalStatus.GREEN -> "PROTECCIÓN ACTIVA"
+                    ParentalStatus.ORANGE -> "ATENCIÓN"
+                    ParentalStatus.RED -> "LÍMITE ALCANZADO"
+                    ParentalStatus.WHITE, null -> "DATOS INSUFICIENTES"
+                }
+                Text("$symbol $label", style = MaterialTheme.typography.titleLarge)
+                Text("Los límites y pausas configurados por la familia se aplican en este dispositivo cuando los permisos necesarios están activos.")
+            }
+        }
+
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Transparencia", style = MaterialTheme.typography.titleMedium)
+                Text("Famyrex no es una aplicación espía. La supervisión visible depende de los permisos de Android y de las reglas familiares configuradas.")
+                Text("Si falta un permiso, el estado se muestra como ⚪ en lugar de fingir que todo está protegido.")
+            }
+        }
+    }
+}
+
+private fun isSupervisedAccessibilityEnabled(context: Context): Boolean {
+    val expected = "${context.packageName}/${FamyrexParentalAccessibilityService::class.java.name}"
+    val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+    return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+}
