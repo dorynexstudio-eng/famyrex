@@ -75,9 +75,11 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         now: Long
     ): Boolean {
         val types = summary.signals.map { it.type }.distinct().sortedBy { it.name }
+        val directions = summary.signals.map { it.direction }.distinct().sortedBy { it.name }
         return CommunicationRiskIncidentStore(this).load().any { incident ->
             incident.sourcePackage == sourcePackage &&
                 now - incident.createdAtMs in 0..INCIDENT_COOLDOWN_MS &&
+                incident.direction in directions &&
                 incident.reasons.map { it.code }.sorted() ==
                     types.map { type -> CommunicationRiskReasonCatalog.fromSignal(
                         CommunicationRiskSignal(type, RiskConfidence.LOW, "")
@@ -99,7 +101,8 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
             score = summary.score,
             reasons = signals.map(CommunicationRiskReasonCatalog::fromSignal)
                 .distinctBy { it.code },
-            sourcePackage = sourcePackage
+            sourcePackage = sourcePackage,
+            direction = signals.firstOrNull()?.direction ?: CommunicationDirection.UNKNOWN
         )
 
         CommunicationRiskIncidentStore(this).save(incident)
