@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import kotlin.random.Random
 
@@ -73,7 +74,24 @@ fun FamyrexApp(context: Context) {
             }
         ) { padding ->
             when (tab) {
-                0 -> Dashboard(context, family, Modifier.padding(padding))
+                0 -> Dashboard(
+                    context = context,
+                    family = family,
+                    modifier = Modifier.padding(padding),
+                    onRecommendationAction = { destination ->
+                        when (destination) {
+                            FamilyIntelligenceRecommendationDestination.ALERTS -> {
+                                parentalControlOpen = false
+                                tab = 1
+                            }
+                            FamilyIntelligenceRecommendationDestination.PARENTAL_CONTROL -> {
+                                tab = 2
+                                parentalControlOpen = true
+                            }
+                            FamilyIntelligenceRecommendationDestination.OBSERVE -> Unit
+                        }
+                    }
+                )
                 1 -> RealAlertsScreen(context, Modifier.padding(padding))
                 2 -> if (parentalControlOpen) {
                     ParentalControlScreen(modifier = Modifier.padding(padding))
@@ -100,7 +118,12 @@ private fun saveFamily(prefs: android.content.SharedPreferences, state: FamilySt
 }
 
 @Composable
-fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifier) {
+fun Dashboard(
+    context: Context,
+    family: FamilyState,
+    modifier: Modifier = Modifier,
+    onRecommendationAction: (FamilyIntelligenceRecommendationDestination) -> Unit = {}
+) {
     val configured = family.parent.isNotBlank() && family.child.isNotBlank()
     var components by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
     LaunchedEffect(Unit) { components = ProtectionComponentChecker.check(context) }
@@ -131,6 +154,13 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
             }
         }
         item { RiskCard(components) }
+        item {
+            FamilyIntelligenceCard(
+                context = context,
+                modifier = Modifier.fillMaxWidth(),
+                onRecommendationAction = onRecommendationAction
+            )
+        }
         item { Text("Estado de cada protección", style = MaterialTheme.typography.titleLarge) }
         items(components, key = { it.key }) { component ->
             ElevatedCard(Modifier.fillMaxWidth()) {
