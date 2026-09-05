@@ -8,7 +8,8 @@ enum class CommunicationRiskType {
     SEXUAL_REQUEST,
     SECRET_KEEPING,
     SELF_HARM,
-    SOCIAL_ISOLATION
+    SOCIAL_ISOLATION,
+    SOCIAL_CONFLICT
 }
 
 enum class RiskConfidence { LOW, MEDIUM, HIGH }
