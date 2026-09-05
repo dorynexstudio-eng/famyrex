@@ -14,12 +14,6 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
     companion object {
         private const val WINDOW_MS = 30 * 60 * 1000L
         private const val MAX_OBSERVATIONS = 40
-        private const val INCIDENT_COOLDOWN_MS = 30 * 60 * 1000L
-        private val TERMINAL_INCIDENT_STATUSES = setOf(
-            RiskIncidentStatus.DISMISSED,
-            RiskIncidentStatus.AUTO_DISMISSED,
-            RiskIncidentStatus.RESOLVED
-        )
     }
 
     private val observations = ArrayDeque<CommunicationObservation>()
@@ -78,16 +72,15 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         sourcePackage: String,
         now: Long
     ): CommunicationRiskIncident? {
-        val signalTypes = summary.signals.map { it.type }.toSet()
-        val directions = summary.signals.map { it.direction }.toSet()
         return CommunicationRiskIncidentStore(this).load()
             .asSequence()
             .filter { incident ->
-                incident.sourcePackage == sourcePackage &&
-                    now - incident.createdAtMs in 0..INCIDENT_COOLDOWN_MS &&
-                    incident.direction in directions &&
-                    incident.type in signalTypes &&
-                    incident.status !in TERMINAL_INCIDENT_STATUSES
+                CommunicationRiskEpisodeMatcher.isSameEpisode(
+                    summary = summary,
+                    incident = incident,
+                    sourcePackage = sourcePackage,
+                    nowMs = now
+                )
             }
             .maxByOrNull { it.createdAtMs }
     }
