@@ -98,6 +98,17 @@ class FamilyStore(context: Context) {
         return VerifiedFamilyIdentity(id, secret, fingerprint, prefs.getLong("verified_family_at_ms", 0L))
     }
 
+    /** Removes stale supervised binding data and returns this installation to parent mode. */
+    fun clearVerifiedFamilyIdentity() {
+        prefs.edit()
+            .remove("verified_family_id")
+            .remove("verified_family_secret")
+            .remove("verified_family_fingerprint")
+            .remove("verified_family_at_ms")
+            .putString("app_mode", FamyrexAppMode.PARENT.name)
+            .apply()
+    }
+
     private fun saveProfiles(items: List<FamilyProfile>) {
         val a = JSONArray()
         items.forEach { a.put(JSONObject().apply { put("id", it.id); put("displayName", it.displayName); put("role", it.role.name); put("createdAtMs", it.createdAtMs); put("guardianProfileIds", JSONArray(it.guardianProfileIds)) }) }
