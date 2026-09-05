@@ -39,18 +39,20 @@ class CommunicationSignalDetectorTest {
     }
 
     @Test
-    fun `single self harm phrase does not create detector incident`() {
+    fun `single self harm phrase creates a priority detector signal`() {
         val summary = CommunicationSignalDetector.detect(listOf(obs(0, "no quiero vivir")))
-        assertTrue(summary.signals.isEmpty())
-        assertTrue(!summary.shouldAlert)
+        assertTrue(summary.signals.any { it.type == CommunicationRiskType.SELF_HARM })
+        assertEquals(RiskConfidence.HIGH, summary.signals.first { it.type == CommunicationRiskType.SELF_HARM }.confidence)
+        assertTrue(summary.shouldAlert)
     }
 
     @Test
-    fun `repeated self harm expressions become high signal`() {
+    fun `repeated self harm expressions remain high priority`() {
         val summary = CommunicationSignalDetector.detect(listOf(obs(0, "no quiero vivir"), obs(10 * 60 * 1000L, "me quiero morir")))
         assertTrue(summary.signals.any { it.type == CommunicationRiskType.SELF_HARM })
         assertTrue(!summary.signals.any { it.type == CommunicationRiskType.THREAT })
-        assertTrue(!summary.shouldAlert)
+        assertTrue(summary.shouldAlert)
+        assertEquals(RiskConfidence.HIGH, summary.confidence)
     }
 
     @Test
