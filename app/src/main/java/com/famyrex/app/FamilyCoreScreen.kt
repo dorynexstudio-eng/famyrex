@@ -25,7 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun FamilyCoreScreen(context: Context, modifier: Modifier = Modifier) {
+fun FamilyCoreScreen(
+    context: Context,
+    modifier: Modifier = Modifier,
+    onOpenParentalControl: () -> Unit = {}
+) {
     val store = remember { FamilyStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var devices by remember { mutableStateOf(store.devices()) }
@@ -126,6 +130,18 @@ fun FamilyCoreScreen(context: Context, modifier: Modifier = Modifier) {
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Preparar vinculación") }
+                    }
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Control parental", style = MaterialTheme.typography.titleMedium)
+                    Text("Configura límites de pantalla, pausas y restricciones de aplicaciones en este dispositivo.")
+                    Button(onClick = onOpenParentalControl, modifier = Modifier.fillMaxWidth()) {
+                        Text("Abrir Control parental")
                     }
                 }
             }
