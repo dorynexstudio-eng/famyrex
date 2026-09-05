@@ -16,21 +16,68 @@ class ProtectionHealthWorker(
         GeofenceBootstrap.sync(context)
         InstalledAppsReconciler.reconcile(context)
 
-        val store = ProtectionHealthStore(context)
-        val previous = store.load()
+        val healthStore = ProtectionHealthStore(context)
+        val previousHealth = healthStore.load()
         val health = ProtectionHealthChecker.check(context)
-        store.save(health)
+        healthStore.save(health)
 
-        when {
-            !health.active -> {
-                val signature = health.reasons.sorted().joinToString("|").hashCode().toUInt().toString(16)
-                val alert = SmartAlert("protection_degraded_$signature", AlertType.PROTECTION_DEGRADED, AlertSeverity.IMPORTANT, "Protección degradada", "Famyrex no puede garantizar todas las funciones de protección: ${health.reasons.joinToString(" ")}", now())
-                if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+        val incidentStore = ProtectionIncidentStore(context)
+        val previousComponents = incidentStore.loadComponents()
+        val currentComponents = ProtectionComponentChecker.check(context)
+        val transitions = ProtectionTransitionEngine.evaluate(
+            previous = previousComponents,
+            current = currentComponents,
+            nowMs = health.checkedAtMs
+        )
+
+        transitions.forEach { event ->
+            val critical = event.component.key == "notifications" ||
+                (event.component.key == "location" && FamilyZoneStore(context).load().any { it.enabled }) ||
+                event.component.key == "geofences"
+
+            when (event.transition) {
+                ProtectionTransition.DEGRADED -> {
+                    incidentStore.markDegraded(event.component.key, event.sinceMs)
+                    val since = incidentStore.degradedSince(event.component.key) ?: event.sinceMs
+                    val alert = SmartAlert(
+                        id = "protection_degraded_${event.component.key}_$since",
+                        type = AlertType.PROTECTION_DEGRADED,
+                        severity = if (critical) AlertSeverity.IMPORTANT else AlertSeverity.ATTENTION,
+                        title = "Protección degradada: ${event.component.name}",
+                        message = "${event.component.detail} El problema comenzó en ${formatTime(since)}.",
+                        date = now()
+                    )
+                    if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+                }
+                ProtectionTransition.RESTORED -> {
+                    val since = incidentStore.degradedSince(event.component.key)
+                    val duration = since?.let { formatDuration(event.sinceMs - it) }
+                    val alert = SmartAlert(
+                        id = "protection_restored_${event.component.key}_${event.sinceMs}",
+                        type = AlertType.PROTECTION_RESTORED,
+                        severity = AlertSeverity.INFO,
+                        title = "Protección restablecida: ${event.component.name}",
+                        message = if (duration != null) {
+                            "Famyrex vuelve a disponer de esta función. La incidencia duró aproximadamente $duration."
+                        } else {
+                            "Famyrex vuelve a disponer de esta función de protección."
+                        },
+                        date = now()
+                    )
+                    incidentStore.clearDegraded(event.component.key)
+                    if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+                }
             }
-            previous != null && !previous.active && health.active -> {
-                val alert = SmartAlert("protection_restored_${health.checkedAtMs}", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO, "Protección restablecida", "Famyrex vuelve a disponer de las funciones de protección comprobadas.", now())
-                if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
-            }
+        }
+        incidentStore.saveComponents(currentComponents)
+
+        // Mantiene compatibilidad con el estado global y evita perder la alerta si una versión anterior detecta el cambio.
+        if (previousHealth != null && !previousHealth.active && health.active && transitions.none { it.transition == ProtectionTransition.RESTORED }) {
+            val alert = SmartAlert(
+                "protection_restored_global_${health.checkedAtMs}", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO,
+                "Protección restablecida", "Famyrex vuelve a disponer de las funciones de protección comprobadas.", now()
+            )
+            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
         // Correlacionamos las señales técnicas antes de alertar para reducir falsos positivos.
@@ -73,4 +120,16 @@ class ProtectionHealthWorker(
     }.getOrElse { Result.retry() }
 
     private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+
+    private fun formatTime(timestampMs: Long): String =
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMs))
+
+    private fun formatDuration(durationMs: Long): String {
+        val minutes = (durationMs / 60_000L).coerceAtLeast(0L)
+        return when {
+            minutes < 60 -> "$minutes min"
+            minutes < 1440 -> "${minutes / 60} h ${minutes % 60} min"
+            else -> "${minutes / 1440} d ${(minutes % 1440) / 60} h"
+        }
+    }
 }
