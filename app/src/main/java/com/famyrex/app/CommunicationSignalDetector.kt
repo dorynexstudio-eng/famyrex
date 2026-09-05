@@ -18,6 +18,7 @@ data class CommunicationObservation(
  */
 object CommunicationSignalDetector {
     private const val WINDOW_MS = 30 * 60 * 1000L
+    private const val SOCIAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
     private const val MAX_OBSERVATIONS = 40
 
     fun detect(observations: List<CommunicationObservation>): CommunicationRiskSummary {
@@ -31,7 +32,17 @@ object CommunicationSignalDetector {
             .map { it.copy(normalizedText = normalize(it.normalizedText)) }
             .filter { it.normalizedText.isNotBlank() }
 
-        if (recent.isEmpty()) return CommunicationRiskEngine.evaluate(emptyList())
+        // Los conflictos sociales y su evolución necesitan un horizonte mayor:
+        // una situación que empeora durante varios días no debe perderse porque
+        // entre dos observaciones hayan pasado más de 30 minutos. El contenido
+        // sigue siendo temporal y solo se usa durante este análisis en memoria.
+        val socialRecent = ordered
+            .filter { end - it.timestampMs in 0..SOCIAL_WINDOW_MS }
+            .takeLast(MAX_OBSERVATIONS)
+            .map { it.copy(normalizedText = normalize(it.normalizedText)) }
+            .filter { it.normalizedText.isNotBlank() }
+
+        if (recent.isEmpty() && socialRecent.isEmpty()) return CommunicationRiskEngine.evaluate(emptyList())
 
         val signals = mutableListOf<CommunicationRiskSignal>()
 
@@ -55,21 +66,8 @@ object CommunicationSignalDetector {
             }
         }
 
-        val observationsWith = recent.map { observation ->
-            ObservationFlags(
-                observation = observation,
-                personalInfo = containsAny(observation.normalizedText, PERSONAL_INFO),
-                secrecy = containsAny(observation.normalizedText, SECRECY),
-                meeting = containsAny(observation.normalizedText, MEETING),
-                sexual = containsAny(observation.normalizedText, SEXUAL),
-                threat = containsAny(observation.normalizedText, THREATS),
-                bullying = containsAny(observation.normalizedText, BULLYING),
-                selfHarm = containsAny(observation.normalizedText, SELF_HARM),
-                isolation = containsAny(observation.normalizedText, ISOLATION),
-                unknownContact = containsAny(observation.normalizedText, UNKNOWN_CONTACT),
-                socialConflict = containsAny(observation.normalizedText, SOCIAL_CONFLICT)
-            )
-        }
+        val observationsWith = recent.map { observation -> flagsFor(observation) }
+        val socialObservationsWith = socialRecent.map { observation -> flagsFor(observation) }
 
         val personal = observationsWith.filter { it.personalInfo }
         val secrets = observationsWith.filter { it.secrecy }
@@ -80,7 +78,9 @@ object CommunicationSignalDetector {
         val selfHarm = observationsWith.filter { it.selfHarm }
         val isolation = observationsWith.filter { it.isolation }
         val unknownContacts = observationsWith.filter { it.unknownContact }
-        val socialConflicts = observationsWith.filter { it.socialConflict }
+        val socialConflicts = socialObservationsWith.filter { it.socialConflict }
+        val socialIsolation = socialObservationsWith.filter { it.isolation }
+        val socialBullying = socialObservationsWith.filter { it.bullying && it.observation.isIncoming }
 
         // Señal temprana: una referencia a un contacto desconocido o nuevo no es
         // una acusación. Se combina después con secreto, datos personales o sexo.
@@ -198,15 +198,27 @@ object CommunicationSignalDetector {
         // entre iguales no se etiquetan como acoso. Solo se escala si aparecen varias
         // señales o si el conflicto se combina con hostilidad/exclusión.
         if (socialConflicts.isNotEmpty()) {
+            val conflictDays = socialConflicts
+                .map { dayKey(it.observation.timestampMs) }
+                .distinct()
+                .size
             add(
                 CommunicationRiskType.SOCIAL_CONFLICT,
-                if (socialConflicts.size >= 2) RiskConfidence.MEDIUM else RiskConfidence.LOW,
-                "Se detectaron señales compatibles con tensión o conflicto entre iguales; una situación puntual no implica acoso.",
+                when {
+                    conflictDays >= 3 -> RiskConfidence.MEDIUM
+                    socialConflicts.size >= 2 -> RiskConfidence.MEDIUM
+                    else -> RiskConfidence.LOW
+                },
+                when {
+                    conflictDays >= 3 -> "El conflicto entre iguales aparece en varios días y conviene revisar si está empeorando."
+                    socialConflicts.size >= 2 -> "Se detectaron varias señales compatibles con tensión o conflicto entre iguales; conviene observar su evolución."
+                    else -> "Se detectaron señales compatibles con tensión o conflicto entre iguales; una situación puntual no implica acoso."
+                },
                 socialConflicts.last().observation
             )
         }
 
-        if (socialConflicts.isNotEmpty() && bullying.isNotEmpty()) {
+        if (socialConflicts.isNotEmpty() && socialBullying.isNotEmpty()) {
             add(
                 CommunicationRiskType.SOCIAL_CONFLICT,
                 RiskConfidence.MEDIUM,
@@ -215,7 +227,7 @@ object CommunicationSignalDetector {
             )
         }
 
-        if (socialConflicts.isNotEmpty() && isolation.isNotEmpty()) {
+        if (socialConflicts.isNotEmpty() && socialIsolation.isNotEmpty()) {
             add(
                 CommunicationRiskType.SOCIAL_CONFLICT,
                 RiskConfidence.MEDIUM,
@@ -244,6 +256,24 @@ object CommunicationSignalDetector {
 
         return CommunicationRiskEngine.evaluate(signals.distinctBy { "${it.type}:${it.reason}:${it.sourcePackage}" })
     }
+
+    private fun flagsFor(observation: CommunicationObservation): ObservationFlags = ObservationFlags(
+        observation = observation,
+        personalInfo = containsAny(observation.normalizedText, PERSONAL_INFO),
+        secrecy = containsAny(observation.normalizedText, SECRECY),
+        meeting = containsAny(observation.normalizedText, MEETING),
+        sexual = containsAny(observation.normalizedText, SEXUAL),
+        threat = containsAny(observation.normalizedText, THREATS),
+        bullying = containsAny(observation.normalizedText, BULLYING),
+        selfHarm = containsAny(observation.normalizedText, SELF_HARM),
+        isolation = containsAny(observation.normalizedText, ISOLATION),
+        unknownContact = containsAny(observation.normalizedText, UNKNOWN_CONTACT),
+        socialConflict = containsAny(observation.normalizedText, SOCIAL_CONFLICT)
+    )
+
+    private fun dayKey(timestampMs: Long): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+            .format(java.util.Date(timestampMs))
 
     private data class ObservationFlags(
         val observation: CommunicationObservation,
