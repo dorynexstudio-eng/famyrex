@@ -7,6 +7,7 @@ import org.json.JSONObject
 class FamilyStore(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE)
+    private val secretProtector = FamilySecretProtector(appContext)
 
     fun profiles(): List<FamilyProfile> {
         val raw = prefs.getString("profiles", null) ?: return emptyList()
@@ -77,14 +78,15 @@ class FamilyStore(context: Context) {
 
     fun appMode(): FamyrexAppMode = runCatching { FamyrexAppMode.valueOf(prefs.getString("app_mode", FamyrexAppMode.PARENT.name)!!) }.getOrDefault(FamyrexAppMode.PARENT)
 
-    /** Persists the verified family identity on this installation. */
+    /** Persists the verified family identity; the binding secret is encrypted with Android Keystore. */
     fun saveVerifiedFamilyIdentity(familyId: String, secret: String, fingerprint: String) {
         require(familyId.isNotBlank())
         require(secret.length == 32)
         require(fingerprint.length == 12)
         prefs.edit()
             .putString("verified_family_id", familyId)
-            .putString("verified_family_secret", secret.lowercase())
+            .putString("verified_family_secret_enc", secretProtector.encrypt(secret.lowercase()))
+            .remove("verified_family_secret")
             .putString("verified_family_fingerprint", fingerprint.lowercase())
             .putLong("verified_family_at_ms", System.currentTimeMillis())
             .apply()
@@ -92,8 +94,18 @@ class FamilyStore(context: Context) {
 
     fun verifiedFamilyIdentity(): VerifiedFamilyIdentity? {
         val id = prefs.getString("verified_family_id", null) ?: return null
-        val secret = prefs.getString("verified_family_secret", null) ?: return null
         val fingerprint = prefs.getString("verified_family_fingerprint", null) ?: return null
+        val encrypted = prefs.getString("verified_family_secret_enc", null)
+        val secret = encrypted?.let { secretProtector.decrypt(it) }
+            ?: prefs.getString("verified_family_secret", null)?.also {
+                runCatching {
+                    prefs.edit()
+                        .putString("verified_family_secret_enc", secretProtector.encrypt(it.lowercase()))
+                        .remove("verified_family_secret")
+                        .apply()
+                }
+            }
+            ?: return null
         if (secret.length != 32 || fingerprint.length != 12) return null
         return VerifiedFamilyIdentity(id, secret, fingerprint, prefs.getLong("verified_family_at_ms", 0L))
     }
@@ -103,6 +115,7 @@ class FamilyStore(context: Context) {
         prefs.edit()
             .remove("verified_family_id")
             .remove("verified_family_secret")
+            .remove("verified_family_secret_enc")
             .remove("verified_family_fingerprint")
             .remove("verified_family_at_ms")
             .putString("app_mode", FamyrexAppMode.PARENT.name)
