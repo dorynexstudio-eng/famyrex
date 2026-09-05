@@ -17,8 +17,8 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     private var blockedPackage: String? = null
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val packageName = event?.packageName?.toString() ?: return
-        if (packageName == packageNameForFamyrex()) {
+        val targetPackage = event?.packageName?.toString() ?: return
+        if (targetPackage == applicationContext.packageName) {
             removeBlockingOverlay()
             return
         }
@@ -35,18 +35,20 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         val usage = monitor.queryUsage(startOfDay, now)
-        val appUsed = usage.firstOrNull { it.packageName == packageName }?.totalTimeInForeground?.div(60_000L) ?: 0L
+        val appUsed = usage.firstOrNull { it.packageName == targetPackage }
+            ?.totalTimeInForeground?.div(60_000L) ?: 0L
         val totalUsed = usage.sumOf { it.totalTimeInForeground }.div(60_000L)
 
         val result = ParentalPolicyEngine.evaluate(
             config = ParentalControlStore(this).load(),
-            packageName = packageName,
+            packageName = targetPackage,
             appUsedTodayMinutes = appUsed,
             totalScreenTodayMinutes = totalUsed,
             nowMs = now
         )
 
-        if (result.restricted) showBlockingOverlay(result.reasons) else removeBlockingOverlay()
+        if (result.restricted) showBlockingOverlay(targetPackage, result.reasons)
+        else if (blockedPackage == targetPackage) removeBlockingOverlay()
     }
 
     override fun onInterrupt() = removeBlockingOverlay()
@@ -56,12 +58,12 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private fun showBlockingOverlay(reasons: List<String>) {
-        if (blockedPackage == currentPackage()) return
+    private fun showBlockingOverlay(targetPackage: String, reasons: List<String>) {
+        if (blockedPackage == targetPackage && blockingView != null) return
         removeBlockingOverlay()
 
         val view = TextView(this).apply {
-            text = "Famyrex\n\nEsta aplicación está temporalmente restringida.\n\n${reasons.joinToString("\n")}" 
+            text = "Famyrex\n\nEsta aplicación está temporalmente restringida.\n\n${reasons.joinToString("\n")}"
             textSize = 20f
             gravity = Gravity.CENTER
             setPadding(48, 48, 48, 48)
@@ -81,7 +83,7 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
 
         getSystemService(WindowManager::class.java).addView(view, params)
         blockingView = view
-        blockedPackage = currentPackage()
+        blockedPackage = targetPackage
     }
 
     private fun removeBlockingOverlay() {
@@ -91,8 +93,4 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         blockingView = null
         blockedPackage = null
     }
-
-    private fun currentPackage(): String? = blockedPackage
-
-    private fun packageNameForFamyrex(): String = applicationContext.packageName
 }
