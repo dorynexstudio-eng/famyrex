@@ -13,7 +13,7 @@ import android.service.notification.StatusBarNotification
 class FamyrexNotificationListenerService : NotificationListenerService() {
     companion object {
         private const val WINDOW_MS = 30 * 60 * 1000L
-        private const val MAX_OBSERVATIONS = 40
+        private const val MAX_OBSERVATIONS_PER_SOURCE = 40
     }
 
     private val observations = ArrayDeque<CommunicationObservation>()
@@ -36,6 +36,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
                 )
             )
             prune(now)
+            pruneSource(sbn.packageName)
 
             val sourceObservations = CommunicationObservationScope.forSource(
                 observations = observations.toList(),
@@ -66,8 +67,18 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         while (observations.isNotEmpty() && now - observations.first().timestampMs > WINDOW_MS) {
             observations.removeFirst()
         }
-        while (observations.size > MAX_OBSERVATIONS) {
-            observations.removeFirst()
+    }
+
+    private fun pruneSource(sourcePackage: String) {
+        var sourceCount = observations.count { it.sourcePackage == sourcePackage }
+        if (sourceCount <= MAX_OBSERVATIONS_PER_SOURCE) return
+
+        val iterator = observations.iterator()
+        while (iterator.hasNext() && sourceCount > MAX_OBSERVATIONS_PER_SOURCE) {
+            if (iterator.next().sourcePackage == sourcePackage) {
+                iterator.remove()
+                sourceCount--
+            }
         }
     }
 
