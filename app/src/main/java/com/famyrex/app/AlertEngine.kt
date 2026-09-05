@@ -1,9 +1,6 @@
 package com.famyrex.app
 
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import kotlin.math.roundToInt
 
 object AlertEngine {
@@ -91,7 +88,16 @@ object AlertEngine {
             )
         }
 
-        return alerts.distinctBy { it.id }.takeLast(20)
+        return limitAlerts(alerts.distinctBy { it.id })
+    }
+
+    /** Keeps the display cap while never evicting IMPORTANT alerts in favor of lower-severity ones. */
+    internal fun limitAlerts(alerts: List<SmartAlert>, maxSize: Int = 20): List<SmartAlert> {
+        if (alerts.size <= maxSize) return alerts
+        val important = alerts.filter { it.severity == AlertSeverity.IMPORTANT }
+        val remaining = alerts.filter { it.severity != AlertSeverity.IMPORTANT }
+        if (important.size >= maxSize) return important.takeLast(maxSize)
+        return important + remaining.takeLast(maxSize - important.size)
     }
 
     private fun isInNightWindow(timestampMs: Long, start: Int, end: Int): Boolean {
