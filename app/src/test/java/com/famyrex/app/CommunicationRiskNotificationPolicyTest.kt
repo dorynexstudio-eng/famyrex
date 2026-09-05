@@ -66,14 +66,45 @@ class CommunicationRiskNotificationPolicyTest {
         )
     }
 
+    @Test
+    fun criticalNewReason_isNotifiableEvenWhenScoreIsSaturated() {
+        assertTrue(
+            CommunicationRiskNotificationPolicy.shouldNotify(
+                incident(score = 100, reasons = listOf(reason("GROOMING_SIGNAL"))),
+                incident(score = 100, reasons = listOf(reason("GROOMING_SIGNAL"), reason("SELF_HARM_SIGNAL")))
+            )
+        )
+    }
+
+    @Test
+    fun criticalTypeEscalation_isNotifiableEvenWhenScoreIsSaturated() {
+        assertTrue(
+            CommunicationRiskNotificationPolicy.shouldNotify(
+                incident(score = 100, type = CommunicationRiskType.GROOMING),
+                incident(score = 100, type = CommunicationRiskType.SELF_HARM)
+            )
+        )
+    }
+
+    @Test
+    fun nonCriticalNewReasonWithoutScoreIncrease_isSuppressed() {
+        assertFalse(
+            CommunicationRiskNotificationPolicy.shouldNotify(
+                incident(score = 100, reasons = listOf(reason("GROOMING_SIGNAL"))),
+                incident(score = 100, reasons = listOf(reason("GROOMING_SIGNAL"), reason("SECRET_KEEPING")))
+            )
+        )
+    }
+
     private fun incident(
         score: Int,
         confidence: RiskConfidence = RiskConfidence.MEDIUM,
-        reasons: List<RiskReason> = listOf(reason("GROOMING_SIGNAL"))
+        reasons: List<RiskReason> = listOf(reason("GROOMING_SIGNAL")),
+        type: CommunicationRiskType = CommunicationRiskType.GROOMING
     ) = CommunicationRiskIncident(
         id = "episode-1",
         createdAtMs = 1_000L,
-        type = CommunicationRiskType.GROOMING,
+        type = type,
         confidence = confidence,
         score = score,
         reasons = reasons,
