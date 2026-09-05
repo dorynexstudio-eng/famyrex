@@ -32,21 +32,19 @@ fun FamilyCoreScreen(
     onFamilyChanged: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
-    val pairing = remember { PairingCoordinator(PairingCodeStore(context)) }
+    val identityStore = remember { FamilyIdentityStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var devices by remember { mutableStateOf(store.devices()) }
     var adultName by remember { mutableStateOf("") }
     var childName by remember { mutableStateOf("") }
     var deviceName by remember { mutableStateOf("") }
-    var pairingInput by remember { mutableStateOf("") }
-    var pairingCode by remember { mutableStateOf<PairingCode?>(null) }
+    var invitation by remember { mutableStateOf<OfflinePairingToken?>(null) }
     var message by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         store.ensureLocalOwner()
         profiles = store.profiles()
         devices = store.devices()
-        pairingCode = PairingCodeStore(context).current()
     }
 
     val adults = profiles.filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }
@@ -66,10 +64,7 @@ fun FamilyCoreScreen(
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Adultos autorizados", style = MaterialTheme.typography.titleMedium)
-                    if (adults.isEmpty()) Text("⚪ Sin adultos configurados")
-                    adults.forEach { adult ->
-                        Text("👑 ${adult.displayName} · ${if (adult.role == FamilyRole.OWNER) "Administrador" else "Adulto autorizado"}")
-                    }
+                    adults.forEach { adult -> Text("👑 ${adult.displayName} · ${if (adult.role == FamilyRole.OWNER) "Administrador" else "Adulto autorizado"}") }
                     OutlinedTextField(adultName, { adultName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del segundo padre/madre") })
                     Button(enabled = adultName.isNotBlank(), onClick = {
                         store.addAdult(adultName.trim())
@@ -106,44 +101,23 @@ fun FamilyCoreScreen(
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Vinculación de dispositivos", style = MaterialTheme.typography.titleMedium)
-                    Text("Genera un código temporal en el dispositivo del padre/madre y transfiérelo manualmente al dispositivo supervisado. El código caduca y se consume una sola vez.")
-                    pairingCode?.let { code ->
-                        Text("Código activo", style = MaterialTheme.typography.labelLarge)
-                        Text(code.code, style = MaterialTheme.typography.headlineMedium)
-                        Text("Caduca en ${((code.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
+                    Text("Vinculación offline segura", style = MaterialTheme.typography.titleMedium)
+                    Text("La invitación ya no acepta un número arbitrario: contiene una identidad de familia y un secreto aleatorio. El código de 6 dígitos se deriva con HMAC y caduca.")
+                    invitation?.let { token ->
+                        Text("Código de vinculación", style = MaterialTheme.typography.labelLarge)
+                        Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium)
+                        Text("Familia: ${token.familyId.take(12)}…")
+                        Text("Clave de invitación", style = MaterialTheme.typography.labelLarge)
+                        Text(OfflinePairingTokenCodec.encode(token))
+                        Text("Huella: ${OfflinePairingTokenCodec.fingerprint(token.secret)}")
+                        Text("Caduca en ${((token.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
                     }
                     Button(onClick = {
-                        pairingCode = pairing.createCode()
-                        message = "Código nuevo generado. Muéstralo únicamente a la persona que vaya a configurar el dispositivo supervisado."
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Generar código de vinculación") }
-                    OutlinedTextField(
-                        pairingInput,
-                        { pairingInput = it.filter(Char::isDigit).take(6) },
-                        Modifier.fillMaxWidth(),
-                        label = { Text("Confirmar código recibido") },
-                        singleLine = true
-                    )
-                    Button(
-                        enabled = pairingInput.length == 6 && devices.any { it.linkState == DeviceLinkState.PENDING },
-                        onClick = {
-                            if (pairing.consumeCode(pairingInput)) {
-                                val pending = devices.firstOrNull { it.linkState == DeviceLinkState.PENDING }
-                                if (pending != null) {
-                                    store.setDeviceState(pending.id, DeviceLinkState.LINKED)
-                                    devices = store.devices()
-                                    pairingCode = null
-                                    pairingInput = ""
-                                    message = "Vinculación confirmada para ${pending.displayName}."
-                                    onFamilyChanged()
-                                }
-                            } else {
-                                message = "Código incorrecto o caducado. Genera uno nuevo y vuelve a intentarlo."
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Confirmar vinculación") }
-                    Text("Sin servidor: este flujo requiere intercambio manual del código y confirmación explícita en una instalación autorizada.")
+                        val token = OfflinePairingTokenCodec.create(identityStore.identity().familyId, System.currentTimeMillis())
+                        invitation = token
+                        message = "Invitación generada. Transfiere la clave y el código al dispositivo supervisado."
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Generar invitación") }
+                    Text("Sin servidor: el dispositivo supervisado verifica localmente que el código corresponde a la clave, familia y caducidad mostradas aquí.")
                 }
             }
         }
@@ -198,7 +172,6 @@ fun FamilyCoreScreen(
         }
 
         if (message.isNotBlank()) item { Text(message) }
-
         item {
             Text("Protección y transparencia", style = MaterialTheme.typography.titleMedium)
             Text("La vinculación debe hacerse con autorización y permisos visibles. El modo supervisado no es una aplicación espía: no lee chats privados, no graba llamadas y no oculta la supervisión de forma clandestina.")
