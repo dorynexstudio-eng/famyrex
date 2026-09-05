@@ -77,11 +77,7 @@ fun FamyrexApp(context: Context) {
                 0 -> Dashboard(context, family, Modifier.padding(padding))
                 1 -> RealAlertsScreen(context, Modifier.padding(padding))
                 2 -> if (parentalControlOpen) {
-                    ParentalControlScreen(
-                        context = context,
-                        modifier = Modifier.padding(padding),
-                        onBack = { parentalControlOpen = false }
-                    )
+                    ParentalControlScreen(modifier = Modifier.padding(padding))
                 } else {
                     FamilyCoreScreen(
                         context = context,
@@ -137,7 +133,7 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
                 }
             }
         }
-        item { RiskCard(context) }
+        item { RiskCard(components) }
         item { Text("Estado de cada protección", style = MaterialTheme.typography.titleLarge) }
         items(components, key = { it.key }) { component ->
             ElevatedCard(Modifier.fillMaxWidth()) {
@@ -305,7 +301,20 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
 private fun randomCode(): String = buildString { val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; repeat(8) { append(chars[Random.nextInt(chars.length)]) } }
 
 @Composable
-private fun RiskCard(context: Context) {
-    val assessment = remember(context) { RiskAssessmentEngine(context).evaluate() }
-    Card(modifier = Modifier.fillMaxWidth()) { Column(modifier = Modifier.padding(16.dp)) { Text("Nivel de atención"); Text("${assessment.level.name} · ${assessment.score}/100", style = MaterialTheme.typography.titleLarge); assessment.reasons.take(4).forEach { reason -> Text("• $reason") } } }
+private fun RiskCard(components: List<ProtectionComponent>) {
+    val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
+    val notConfigured = components.count { it.status == ProtectionComponentStatus.NOT_CONFIGURED }
+    val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }
+    val status = when {
+        degraded > 0 -> "🟠 ATENCIÓN"
+        notConfigured > 0 -> "⚪ DATOS INSUFICIENTES"
+        else -> "🟢 SIN SEÑALES DE ATENCIÓN"
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Nivel de atención")
+            Text(status, style = MaterialTheme.typography.titleLarge)
+            Text("$active activas · $degraded con atención · $notConfigured sin configurar")
+        }
+    }
 }
