@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.Manifest
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
@@ -126,14 +127,44 @@ fun Dashboard(
 ) {
     val configured = family.parent.isNotBlank() && family.child.isNotBlank()
     var components by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
-    LaunchedEffect(Unit) { components = ProtectionComponentChecker.check(context) }
+    var intelligenceStatus by remember { mutableStateOf<ParentalStatus?>(null) }
+
+    fun refreshDashboard() {
+        components = ProtectionComponentChecker.check(context)
+        val usageMonitor = ParentalUsageMonitor(context)
+        val usageAccess = usageMonitor.hasUsageAccess()
+        val accessibilityEnabled = isDashboardAccessibilityEnabled(context)
+        val todayStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val totalMinutes = if (usageAccess) {
+            usageMonitor.queryUsage(todayStart, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L
+        } else null
+        val screenLimit = ParentalControlStore(context).load().screenTimeLimit
+        intelligenceStatus = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, screenLimit)
+    }
+
+    LaunchedEffect(Unit) { refreshDashboard() }
+    DisposableEffect(Unit) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refreshDashboard()
+        }
+        val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
     val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
     val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }
-    val overall = when {
-        !configured -> "⚪ PENDIENTE"
-        degraded > 0 -> "🟠 PROTECCIÓN PARCIAL"
-        else -> "🟢 PROTEGIDO"
-    }
+    val overall = FamilyDashboardStatusEvaluator.label(
+        configured = configured,
+        intelligenceStatus = intelligenceStatus,
+        degradedComponents = degraded,
+        notConfiguredComponents = components.count { it.status == ProtectionComponentStatus.NOT_CONFIGURED }
+    )
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Text("Panel de protección familiar", style = MaterialTheme.typography.headlineSmall)
@@ -149,7 +180,7 @@ fun Dashboard(
                     Spacer(Modifier.height(6.dp))
                     Text("$active capacidades activas · $degraded con atención")
                     Spacer(Modifier.height(10.dp))
-                    OutlinedButton(onClick = { components = ProtectionComponentChecker.check(context) }, Modifier.fillMaxWidth()) { Text("Comprobar todas ahora") }
+                    OutlinedButton(onClick = { refreshDashboard() }, Modifier.fillMaxWidth()) { Text("Comprobar todas ahora") }
                 }
             }
         }
@@ -193,6 +224,12 @@ fun Dashboard(
         }
         item { Button(onClick = {}, Modifier.fillMaxWidth()) { Text("Ver informe diario") } }
     }
+}
+
+private fun isDashboardAccessibilityEnabled(context: Context): Boolean {
+    val expected = "${context.packageName}/${FamyrexParentalAccessibilityService::class.java.name}"
+    val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+    return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
 }
 
 @Composable
