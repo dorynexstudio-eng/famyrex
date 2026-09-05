@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OfflinePairingTokenTest {
@@ -32,7 +31,8 @@ class OfflinePairingTokenTest {
         val code = OfflinePairingTokenCodec.code(token)
         assertEquals(code, OfflinePairingTokenCodec.code(token))
         assertNotNull(OfflinePairingTokenCodec.verify(OfflinePairingTokenCodec.encode(token), code, 1_001L))
-        assertNull(OfflinePairingTokenCodec.verify(OfflinePairingTokenCodec.encode(token), "000000", 1_001L).takeIf { code != "000000" })
+        val wrongCode = if (code == "000000") "000001" else "000000"
+        assertNull(OfflinePairingTokenCodec.verify(OfflinePairingTokenCodec.encode(token), wrongCode, 1_001L))
     }
 
     @Test
