@@ -5,16 +5,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupervisedStateRestorerTest {
+    private val validIdentity = VerifiedFamilyIdentity(
+        familyId = "family-1",
+        secret = "0123456789abcdef0123456789abcdef",
+        fingerprint = "0123456789ab",
+        verifiedAtMs = 123L
+    )
+
     @Test
-    fun invalidOrUnlinkedStateIsNotRestored() {
-        assertFalse(isValidBinding(false))
-        assertFalse(isValidBinding(true, linked = false))
+    fun unlinkedOrMissingIdentityCannotRestore() {
+        assertFalse(SupervisedStateRestorer.isRestorable(null, linkedDevice = true))
+        assertFalse(SupervisedStateRestorer.isRestorable(validIdentity, linkedDevice = false))
     }
 
     @Test
-    fun linkedVerifiedStateIsRestorable() {
-        assertTrue(isValidBinding(true, linked = true))
+    fun validLinkedIdentityCanRestore() {
+        assertTrue(SupervisedStateRestorer.isRestorable(validIdentity, linkedDevice = true))
     }
 
-    private fun isValidBinding(identity: Boolean, linked: Boolean = true): Boolean = identity && linked
+    @Test
+    fun malformedIdentityCannotRestore() {
+        val malformed = validIdentity.copy(secret = "short")
+        assertFalse(SupervisedStateRestorer.isRestorable(malformed, linkedDevice = true))
+    }
 }
