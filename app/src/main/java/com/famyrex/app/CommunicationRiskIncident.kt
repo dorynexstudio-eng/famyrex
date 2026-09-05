@@ -100,5 +100,6 @@ object CommunicationRiskReasonCatalog {
         CommunicationRiskType.SECRET_KEEPING -> RiskReason("SECRET_KEEPING", "Petición de mantener un secreto", signal.reason)
         CommunicationRiskType.SELF_HARM -> RiskReason("SELF_HARM_SIGNAL", "Señal de posible malestar grave", signal.reason)
         CommunicationRiskType.SOCIAL_ISOLATION -> RiskReason("SOCIAL_ISOLATION", "Posible aislamiento social", signal.reason)
+        CommunicationRiskType.SOCIAL_CONFLICT -> RiskReason("SOCIAL_CONFLICT", "Posible conflicto entre iguales", signal.reason)
     }
 }
