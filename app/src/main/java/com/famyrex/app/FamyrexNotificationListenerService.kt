@@ -17,6 +17,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
     }
 
     private val observations = ArrayDeque<CommunicationObservation>()
+    private val notificationDeduplicator = CommunicationNotificationDeduplicator()
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName == packageName) return
@@ -24,6 +25,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
 
         val text = extractNotificationText(sbn.notification)
         if (text.isBlank()) return
+        if (!notificationDeduplicator.shouldProcess(sbn.key, sbn.packageName, text)) return
 
         val now = System.currentTimeMillis().coerceAtLeast(sbn.postTime)
         synchronized(observations) {
