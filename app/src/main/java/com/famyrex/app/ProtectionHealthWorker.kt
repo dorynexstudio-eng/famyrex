@@ -24,49 +24,31 @@ class ProtectionHealthWorker(
         when {
             !health.active -> {
                 val signature = health.reasons.sorted().joinToString("|").hashCode().toUInt().toString(16)
-                val alert = SmartAlert(
-                    id = "protection_degraded_$signature",
-                    type = AlertType.PROTECTION_DEGRADED,
-                    severity = AlertSeverity.IMPORTANT,
-                    title = "Protección degradada",
-                    message = "Famyrex no puede garantizar todas las funciones de protección: ${health.reasons.joinToString(" ")}",
-                    date = now()
-                )
+                val alert = SmartAlert("protection_degraded_$signature", AlertType.PROTECTION_DEGRADED, AlertSeverity.IMPORTANT, "Protección degradada", "Famyrex no puede garantizar todas las funciones de protección: ${health.reasons.joinToString(" ")}", now())
                 if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
             }
             previous != null && !previous.active && health.active -> {
-                val alert = SmartAlert(
-                    id = "protection_restored_${health.checkedAtMs}",
-                    type = AlertType.PROTECTION_RESTORED,
-                    severity = AlertSeverity.INFO,
-                    title = "Protección restablecida",
-                    message = "Famyrex vuelve a disponer de las funciones de protección comprobadas.",
-                    date = now()
-                )
+                val alert = SmartAlert("protection_restored_${health.checkedAtMs}", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO, "Protección restablecida", "Famyrex vuelve a disponer de las funciones de protección comprobadas.", now())
                 if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
             }
         }
 
+        // Correlacionamos las señales técnicas antes de alertar para reducir falsos positivos.
         val evasionSignals = EvasionSignalChecker.check(context)
-        evasionSignals.forEach { signal ->
-            val severity = when (signal.confidence) {
-                SignalConfidence.HIGH -> AlertSeverity.IMPORTANT
-                SignalConfidence.MEDIUM -> AlertSeverity.ATTENTION
-                SignalConfidence.LOW -> AlertSeverity.INFO
-            }
+        val evasion = EvasionRiskEngine.evaluate(evasionSignals)
+        if (evasionSignals.isNotEmpty()) {
+            val signature = evasionSignals.map { it.key }.sorted().joinToString("|").hashCode().toUInt().toString(16)
             val alert = SmartAlert(
-                id = "evasion_${signal.key}",
+                id = "evasion_assessment_$signature",
                 type = AlertType.EVASION_SIGNAL,
-                severity = severity,
-                title = signal.title,
-                message = "${signal.detail} Nivel de confianza: ${signal.confidence.name.lowercase()}.",
+                severity = if (evasion.shouldAlert) AlertSeverity.IMPORTANT else AlertSeverity.ATTENTION,
+                title = evasion.title,
+                message = evasion.message,
                 date = now()
             )
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
         }
 
-        // El análisis de comportamiento trabaja únicamente con métricas agregadas
-        // y requiere historial suficiente para evitar falsas alarmas.
         val behaviorAlerts = BehaviorPatternEngine.evaluate(UsageSnapshotStore(context).loadHistory())
         behaviorAlerts.forEach { alert ->
             if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
@@ -75,6 +57,5 @@ class ProtectionHealthWorker(
         Result.success()
     }.getOrElse { Result.retry() }
 
-    private fun now(): String =
-        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+    private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
 }
