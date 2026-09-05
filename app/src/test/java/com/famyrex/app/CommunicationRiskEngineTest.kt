@@ -39,11 +39,13 @@ class CommunicationRiskEngineTest {
     }
 
     @Test
-    fun highConfidenceNonAiSelfHarmSignalDoesNotAlertAlone() {
+    fun highConfidenceNonAiSelfHarmSignalAlsoAlertsImmediately() {
         val result = CommunicationRiskEngine.evaluate(
             listOf(signal(CommunicationRiskType.SELF_HARM, RiskConfidence.HIGH, "test.package"))
         )
-        assertFalse(result.shouldAlert)
+        assertTrue(result.shouldAlert)
+        assertEquals(100, result.score)
+        assertEquals(RiskConfidence.HIGH, result.confidence)
     }
 
     @Test
