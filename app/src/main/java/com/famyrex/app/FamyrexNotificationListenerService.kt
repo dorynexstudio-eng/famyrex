@@ -15,6 +15,11 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         private const val WINDOW_MS = 30 * 60 * 1000L
         private const val MAX_OBSERVATIONS = 40
         private const val INCIDENT_COOLDOWN_MS = 30 * 60 * 1000L
+        private val TERMINAL_INCIDENT_STATUSES = setOf(
+            RiskIncidentStatus.DISMISSED,
+            RiskIncidentStatus.AUTO_DISMISSED,
+            RiskIncidentStatus.RESOLVED
+        )
     }
 
     private val observations = ArrayDeque<CommunicationObservation>()
@@ -126,13 +131,5 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         RiskConfidence.LOW -> 1
         RiskConfidence.MEDIUM -> 2
         RiskConfidence.HIGH -> 3
-    }
-
-    private companion object {
-        val TERMINAL_INCIDENT_STATUSES = setOf(
-            RiskIncidentStatus.DISMISSED,
-            RiskIncidentStatus.AUTO_DISMISSED,
-            RiskIncidentStatus.RESOLVED
-        )
     }
 }
