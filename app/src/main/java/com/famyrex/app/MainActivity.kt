@@ -94,26 +94,18 @@ private fun saveFamily(prefs: android.content.SharedPreferences, state: FamilySt
 @Composable
 fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifier) {
     val configured = family.parent.isNotBlank() && family.child.isNotBlank()
-    var health by remember { mutableStateOf(ProtectionHealthChecker.check(context)) }
+    var components by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
 
     LaunchedEffect(Unit) {
-        health = ProtectionHealthChecker.check(context)
+        components = ProtectionComponentChecker.check(context)
     }
 
-    val statusTitle = when {
-        !configured -> "PENDIENTE"
-        health.active -> "PROTEGIDO"
-        else -> "PROTECCIÓN PARCIAL"
-    }
-    val statusDetail = when {
-        !configured -> "Completa la configuración familiar para empezar."
-        health.active -> "Las comprobaciones de protección disponibles están activas."
-        else -> health.reasons.joinToString(" ")
-    }
-    val statusSymbol = when {
-        !configured -> "⚪"
-        health.active -> "🟢"
-        else -> "🟠"
+    val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
+    val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }
+    val overall = when {
+        !configured -> "⚪ PENDIENTE"
+        degraded > 0 -> "🟠 PROTECCIÓN PARCIAL"
+        else -> "🟢 PROTEGIDO"
     }
 
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -125,21 +117,36 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp)) {
-                    Text("Estado de protección", style = MaterialTheme.typography.titleMedium)
+                    Text("Estado general", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text("$statusSymbol $statusTitle", style = MaterialTheme.typography.headlineMedium)
+                    Text(overall, style = MaterialTheme.typography.headlineMedium)
                     Spacer(Modifier.height(6.dp))
-                    Text(statusDetail)
+                    Text("$active capacidades activas · $degraded con atención")
                     Spacer(Modifier.height(10.dp))
-                    Text("Última comprobación: ${health.checkedAtMs.takeIf { it > 0 }?.let { java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) } ?: "aún no disponible"}")
-                    if (health.reasons.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        health.reasons.forEach { Text("• $it") }
+                    OutlinedButton(onClick = { components = ProtectionComponentChecker.check(context) }, Modifier.fillMaxWidth()) {
+                        Text("Comprobar todas ahora")
                     }
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedButton(onClick = { health = ProtectionHealthChecker.check(context) }, Modifier.fillMaxWidth()) {
-                        Text("Comprobar ahora")
+                }
+            }
+        }
+        item { Text("Estado de cada protección", style = MaterialTheme.typography.titleLarge) }
+        items(components, key = { it.key }) { component ->
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    val symbol = when (component.status) {
+                        ProtectionComponentStatus.ACTIVE -> "🟢"
+                        ProtectionComponentStatus.DEGRADED -> "🟠"
+                        ProtectionComponentStatus.NOT_CONFIGURED -> "⚪"
                     }
+                    val label = when (component.status) {
+                        ProtectionComponentStatus.ACTIVE -> "ACTIVA"
+                        ProtectionComponentStatus.DEGRADED -> "ATENCIÓN"
+                        ProtectionComponentStatus.NOT_CONFIGURED -> "NO CONFIGURADA"
+                    }
+                    Text("$symbol ${component.name}", style = MaterialTheme.typography.titleMedium)
+                    Text(label)
+                    Spacer(Modifier.height(4.dp))
+                    Text(component.detail)
                 }
             }
         }
@@ -148,8 +155,6 @@ fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifi
                 Column(Modifier.padding(20.dp)) {
                     Text("Radiografía de hoy", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text("Uso de pantalla: pendiente de permiso")
-                    Text("Ubicación: pendiente de permiso")
                     Text("Las señales se muestran solo cuando existe evidencia suficiente.")
                 }
             }
