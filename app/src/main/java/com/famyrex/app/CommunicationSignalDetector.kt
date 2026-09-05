@@ -14,6 +14,7 @@ data class CommunicationObservation(
 /**
  * Detector conservador de secuencias. Analiza cada observación por separado para
  * no perder quién dijo qué ni convertir una coincidencia genérica en un riesgo.
+ * Cuando la fuente es un asistente de IA, delega además en AiConversationSafetyEngine.
  */
 object CommunicationSignalDetector {
     private const val WINDOW_MS = 30 * 60 * 1000L
@@ -42,6 +43,16 @@ object CommunicationSignalDetector {
                 sourcePackage = observation.sourcePackage,
                 timestampMs = observation.timestampMs
             )
+        }
+
+        recent.forEach { observation ->
+            if (AiConversationSafetyEngine.isAiAssistantPackage(observation.sourcePackage)) {
+                signals += AiConversationSafetyEngine.analyze(
+                    text = observation.normalizedText,
+                    sourcePackage = observation.sourcePackage,
+                    timestampMs = observation.timestampMs
+                )
+            }
         }
 
         val observationsWith = recent.map { observation ->
@@ -139,7 +150,7 @@ object CommunicationSignalDetector {
             )
         }
 
-        return CommunicationRiskEngine.evaluate(signals)
+        return CommunicationRiskEngine.evaluate(signals.distinctBy { "${it.type}:${it.reason}:${it.sourcePackage}" })
     }
 
     private data class ObservationFlags(
