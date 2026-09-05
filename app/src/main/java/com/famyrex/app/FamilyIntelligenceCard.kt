@@ -27,7 +27,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -86,7 +86,7 @@ fun FamilyIntelligenceCard(
 
     val current = summary ?: return
     val status = current.parentalStatus
-    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(current, trend, alerts)
+    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(alerts)
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,12 +119,14 @@ fun FamilyIntelligenceCard(
 
             Spacer(Modifier.height(2.dp))
             Text(FamilyIntelligenceExplanation.explain(current, trend), style = MaterialTheme.typography.bodyLarge)
-            Text(recommendation.action, style = MaterialTheme.typography.bodyMedium)
-            if (recommendation.destination != FamilyIntelligenceRecommendationDestination.OBSERVE) {
-                Button(
-                    onClick = { onRecommendationAction(recommendation.destination) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(recommendation.title) }
+            recommendation?.let { currentRecommendation ->
+                Text(currentRecommendation.action, style = MaterialTheme.typography.bodyMedium)
+                if (currentRecommendation.destination != FamilyIntelligenceRecommendationDestination.OBSERVE) {
+                    Button(
+                        onClick = { onRecommendationAction(currentRecommendation.destination) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(currentRecommendation.title) }
+                }
             }
             current.reasons.take(3).forEach { reason -> Text("• $reason") }
         }
