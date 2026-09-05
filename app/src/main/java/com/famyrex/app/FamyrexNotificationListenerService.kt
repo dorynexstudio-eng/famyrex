@@ -112,7 +112,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         val incident = CommunicationRiskIncident(
             id = incidentId,
             createdAtMs = existing?.createdAtMs ?: timestampMs,
-            type = signals.maxByOrNull { confidenceWeight(it.confidence) }?.type ?: return,
+            type = CommunicationRiskTypeSelector.select(signals) ?: return,
             confidence = summary.confidence,
             score = summary.score,
             reasons = signals.map(CommunicationRiskReasonCatalog::fromSignal)
@@ -133,11 +133,5 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         } else if (alerts.appendIfNew(alert)) {
             FamyrexNotificationManager.notify(this, alert)
         }
-    }
-
-    private fun confidenceWeight(confidence: RiskConfidence): Int = when (confidence) {
-        RiskConfidence.LOW -> 1
-        RiskConfidence.MEDIUM -> 2
-        RiskConfidence.HIGH -> 3
     }
 }
