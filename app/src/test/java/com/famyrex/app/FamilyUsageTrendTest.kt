@@ -38,8 +38,8 @@ class FamilyUsageTrendTest {
         val trend = FamilyUsageTrendEvaluator.evaluate(listOf(100L, 110L, 120L, 210L))
         val anomaly = trend.anomaly!!
         assertEquals(FamilyUsageAnomalyType.HIGH, anomaly.type)
-        assertEquals(160, anomaly.referenceAverageMinutes.toInt())
-        assertEquals(31, anomaly.deviationPercent)
+        assertEquals(110, anomaly.referenceAverageMinutes.toInt())
+        assertEquals(90, anomaly.deviationPercent)
     }
 
     @Test
@@ -47,7 +47,7 @@ class FamilyUsageTrendTest {
         val trend = FamilyUsageTrendEvaluator.evaluate(listOf(100L, 110L, 120L, 50L))
         val anomaly = trend.anomaly!!
         assertEquals(FamilyUsageAnomalyType.LOW, anomaly.type)
-        assertEquals(160, anomaly.referenceAverageMinutes.toInt())
-        assertEquals(68, anomaly.deviationPercent)
+        assertEquals(110, anomaly.referenceAverageMinutes.toInt())
+        assertEquals(54, anomaly.deviationPercent)
     }
 }
