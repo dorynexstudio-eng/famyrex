@@ -26,7 +26,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import kotlin.random.Random
 
@@ -81,8 +80,6 @@ fun FamyrexApp(context: Context) {
                 } else {
                     FamilyCoreScreen(
                         context = context,
-                        family = family,
-                        onSave = { family = it; saveFamily(prefs, it) },
                         onOpenParentalControl = { parentalControlOpen = true },
                         modifier = Modifier.padding(padding)
                     )
@@ -194,54 +191,6 @@ fun RealAlertsScreen(context: Context, modifier: Modifier = Modifier) {
             }
         }
         item { Text("Las alertas son señales para revisar el contexto, no diagnósticos ni acusaciones.") }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FamilyCoreScreen(
-    context: Context,
-    family: FamilyState,
-    onSave: (FamilyState) -> Unit,
-    onOpenParentalControl: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val localContext = LocalContext.current
-    var parent by remember(family.parent) { mutableStateOf(family.parent) }
-    var child by remember(family.child) { mutableStateOf(family.child) }
-    var code by remember(family.code) { mutableStateOf(family.code) }
-    var message by remember { mutableStateOf("") }
-    var monitoringEnabled by remember { mutableStateOf(CommunicationMonitoringSettings.isNotificationListenerEnabled(localContext)) }
-    LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Familia", style = MaterialTheme.typography.headlineSmall) }
-        item { Text("Configura el vínculo de forma transparente y con los permisos correspondientes.") }
-        item { OutlinedTextField(parent, { parent = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del adulto") }) }
-        item { OutlinedTextField(child, { child = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del perfil protegido") }) }
-        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(code, { code = it.uppercase().take(8) }, Modifier.weight(1f), label = { Text("Código de vinculación") }); OutlinedButton(onClick = { code = randomCode(); message = "Código generado. Compártelo únicamente con la persona autorizada." }) { Text("Generar") } } }
-        item { Button(onClick = { if (parent.isBlank() || child.isBlank() || code.length < 6) message = "Completa los campos y usa un código de 6–8 caracteres." else { onSave(FamilyState(parent.trim(), child.trim(), code)); message = "Familia guardada correctamente." } }, Modifier.fillMaxWidth()) { Text("Guardar configuración") } }
-        if (message.isNotBlank()) item { Text(message) }
-
-        item {
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Control parental", style = MaterialTheme.typography.titleLarge)
-                    Text("Configura tiempo de pantalla, pausas y restricciones de aplicaciones en este dispositivo.")
-                    Button(onClick = onOpenParentalControl, modifier = Modifier.fillMaxWidth()) {
-                        Text("Abrir Control parental")
-                    }
-                }
-            }
-        }
-
-        item { HorizontalDivider() }
-        item { Text("Supervisión de comunicaciones", style = MaterialTheme.typography.titleMedium) }
-        item { Text(if (monitoringEnabled) "🟢 Activada. Famyrex puede analizar localmente señales presentes en notificaciones autorizadas." else "🟠 No activada. Sin este permiso Famyrex no podrá analizar las notificaciones de comunicación.") }
-        item { Button(onClick = { CommunicationMonitoringSettings.openSystemSettings(context = localContext) }, Modifier.fillMaxWidth()) { Text(if (monitoringEnabled) "Revisar permiso de notificaciones" else "Activar supervisión transparente") } }
-        item { OutlinedButton(onClick = { monitoringEnabled = CommunicationMonitoringSettings.isNotificationListenerEnabled(localContext) }, Modifier.fillMaxWidth()) { Text("Comprobar estado") } }
-        item { Text("El servicio usa únicamente el texto que Android expone en las notificaciones. El texto original no se guarda; Famyrex conserva solo señales estructuradas cuando alcanzan el umbral de riesgo.") }
-        item { HorizontalDivider() }
-        item { Text("Privacidad", style = MaterialTheme.typography.titleMedium) }
-        item { Text("Famyrex está diseñado para trabajar con consentimiento, permisos visibles y las APIs oficiales de Android. No incluye lectura secreta de chats ni grabación oculta.") }
     }
 }
 
