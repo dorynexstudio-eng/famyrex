@@ -26,14 +26,17 @@ fun JoinFamilyScreen(
     onJoined: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
+    var invitation by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
     fun join() {
-        if (!PairingCodeProtocol.isValidFormat(code)) {
-            message = "Introduce un código de 6 dígitos."
+        val token = OfflinePairingTokenCodec.verify(invitation, code, System.currentTimeMillis())
+        if (token == null) {
+            message = "Invitación incorrecta, manipulada o caducada. Pide una nueva al adulto autorizado."
             return
         }
+
         val child = store.profiles().firstOrNull { it.role == FamilyRole.CHILD }
             ?: store.addChild(
                 "Dispositivo supervisado",
@@ -45,12 +48,9 @@ fun JoinFamilyScreen(
             it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id
         } ?: store.addDevice("Este dispositivo", child.id)
 
-        // With the 0€ / no-server architecture, the six-digit invitation is a
-        // bearer confirmation exchanged manually. There is no remote authority
-        // on this device that could verify the parent's local PairingCodeStore.
         store.setDeviceState(pending.id, DeviceLinkState.LINKED)
         store.setAppMode(FamyrexAppMode.SUPERVISED)
-        message = "Código aceptado. Dispositivo vinculado y modo supervisado activado."
+        message = "Invitación verificada para la familia ${token.familyId.take(12)}… Dispositivo vinculado y modo supervisado activado."
         onJoined()
     }
 
@@ -59,24 +59,31 @@ fun JoinFamilyScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Unirse a una familia", style = MaterialTheme.typography.headlineMedium)
-        Text("Introduce el código de 6 dígitos que te ha dado el adulto autorizado.")
+        Text("El adulto autorizado debe darte la clave de invitación y el código de 6 dígitos. Ambos se verifican localmente, sin enviar datos a ningún servidor.")
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
-                    value = code,
-                    onValueChange = { code = it.filter(Char::isDigit).take(PairingCodeProtocol.CODE_LENGTH) },
+                    value = invitation,
+                    onValueChange = { invitation = it.trim() },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Código de vinculación") },
+                    label = { Text("Clave de invitación") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it.filter(Char::isDigit).take(6) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Código de 6 dígitos") },
                     singleLine = true
                 )
                 Button(
-                    enabled = code.length == PairingCodeProtocol.CODE_LENGTH,
+                    enabled = invitation.isNotBlank() && code.length == 6,
                     onClick = ::join,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Vincular este dispositivo") }
+                ) { Text("Verificar y vincular") }
                 if (message.isNotBlank()) Text(message)
             }
         }
-        Text("Privacidad: el código se intercambia manualmente y no se envía a ningún servidor. La supervisión es explícita y visible.")
+        Text("Privacidad: la invitación se intercambia manualmente y se verifica completamente en este dispositivo. La supervisión es explícita y visible.")
     }
 }
