@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class FamilyStore(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE)
 
     fun profiles(): List<FamilyProfile> {
@@ -102,6 +103,7 @@ class FamilyStore(context: Context) {
             })
         }
         prefs.edit().putString("profiles", a.toString()).apply()
+        syncDashboardFamily()
     }
 
     private fun saveDevices(items: List<FamilyDevice>) {
@@ -116,6 +118,20 @@ class FamilyStore(context: Context) {
             })
         }
         prefs.edit().putString("devices", a.toString()).apply()
+        syncDashboardFamily()
+    }
+
+    private fun syncDashboardFamily() {
+        val profiles = profiles()
+        val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
+        val child = profiles.firstOrNull { it.role == FamilyRole.CHILD }
+        val dashboardPrefs = appContext.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE)
+        val existingCode = dashboardPrefs.getString("link_code", "") ?: ""
+        dashboardPrefs.edit()
+            .putString("parent_name", owner?.displayName.orEmpty())
+            .putString("child_name", child?.displayName.orEmpty())
+            .putString("link_code", existingCode)
+            .apply()
     }
 }
 
