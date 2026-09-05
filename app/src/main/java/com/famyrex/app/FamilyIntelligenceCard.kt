@@ -119,6 +119,13 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
                 }
                 Text("Tendencia · $trendText", style = MaterialTheme.typography.titleSmall)
                 FamilyUsageWeekChart(usageTrend.days)
+                usageTrend.anomaly?.let { anomaly ->
+                    val anomalyText = when (anomaly.type) {
+                        FamilyUsageAnomalyType.HIGH -> "⚠️ Hoy el uso está ${anomaly.deviationPercent}% por encima de la media anterior."
+                        FamilyUsageAnomalyType.LOW -> "ℹ️ Hoy el uso está ${anomaly.deviationPercent}% por debajo de la media anterior."
+                    }
+                    Text(anomalyText)
+                }
                 usageTrend.previousAverageMinutes?.let { average ->
                     Text("Referencia: ${formatFamilyMinutes(average.toLong())} diarios de media en los días anteriores.")
                 } ?: Text("Necesitamos al menos 2 días de datos para comparar la evolución.")
