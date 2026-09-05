@@ -8,7 +8,11 @@ object RecommendationEngine {
 
     fun evaluate(alerts: List<SmartAlert>): List<FamilyRecommendation> =
         alerts.asSequence()
-            .filter { it.lifecycleStatus != AlertLifecycleStatus.DISMISSED && it.lifecycleStatus != AlertLifecycleStatus.AUTO_DISMISSED }
+            .filter {
+                it.lifecycleStatus != AlertLifecycleStatus.DISMISSED &&
+                    it.lifecycleStatus != AlertLifecycleStatus.AUTO_DISMISSED &&
+                    it.lifecycleStatus != AlertLifecycleStatus.RESOLVED
+            }
             .map(::fromAlert)
             .distinctBy { it.id }
             .sortedWith(compareByDescending<FamilyRecommendation> { priorityRank(it.priority) }.thenBy { it.id })
