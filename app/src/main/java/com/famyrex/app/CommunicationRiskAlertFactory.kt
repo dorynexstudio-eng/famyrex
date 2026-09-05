@@ -12,25 +12,47 @@ object CommunicationRiskAlertFactory {
             .joinToString("; ") { it.title }
             .ifBlank { "varias señales compatibles con un posible riesgo" }
 
-        val (title, prefix) = when (incident.type) {
-            CommunicationRiskType.SELF_HARM ->
-                "Posible riesgo de autolesión" to "Famyrex ha detectado una señal explícita compatible con posible autolesión"
-            CommunicationRiskType.SOCIAL_ISOLATION ->
-                "Posible aislamiento social" to "Famyrex ha detectado señales compatibles con posible aislamiento social"
-            CommunicationRiskType.GROOMING ->
-                "Posible contacto inapropiado" to "Famyrex ha detectado señales compatibles con posible contacto inapropiado"
-            CommunicationRiskType.BULLYING ->
-                "Posible acoso" to "Famyrex ha detectado señales compatibles con posible acoso"
-            CommunicationRiskType.THREAT ->
-                "Posible amenaza" to "Famyrex ha detectado señales compatibles con una posible amenaza"
-            CommunicationRiskType.SEXUAL_REQUEST ->
-                "Posible petición de contenido sexual" to "Famyrex ha detectado señales compatibles con una posible petición de contenido sexual"
-            CommunicationRiskType.SECRET_KEEPING ->
-                "Posible petición de secreto" to "Famyrex ha detectado señales compatibles con una posible petición de mantener un secreto"
+        val (title, prefix, action) = when (incident.type) {
+            CommunicationRiskType.SELF_HARM -> Triple(
+                "Posible riesgo de autolesión",
+                "Famyrex ha detectado una señal explícita compatible con posible autolesión",
+                "Habla con el menor cuanto antes y, si existe peligro inmediato, busca ayuda de emergencia."
+            )
+            CommunicationRiskType.SOCIAL_ISOLATION -> Triple(
+                "Posible aislamiento social",
+                "Famyrex ha detectado señales compatibles con posible aislamiento social",
+                "Habla con el menor con calma y observa si la situación se repite o empeora."
+            )
+            CommunicationRiskType.GROOMING -> Triple(
+                "Posible contacto inapropiado",
+                "Famyrex ha detectado señales compatibles con posible contacto inapropiado",
+                "Revisa con el menor qué está ocurriendo y evita sacar conclusiones sin contexto."
+            )
+            CommunicationRiskType.BULLYING -> Triple(
+                "Posible acoso",
+                "Famyrex ha detectado señales compatibles con posible acoso",
+                "Habla con el menor y valora si necesita apoyo adicional en casa o en el centro educativo."
+            )
+            CommunicationRiskType.THREAT -> Triple(
+                "Posible amenaza",
+                "Famyrex ha detectado señales compatibles con una posible amenaza",
+                "Revisa el contexto y, si la amenaza parece concreta o inmediata, busca ayuda adecuada."
+            )
+            CommunicationRiskType.SEXUAL_REQUEST -> Triple(
+                "Posible petición de contenido sexual",
+                "Famyrex ha detectado señales compatibles con una posible petición de contenido sexual",
+                "Habla con el menor sin culpabilizarle y considera bloquear o reportar el contacto si procede."
+            )
+            CommunicationRiskType.SECRET_KEEPING -> Triple(
+                "Posible petición de secreto",
+                "Famyrex ha detectado señales compatibles con una posible petición de mantener un secreto",
+                "Habla con el menor y comprueba si alguien le está presionando para ocultar algo."
+            )
         }
 
         val message = "$prefix: $reasonText. " +
             "Confianza ${incident.confidence.name.lowercase()} y puntuación ${incident.score}/100. " +
+            "Recomendación: $action " +
             "Revisa el contexto antes de sacar conclusiones."
 
         return SmartAlert(
