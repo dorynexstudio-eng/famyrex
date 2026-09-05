@@ -51,9 +51,9 @@ fun DeviceSecurityCard(context: android.content.Context, modifier: Modifier = Mo
                 Text("Todavía no existe una comprobación de seguridad guardada. Esto no significa que el dispositivo esté seguro.")
             } else {
                 val symbol = when (current.securityLevel) {
-                    SecurityLevel.SECURE -> "🟢"
+                    SecurityLevel.GOOD -> "🟢"
                     SecurityLevel.ATTENTION -> "🟠"
-                    SecurityLevel.RISK -> "🔴"
+                    SecurityLevel.ELEVATED -> "🔴"
                 }
                 Text("$symbol ${current.securityLevel.name}", style = MaterialTheme.typography.titleLarge)
                 Text("Android ${current.androidVersion} (API ${current.sdkInt})")
