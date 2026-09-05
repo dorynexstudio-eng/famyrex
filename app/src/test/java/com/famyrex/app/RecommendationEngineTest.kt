@@ -41,6 +41,21 @@ class RecommendationEngineTest {
     }
 
     @Test
+    fun resolvedAlerts_doNotProduceRecommendations() {
+        val alert = SmartAlert(
+            id = "resolved_1",
+            type = AlertType.COMMUNICATION_RISK,
+            severity = AlertSeverity.IMPORTANT,
+            title = "Comunicación",
+            message = "Revisar",
+            date = "2026-09-05",
+            lifecycleStatus = AlertLifecycleStatus.RESOLVED
+        )
+
+        assertTrue(RecommendationEngine.evaluate(listOf(alert)).isEmpty())
+    }
+
+    @Test
     fun importantAlerts_arePrioritizedFirst() {
         val low = SmartAlert(
             id = "restored",
