@@ -1,6 +1,9 @@
 package com.famyrex.app
 
 import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -114,9 +117,36 @@ private fun CommunicationRiskDetails(incident: CommunicationRiskIncident) {
         Text("Estado: ${incident.status.displayName()}")
         Text("Evolución: ${incident.evolutionLabel()}")
         Text("Señales relacionadas: ${incident.reasons.size}")
+        Spacer(Modifier.height(4.dp))
+        Text("Evolución del estado", style = MaterialTheme.typography.labelLarge)
+        StatusHistory(incident)
+        Spacer(Modifier.height(4.dp))
         Text("No se muestra ni se guarda la conversación completa.", style = MaterialTheme.typography.bodySmall)
     }
 }
+
+@Composable
+private fun StatusHistory(incident: CommunicationRiskIncident) {
+    val history = buildList {
+        add(RiskIncidentStatusChange(RiskIncidentStatus.DETECTED, incident.createdAtMs))
+        addAll(incident.statusHistory)
+    }.distinctBy { "${it.status}:${it.timestampMs}" }
+
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        history.forEachIndexed { index, change ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("${index + 1}.", style = MaterialTheme.typography.bodySmall)
+                Column {
+                    Text(change.status.displayName(), style = MaterialTheme.typography.bodySmall)
+                    Text(change.timestampMs.formatHistoryDate(), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+private fun Long.formatHistoryDate(): String =
+    SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(this))
 
 private fun AlertSeverity.displayName(): String = when (this) {
     AlertSeverity.INFO -> "Información"
