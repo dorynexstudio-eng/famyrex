@@ -10,6 +10,7 @@ object FamyrexWorkScheduler {
     private const val PROTECTION_WORK = "famyrex_protection_health"
     private const val DEVICE_SECURITY_WORK = "famyrex_device_security"
     private const val REPORT_WORK = "famyrex_reports"
+    private const val AI_ANALYSIS_WORK = "famyrex_ai_analysis_daily"
 
     fun scheduleProtectionHealth(context: Context) {
         val appContext = context.applicationContext
@@ -45,6 +46,16 @@ object FamyrexWorkScheduler {
             REPORT_WORK,
             ExistingPeriodicWorkPolicy.KEEP,
             reportRequest
+        )
+
+        val aiRequest = PeriodicWorkRequestBuilder<AiAnalysisWorker>(
+            24,
+            TimeUnit.HOURS
+        ).build()
+        workManager.enqueueUniquePeriodicWork(
+            AI_ANALYSIS_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
+            aiRequest
         )
     }
 }
