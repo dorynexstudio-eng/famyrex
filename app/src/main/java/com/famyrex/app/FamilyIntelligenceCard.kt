@@ -1,5 +1,6 @@
 package com.famyrex.app
 
+import android.app.usage.UsageStats
 import android.content.Context
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
@@ -31,13 +32,16 @@ import java.util.Calendar
 fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var summary by remember { mutableStateOf<FamilyIntelligenceSummary?>(null) }
+    var trend by remember { mutableStateOf<FamilyUsageTrend?>(null) }
 
     fun refresh() {
         val usageMonitor = ParentalUsageMonitor(context)
         val usageAccess = usageMonitor.hasUsageAccess()
         val accessibilityEnabled = isFamilyIntelligenceAccessibilityEnabled(context)
+        val todayStart = todayStartForFamilyIntelligence()
+        val now = System.currentTimeMillis()
         val totalMinutes = if (usageAccess) {
-            usageMonitor.queryUsage(todayStartForFamilyIntelligence(), System.currentTimeMillis())
+            usageMonitor.queryUsage(todayStart, now)
                 .sumOf { it.totalTimeInForeground } / 60_000L
         } else null
         val screenLimit = ParentalControlStore(context).load().screenTimeLimit
@@ -62,6 +66,9 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
             usageAccess = usageAccess,
             accessibilityEnabled = accessibilityEnabled
         )
+        trend = if (usageAccess) {
+            FamilyUsageTrendEvaluator.evaluate(loadRecentDailyMinutes(usageMonitor, todayStart))
+        } else null
     }
 
     LaunchedEffect(Unit) { refresh() }
@@ -97,6 +104,19 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
                 )
             }
 
+            trend?.let { usageTrend ->
+                val trendText = when (usageTrend.direction) {
+                    FamilyUsageTrendDirection.INCREASING -> "↗ Uso en aumento"
+                    FamilyUsageTrendDirection.DECREASING -> "↘ Uso a la baja"
+                    FamilyUsageTrendDirection.STABLE -> "→ Uso estable"
+                    FamilyUsageTrendDirection.INSUFFICIENT_DATA -> "⚪ Tendencia: faltan datos"
+                }
+                Text("Tendencia · $trendText", style = MaterialTheme.typography.titleSmall)
+                usageTrend.previousAverageMinutes?.let { average ->
+                    Text("Referencia: ${formatFamilyMinutes(average.toLong())} diarios de media en los días anteriores.")
+                } ?: Text("Necesitamos al menos 2 días de datos para comparar la evolución.")
+            }
+
             Spacer(Modifier.height(2.dp))
             Text(
                 when {
@@ -110,6 +130,17 @@ fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier) {
                 Text("• $reason")
             }
         }
+    }
+}
+
+private fun loadRecentDailyMinutes(usageMonitor: ParentalUsageMonitor, todayStart: Long): List<Long> {
+    val calendar = Calendar.getInstance().apply { timeInMillis = todayStart }
+    return (6 downTo 0).map { daysAgo ->
+        val start = (calendar.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -daysAgo) }.timeInMillis
+        val end = if (daysAgo == 0) System.currentTimeMillis() else {
+            (calendar.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -daysAgo + 1) }.timeInMillis
+        }
+        usageMonitor.queryUsage(start, end).sumOf(UsageStats::getTotalTimeInForeground) / 60_000L
     }
 }
 
