@@ -8,8 +8,9 @@ class ModeRouterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val store = FamilyStore(applicationContext)
-        val target = if (store.appMode() == FamyrexAppMode.SUPERVISED) {
-            if (SupervisedStateRestorer.restore(store)) {
+        val restoredSupervised = SupervisedStateRestorer.restore(store)
+        val target = if (restoredSupervised || store.appMode() == FamyrexAppMode.SUPERVISED) {
+            if (restoredSupervised) {
                 Intent(this, SupervisedDeviceActivity::class.java)
             } else {
                 Intent(this, SupervisedOnboardingActivity::class.java)
