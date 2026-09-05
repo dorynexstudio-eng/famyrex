@@ -73,13 +73,16 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         sourcePackage: String,
         now: Long
     ): CommunicationRiskIncident? {
-        val directions = summary.signals.map { it.direction }.distinct()
+        val signalTypes = summary.signals.map { it.type }.toSet()
+        val directions = summary.signals.map { it.direction }.toSet()
         return CommunicationRiskIncidentStore(this).load()
             .asSequence()
             .filter { incident ->
                 incident.sourcePackage == sourcePackage &&
                     now - incident.createdAtMs in 0..INCIDENT_COOLDOWN_MS &&
-                    incident.direction in directions
+                    incident.direction in directions &&
+                    incident.type in signalTypes &&
+                    incident.status !in TERMINAL_INCIDENT_STATUSES
             }
             .maxByOrNull { it.createdAtMs }
     }
@@ -123,5 +126,13 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         RiskConfidence.LOW -> 1
         RiskConfidence.MEDIUM -> 2
         RiskConfidence.HIGH -> 3
+    }
+
+    private companion object {
+        val TERMINAL_INCIDENT_STATUSES = setOf(
+            RiskIncidentStatus.DISMISSED,
+            RiskIncidentStatus.AUTO_DISMISSED,
+            RiskIncidentStatus.RESOLVED
+        )
     }
 }
