@@ -23,6 +23,11 @@ object CommunicationRiskAlertFactory {
                 "Famyrex ha detectado señales compatibles con posible aislamiento social",
                 "Habla con el menor con calma y observa si la situación se repite o empeora."
             )
+            CommunicationRiskType.SOCIAL_CONFLICT -> Triple(
+                "Posible conflicto entre iguales",
+                "Famyrex ha detectado señales compatibles con tensión o conflicto entre iguales",
+                "Habla con el menor sin tomar partido y comprueba si se trata de un problema puntual o si está derivando en exclusión, humillación o acoso."
+            )
             CommunicationRiskType.GROOMING -> Triple(
                 "Posible contacto inapropiado",
                 "Famyrex ha detectado señales compatibles con posible contacto inapropiado",
