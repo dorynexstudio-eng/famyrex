@@ -37,7 +37,11 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
             )
             prune(now)
 
-            val summary = CommunicationSignalDetector.detect(observations.toList())
+            val sourceObservations = CommunicationObservationScope.forSource(
+                observations = observations.toList(),
+                sourcePackage = sbn.packageName
+            )
+            val summary = CommunicationSignalDetector.detect(sourceObservations)
             if (!summary.shouldAlert) return
 
             persistIncident(summary, sbn.packageName, now)
