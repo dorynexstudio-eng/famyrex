@@ -6,8 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CommunicationRiskEngineTest {
-    private fun signal(type: CommunicationRiskType, confidence: RiskConfidence) =
-        CommunicationRiskSignal(type, confidence, "test")
+    private fun signal(
+        type: CommunicationRiskType,
+        confidence: RiskConfidence,
+        sourcePackage: String? = null
+    ) = CommunicationRiskSignal(type, confidence, "test", sourcePackage)
 
     @Test
     fun emptySignalsProduceNoAlert() {
@@ -26,13 +29,21 @@ class CommunicationRiskEngineTest {
     }
 
     @Test
-    fun highConfidenceSelfHarmSignalAlertsImmediately() {
+    fun highConfidenceAiSelfHarmSignalAlertsImmediately() {
         val result = CommunicationRiskEngine.evaluate(
-            listOf(signal(CommunicationRiskType.SELF_HARM, RiskConfidence.HIGH))
+            listOf(signal(CommunicationRiskType.SELF_HARM, RiskConfidence.HIGH, "com.openai.chatgpt"))
         )
         assertTrue(result.shouldAlert)
         assertEquals(100, result.score)
         assertEquals(RiskConfidence.HIGH, result.confidence)
+    }
+
+    @Test
+    fun highConfidenceNonAiSelfHarmSignalDoesNotAlertAlone() {
+        val result = CommunicationRiskEngine.evaluate(
+            listOf(signal(CommunicationRiskType.SELF_HARM, RiskConfidence.HIGH, "test.package"))
+        )
+        assertFalse(result.shouldAlert)
     }
 
     @Test
