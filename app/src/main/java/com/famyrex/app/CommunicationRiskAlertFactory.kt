@@ -26,7 +26,7 @@ object CommunicationRiskAlertFactory {
             CommunicationRiskType.GROOMING -> Triple(
                 "Posible contacto inapropiado",
                 "Famyrex ha detectado señales compatibles con posible contacto inapropiado",
-                "Revisa con el menor qué está ocurriendo y evita sacar conclusiones sin contexto."
+                "Habla con el menor sin culpabilizarle y, si procede, ayúdale a bloquear o reportar el contacto."
             )
             CommunicationRiskType.BULLYING -> Triple(
                 "Posible acoso",
@@ -50,10 +50,25 @@ object CommunicationRiskAlertFactory {
             )
         }
 
-        val message = "$prefix: $reasonText. " +
+        val signalCount = incident.reasons.size
+        val progression = when {
+            incident.type == CommunicationRiskType.SELF_HARM && incident.confidence == RiskConfidence.HIGH ->
+                "Intervención prioritaria"
+            incident.type == CommunicationRiskType.SEXUAL_REQUEST && incident.confidence == RiskConfidence.HIGH ->
+                "Intervención prioritaria"
+            signalCount >= 3 && incident.confidence == RiskConfidence.HIGH ->
+                "Escalada de riesgo: varias señales relacionadas"
+            signalCount >= 2 ->
+                "Evolución: se han acumulado varias señales relacionadas"
+            else ->
+                "Señal temprana: conviene observar su evolución"
+        }
+
+        val message = "$prefix. $progression. " +
+            "Señales detectadas: $reasonText. " +
             "Confianza ${incident.confidence.name.lowercase()} y puntuación ${incident.score}/100. " +
             "Recomendación: $action " +
-            "Revisa el contexto antes de sacar conclusiones."
+            "Famyrex no guarda ni muestra la conversación completa; revisa el contexto antes de sacar conclusiones."
 
         return SmartAlert(
             id = "communication_risk_${incident.id}",
