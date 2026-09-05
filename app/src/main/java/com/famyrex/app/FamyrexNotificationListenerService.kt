@@ -153,7 +153,15 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         val alert = CommunicationRiskAlertFactory.createIncidentAlert(incident)
         val alerts = AlertStore(this)
         if (existing != null) {
-            if (alerts.replace(alert) && CommunicationRiskNotificationPolicy.shouldNotify(existing, incident)) {
+            val replaced = alerts.replace(alert)
+            if (replaced) {
+                if (CommunicationRiskNotificationPolicy.shouldNotify(existing, incident)) {
+                    FamyrexNotificationManager.notify(this, alert)
+                }
+            } else if (alerts.appendIfNew(alert)) {
+                // El incidente existía, pero su alerta se había perdido. Restauramos
+                // la representación visible y notificamos para no dejar un episodio
+                // persistido sin aviso al padre.
                 FamyrexNotificationManager.notify(this, alert)
             }
         } else if (alerts.appendIfNew(alert)) {
