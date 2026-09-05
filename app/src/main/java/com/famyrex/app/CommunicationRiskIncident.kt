@@ -20,6 +20,7 @@ data class CommunicationRiskIncident(
     val score: Int,
     val reasons: List<RiskReason>,
     val sourcePackage: String?,
+    val direction: CommunicationDirection = CommunicationDirection.UNKNOWN,
     val status: RiskIncidentStatus = RiskIncidentStatus.DETECTED
 )
 
@@ -37,6 +38,7 @@ class CommunicationRiskIncidentStore(context: Context) {
                 put("confidence", item.confidence.name)
                 put("score", item.score)
                 put("sourcePackage", item.sourcePackage ?: "")
+                put("direction", item.direction.name)
                 put("status", item.status.name)
                 put("reasons", JSONArray().apply {
                     item.reasons.forEach { reason ->
@@ -81,6 +83,8 @@ class CommunicationRiskIncidentStore(context: Context) {
                             score = o.getInt("score"),
                             reasons = reasons,
                             sourcePackage = o.optString("sourcePackage").ifBlank { null },
+                            direction = runCatching { CommunicationDirection.valueOf(o.optString("direction")) }
+                                .getOrDefault(CommunicationDirection.UNKNOWN),
                             status = runCatching { RiskIncidentStatus.valueOf(o.optString("status")) }
                                 .getOrDefault(RiskIncidentStatus.DETECTED)
                         )
