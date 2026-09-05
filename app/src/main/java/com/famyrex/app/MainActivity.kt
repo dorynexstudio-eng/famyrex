@@ -73,7 +73,7 @@ fun FamyrexApp(context: Context) {
             }
         ) { padding ->
             when (tab) {
-                0 -> Dashboard(family, Modifier.padding(padding))
+                0 -> Dashboard(context, family, Modifier.padding(padding))
                 1 -> RealAlertsScreen(context, Modifier.padding(padding))
                 2 -> FamilyScreen(family, { state -> family = state; saveFamily(prefs, state) }, Modifier.padding(padding))
                 3 -> LocationScreen(context, zones, { updated -> zones = updated; saveZones(prefs, updated) }, Modifier.padding(padding))
@@ -92,12 +92,68 @@ private fun saveFamily(prefs: android.content.SharedPreferences, state: FamilySt
 }
 
 @Composable
-fun Dashboard(family: FamilyState, modifier: Modifier = Modifier) {
+fun Dashboard(context: Context, family: FamilyState, modifier: Modifier = Modifier) {
     val configured = family.parent.isNotBlank() && family.child.isNotBlank()
+    var health by remember { mutableStateOf(ProtectionHealthChecker.check(context)) }
+
+    LaunchedEffect(Unit) {
+        health = ProtectionHealthChecker.check(context)
+    }
+
+    val statusTitle = when {
+        !configured -> "PENDIENTE"
+        health.active -> "PROTEGIDO"
+        else -> "PROTECCIÓN PARCIAL"
+    }
+    val statusDetail = when {
+        !configured -> "Completa la configuración familiar para empezar."
+        health.active -> "Las comprobaciones de protección disponibles están activas."
+        else -> health.reasons.joinToString(" ")
+    }
+    val statusSymbol = when {
+        !configured -> "⚪"
+        health.active -> "🟢"
+        else -> "🟠"
+    }
+
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { Text("Panel de protección familiar", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(4.dp)); Text(if (configured) "Dispositivo preparado para ${family.child}" else "Completa la configuración familiar para empezar.") }
-        item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Text("Estado de protección", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text(if (configured) "ACTIVO" else "PENDIENTE", style = MaterialTheme.typography.displaySmall); Text(if (configured) "Famyrex está listo para las funciones autorizadas." else "Configura un adulto y un perfil protegido.") } } }
-        item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Text("Radiografía de hoy", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text("Uso de pantalla: pendiente de permiso"); Text("Ubicación: pendiente de permiso"); Text("Las señales se muestran solo cuando existe evidencia suficiente.") } } }
+        item {
+            Text("Panel de protección familiar", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(if (configured) "Dispositivo preparado para ${family.child}" else "Completa la configuración familiar para empezar.")
+        }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Estado de protección", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text("$statusSymbol $statusTitle", style = MaterialTheme.typography.headlineMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text(statusDetail)
+                    Spacer(Modifier.height(10.dp))
+                    Text("Última comprobación: ${health.checkedAtMs.takeIf { it > 0 }?.let { java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) } ?: "aún no disponible"}")
+                    if (health.reasons.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        health.reasons.forEach { Text("• $it") }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(onClick = { health = ProtectionHealthChecker.check(context) }, Modifier.fillMaxWidth()) {
+                        Text("Comprobar ahora")
+                    }
+                }
+            }
+        }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Radiografía de hoy", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Uso de pantalla: pendiente de permiso")
+                    Text("Ubicación: pendiente de permiso")
+                    Text("Las señales se muestran solo cuando existe evidencia suficiente.")
+                }
+            }
+        }
         item { Button(onClick = {}, Modifier.fillMaxWidth()) { Text("Ver informe diario") } }
     }
 }
