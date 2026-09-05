@@ -14,13 +14,17 @@ class FamilyStore(context: Context) {
             buildList {
                 for (i in 0 until a.length()) {
                     val o = a.getJSONObject(i)
+                    val guardians = o.optJSONArray("guardianProfileIds")?.let { array ->
+                        buildList { for (j in 0 until array.length()) add(array.optString(j)) }
+                    } ?: emptyList()
                     add(
                         FamilyProfile(
                             id = o.optString("id"),
                             displayName = o.optString("displayName"),
                             role = runCatching { FamilyRole.valueOf(o.optString("role")) }
                                 .getOrDefault(FamilyRole.MEMBER),
-                            createdAtMs = o.optLong("createdAtMs")
+                            createdAtMs = o.optLong("createdAtMs"),
+                            guardianProfileIds = guardians.filter { it.isNotBlank() }
                         )
                     )
                 }
@@ -53,40 +57,38 @@ class FamilyStore(context: Context) {
     fun ensureLocalOwner(): FamilyProfile {
         val current = profiles().firstOrNull { it.role == FamilyRole.OWNER }
         if (current != null) return current
+        val profile = FamilyProfile("profile-${UUIDHolder.next()}", "Administrador", FamilyRole.OWNER, System.currentTimeMillis())
+        saveProfiles(profiles() + profile)
+        return profile
+    }
 
-        val profile = FamilyProfile(
-            id = "profile-${UUIDHolder.next()}",
-            displayName = "Mi familia",
-            role = FamilyRole.OWNER,
-            createdAtMs = System.currentTimeMillis()
-        )
+    fun addAdult(displayName: String): FamilyProfile {
+        val profile = FamilyProfile("profile-${UUIDHolder.next()}", displayName.ifBlank { "Adulto autorizado" }, FamilyRole.ADULT, System.currentTimeMillis())
+        saveProfiles(profiles() + profile)
+        return profile
+    }
+
+    fun addChild(displayName: String, guardianProfileIds: List<String>): FamilyProfile {
+        val profile = FamilyProfile("profile-${UUIDHolder.next()}", displayName.ifBlank { "Perfil infantil" }, FamilyRole.CHILD, System.currentTimeMillis(), guardianProfileIds.distinct())
         saveProfiles(profiles() + profile)
         return profile
     }
 
     fun addDevice(displayName: String, ownerProfileId: String): FamilyDevice {
-        val device = FamilyDevice(
-            id = "device-${UUIDHolder.next()}",
-            displayName = displayName.ifBlank { "Dispositivo familiar" },
-            ownerProfileId = ownerProfileId,
-            linkState = DeviceLinkState.PENDING
-        )
+        val device = FamilyDevice("device-${UUIDHolder.next()}", displayName.ifBlank { "Dispositivo familiar" }, ownerProfileId, DeviceLinkState.PENDING)
         saveDevices(devices() + device)
         return device
     }
 
     fun setDeviceState(deviceId: String, state: DeviceLinkState) {
-        saveDevices(
-            devices().map {
-                if (it.id == deviceId) {
-                    it.copy(
-                        linkState = state,
-                        linkedAtMs = if (state == DeviceLinkState.LINKED) System.currentTimeMillis() else it.linkedAtMs
-                    )
-                } else it
-            }
-        )
+        saveDevices(devices().map { if (it.id == deviceId) it.copy(linkState = state, linkedAtMs = if (state == DeviceLinkState.LINKED) System.currentTimeMillis() else it.linkedAtMs) else it })
     }
+
+    fun setAppMode(mode: FamyrexAppMode) {
+        prefs.edit().putString("app_mode", mode.name).apply()
+    }
+
+    fun appMode(): FamyrexAppMode = runCatching { FamyrexAppMode.valueOf(prefs.getString("app_mode", FamyrexAppMode.PARENT.name)!!) }.getOrDefault(FamyrexAppMode.PARENT)
 
     private fun saveProfiles(items: List<FamilyProfile>) {
         val a = JSONArray()
@@ -96,6 +98,7 @@ class FamilyStore(context: Context) {
                 put("displayName", it.displayName)
                 put("role", it.role.name)
                 put("createdAtMs", it.createdAtMs)
+                put("guardianProfileIds", JSONArray(it.guardianProfileIds))
             })
         }
         prefs.edit().putString("profiles", a.toString()).apply()
