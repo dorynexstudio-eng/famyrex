@@ -66,7 +66,8 @@ object CommunicationSignalDetector {
                 bullying = containsAny(observation.normalizedText, BULLYING),
                 selfHarm = containsAny(observation.normalizedText, SELF_HARM),
                 isolation = containsAny(observation.normalizedText, ISOLATION),
-                unknownContact = containsAny(observation.normalizedText, UNKNOWN_CONTACT)
+                unknownContact = containsAny(observation.normalizedText, UNKNOWN_CONTACT),
+                socialConflict = containsAny(observation.normalizedText, SOCIAL_CONFLICT)
             )
         }
 
@@ -79,6 +80,7 @@ object CommunicationSignalDetector {
         val selfHarm = observationsWith.filter { it.selfHarm }
         val isolation = observationsWith.filter { it.isolation }
         val unknownContacts = observationsWith.filter { it.unknownContact }
+        val socialConflicts = observationsWith.filter { it.socialConflict }
 
         // Señal temprana: una referencia a un contacto desconocido o nuevo no es
         // una acusación. Se combina después con secreto, datos personales o sexo.
@@ -192,6 +194,36 @@ object CommunicationSignalDetector {
             )
         }
 
+        // Conflicto social temprano: celos, rivalidad afectiva, rumores o discusiones
+        // entre iguales no se etiquetan como acoso. Solo se escala si aparecen varias
+        // señales o si el conflicto se combina con hostilidad/exclusión.
+        if (socialConflicts.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SOCIAL_CONFLICT,
+                if (socialConflicts.size >= 2) RiskConfidence.MEDIUM else RiskConfidence.LOW,
+                "Se detectaron señales compatibles con tensión o conflicto entre iguales; una situación puntual no implica acoso.",
+                socialConflicts.last().observation
+            )
+        }
+
+        if (socialConflicts.isNotEmpty() && bullying.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SOCIAL_CONFLICT,
+                RiskConfidence.MEDIUM,
+                "El conflicto entre iguales aparece junto a lenguaje hostil dirigido al menor.",
+                socialConflicts.last().observation
+            )
+        }
+
+        if (socialConflicts.isNotEmpty() && isolation.isNotEmpty()) {
+            add(
+                CommunicationRiskType.SOCIAL_CONFLICT,
+                RiskConfidence.MEDIUM,
+                "El conflicto entre iguales aparece acompañado de señales de exclusión o aislamiento.",
+                socialConflicts.last().observation
+            )
+        }
+
         if (selfHarm.size >= 2 || (selfHarm.isNotEmpty() && threats.isNotEmpty())) {
             add(
                 CommunicationRiskType.SELF_HARM,
@@ -223,7 +255,8 @@ object CommunicationSignalDetector {
         val bullying: Boolean,
         val selfHarm: Boolean,
         val isolation: Boolean,
-        val unknownContact: Boolean
+        val unknownContact: Boolean,
+        val socialConflict: Boolean
     )
 
     private fun normalize(text: String): String = text
@@ -263,6 +296,18 @@ object CommunicationSignalDetector {
     )
     private val ISOLATION = listOf(
         "me dejan de lado", "me estan dejando de lado", "me dejan sola", "me dejan solo", "nadie quiere estar conmigo", "nadie me habla", "me excluyen", "no me incluyen", "me siento apartado", "me siento apartada", "no tengo amigos", "todas mis amigas me dejan de lado", "todos mis amigos me dejan de lado"
+    )
+    private val SOCIAL_CONFLICT = listOf(
+        "a mi amiga le gusta", "a mi amigo le gusta", "le gusta el mismo chico", "le gusta la misma chica",
+        "le gusto yo", "le gusto a el", "le gusto a ella", "dicen que soy mas guapa", "dicen que soy mas guapo",
+        "dice que soy mas guapa", "dice que soy mas guapo", "esta celosa", "esta celoso", "tiene celos",
+        "celos por un chico", "celos por una chica", "me compara con", "me esta comparando con",
+        "me echa la culpa por el chico", "me echa la culpa por la chica", "me estan echando la culpa por el chico",
+        "me estan echando la culpa por la chica", "esta enfadada conmigo por el chico", "esta enfadado conmigo por la chica",
+        "se ha enfadado conmigo por el chico", "se ha enfadado conmigo por la chica", "hablan mal de mi por el chico",
+        "hablan mal de mi por la chica", "mis amigas estan contra mi", "mis amigos estan contra mi",
+        "mis amigas se han puesto en mi contra", "mis amigos se han puesto en mi contra", "me estan diciendo cosas por el chico",
+        "me estan diciendo cosas por la chica", "me insultan porque le gusto", "me insultan por el chico", "me insultan por la chica"
     )
     private val SELF_HARM = listOf(
         "quiero hacerme daño", "quiero hacerme dano", "quiero desaparecer", "no quiero vivir", "me quiero morir", "hacerme daño", "hacerme dano"
