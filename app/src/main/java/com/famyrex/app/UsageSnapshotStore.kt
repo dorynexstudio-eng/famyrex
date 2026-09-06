@@ -50,35 +50,41 @@ class UsageSnapshotStore(private val context: Context) {
     }
 
     companion object {
-        /**
-         * Parses persisted usage history defensively. A malformed root payload
-         * returns no history, while a malformed day or app only discards that
-         * affected record and keeps all valid data that can still be recovered.
-         */
-        internal fun parseHistory(raw: String): List<DailyUsage> = runCatching {
-            val array = JSONArray(raw)
-            buildList {
-                for (i in 0 until array.length()) {
-                    runCatching {
-                        val day = array.getJSONObject(i)
-                        val date = day.getString("date")
-                        val totalTimeMs = day.getLong("totalTimeMs")
-                        val apps = day.optJSONArray("topApps") ?: JSONArray()
-                        val top = buildList {
-                            for (j in 0 until apps.length()) {
-                                runCatching {
-                                    val a = apps.getJSONObject(j)
-                                    val packageName = a.getString("packageName")
-                                    val total = a.getLong("totalTimeMs")
-                                    val label = a.optString("label").ifBlank { packageName }
-                                    add(AppUsage(packageName, total, label))
-                                }
+        internal fun parseHistory(raw: String): List<DailyUsage> {
+            val array = try {
+                JSONArray(raw)
+            } catch (_: Exception) {
+                return emptyList()
+            }
+
+            val history = mutableListOf<DailyUsage>()
+            for (i in 0 until array.length()) {
+                val day = try {
+                    val item = array.getJSONObject(i)
+                    val date = item.getString("date")
+                    val totalTimeMs = item.getLong("totalTimeMs")
+                    val apps = item.optJSONArray("topApps")
+                    val top = mutableListOf<AppUsage>()
+                    if (apps != null) {
+                        for (j in 0 until apps.length()) {
+                            try {
+                                val app = apps.getJSONObject(j)
+                                val packageName = app.getString("packageName")
+                                val total = app.getLong("totalTimeMs")
+                                val label = app.optString("label").ifBlank { packageName }
+                                top.add(AppUsage(packageName, total, label))
+                            } catch (_: Exception) {
+                                // Preserve the day and every other valid app.
                             }
                         }
-                        add(DailyUsage(date, totalTimeMs, top))
                     }
+                    DailyUsage(date, totalTimeMs, top)
+                } catch (_: Exception) {
+                    null
                 }
+                if (day != null) history.add(day)
             }
-        }.getOrDefault(emptyList())
+            return history
+        }
     }
 }
