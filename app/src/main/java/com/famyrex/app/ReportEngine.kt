@@ -1,7 +1,6 @@
 package com.famyrex.app
 
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 object ReportEngine {
@@ -21,8 +20,7 @@ object ReportEngine {
         val end = today
         val start = end.minusDays(days - 1)
         val selected = history.filter {
-            val date = runCatching { LocalDate.parse(it.date) }.getOrNull()
-            date != null && !date.isBefore(start) && !date.isAfter(end)
+            parseDate(it.date)?.let { date -> !date.isBefore(start) && !date.isAfter(end) } == true
         }.sortedBy { it.date }
 
         val totalMs = selected.sumOf { it.totalTimeMs }
@@ -41,17 +39,17 @@ object ReportEngine {
             )
         }
 
+        // SmartAlert dates are normally "yyyy-MM-dd HH:mm:ss". Accept the
+        // date-only form too so locally persisted alerts are not silently lost.
         val periodAlerts = alerts.filter { alert ->
-            val d = runCatching { LocalDate.parse(alert.date) }.getOrNull()
-            d != null && !d.isBefore(start) && !d.isAfter(end)
+            parseDate(alert.date)?.let { date -> !date.isBefore(start) && !date.isAfter(end) } == true
         }
         val important = periodAlerts.count { it.severity == AlertSeverity.IMPORTANT }
 
         val previousStart = start.minusDays(days)
         val previousEnd = start.minusDays(1)
         val previous = history.filter {
-            val d = runCatching { LocalDate.parse(it.date) }.getOrNull()
-            d != null && !d.isBefore(previousStart) && !d.isAfter(previousEnd)
+            parseDate(it.date)?.let { date -> !date.isBefore(previousStart) && !date.isAfter(previousEnd) } == true
         }
         val previousMinutes = previous.sumOf { it.totalTimeMs } / 60_000L
         val trend = if (previousMinutes > 0L) {
@@ -87,4 +85,7 @@ object ReportEngine {
             narrative = narrative
         )
     }
+
+    private fun parseDate(value: String): LocalDate? =
+        runCatching { LocalDate.parse(value.take(10)) }.getOrNull()
 }
