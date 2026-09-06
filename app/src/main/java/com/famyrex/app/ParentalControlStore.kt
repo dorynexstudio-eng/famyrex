@@ -10,56 +10,7 @@ class ParentalControlStore(context: Context) {
 
     fun load(): ParentalControlConfig {
         val raw = prefs.getString(KEY_CONFIG, null) ?: return ParentalControlConfig()
-        return runCatching {
-            val root = JSONObject(raw)
-
-            val screenTime = root.optJSONObject("screenTime")?.let { item ->
-                runCatching {
-                    ScreenTimeLimit(
-                        dailyMinutes = item.getInt("dailyMinutes"),
-                        enabled = item.optBoolean("enabled", true)
-                    )
-                }.getOrNull()
-            }
-
-            val schedules = buildList {
-                val array = root.optJSONArray("pauseSchedules") ?: JSONArray()
-                for (i in 0 until array.length()) {
-                    runCatching {
-                        val item = array.getJSONObject(i)
-                        add(
-                            PauseSchedule(
-                                startMinuteOfDay = item.getInt("startMinuteOfDay"),
-                                endMinuteOfDay = item.getInt("endMinuteOfDay"),
-                                enabled = item.optBoolean("enabled", true)
-                            )
-                        )
-                    }
-                }
-            }
-
-            val restrictions = buildList {
-                val array = root.optJSONArray("appRestrictions") ?: JSONArray()
-                for (i in 0 until array.length()) {
-                    runCatching {
-                        val item = array.getJSONObject(i)
-                        add(
-                            AppRestriction(
-                                packageName = item.getString("packageName"),
-                                dailyMinutes = if (item.has("dailyMinutes") && !item.isNull("dailyMinutes")) item.getInt("dailyMinutes") else null,
-                                blocked = item.optBoolean("blocked", false)
-                            )
-                        )
-                    }
-                }
-            }
-
-            ParentalControlConfig(
-                screenTimeLimit = screenTime,
-                pauseSchedules = schedules,
-                appRestrictions = restrictions
-            )
-        }.getOrDefault(ParentalControlConfig())
+        return parseParentalControlConfig(raw)
     }
 
     fun save(config: ParentalControlConfig) {
@@ -100,3 +51,54 @@ class ParentalControlStore(context: Context) {
         private const val KEY_CONFIG = "config"
     }
 }
+
+internal fun parseParentalControlConfig(raw: String): ParentalControlConfig = runCatching {
+    val root = JSONObject(raw)
+
+    val screenTime = root.optJSONObject("screenTime")?.let { item ->
+        runCatching {
+            ScreenTimeLimit(
+                dailyMinutes = item.getInt("dailyMinutes"),
+                enabled = item.optBoolean("enabled", true)
+            )
+        }.getOrNull()
+    }
+
+    val schedules = buildList {
+        val array = root.optJSONArray("pauseSchedules") ?: JSONArray()
+        for (i in 0 until array.length()) {
+            runCatching {
+                val item = array.getJSONObject(i)
+                add(
+                    PauseSchedule(
+                        startMinuteOfDay = item.getInt("startMinuteOfDay"),
+                        endMinuteOfDay = item.getInt("endMinuteOfDay"),
+                        enabled = item.optBoolean("enabled", true)
+                    )
+                )
+            }
+        }
+    }
+
+    val restrictions = buildList {
+        val array = root.optJSONArray("appRestrictions") ?: JSONArray()
+        for (i in 0 until array.length()) {
+            runCatching {
+                val item = array.getJSONObject(i)
+                add(
+                    AppRestriction(
+                        packageName = item.getString("packageName"),
+                        dailyMinutes = if (item.has("dailyMinutes") && !item.isNull("dailyMinutes")) item.getInt("dailyMinutes") else null,
+                        blocked = item.optBoolean("blocked", false)
+                    )
+                )
+            }
+        }
+    }
+
+    ParentalControlConfig(
+        screenTimeLimit = screenTime,
+        pauseSchedules = schedules,
+        appRestrictions = restrictions
+    )
+}.getOrDefault(ParentalControlConfig())
