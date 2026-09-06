@@ -147,12 +147,19 @@ object FamilyIntelligenceEvidenceBuilder {
     /** Single source for explanation priority and wording; the UI only renders the result. */
     fun explain(
         summary: FamilyIntelligenceSummary,
-        trend: FamilyUsageTrend?
+        trend: FamilyUsageTrend?,
+        incidents: List<CommunicationRiskIncident> = emptyList()
     ): String {
-        val evidence = build(summary, trend)
+        val evidence = build(summary, trend, incidents)
         if (summary.parentalStatus == ParentalStatus.WHITE) {
             return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.DATA_GAP }?.conclusion
                 ?: "No puedo valorar completamente la situación todavía: faltan datos o permisos de uso y protección."
+        }
+        if (incidents.any { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }) {
+            return evidence
+                .firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION && it.referenceId != null }
+                ?.let { "${it.signal}. ${it.conclusion} ${it.action}" }
+                ?: "Hay señales de comunicación pendientes de revisión."
         }
         if (summary.communicationAlertCount > 0) {
             return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION }?.signal
