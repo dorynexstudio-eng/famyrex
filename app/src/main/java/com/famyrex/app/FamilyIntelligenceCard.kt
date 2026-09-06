@@ -36,11 +36,7 @@ import java.util.Calendar
 
 /** Resumen visible del estado digital familiar, construido solo con señales locales disponibles. */
 @Composable
-fun FamilyIntelligenceCard(
-    context: Context,
-    modifier: Modifier = Modifier,
-    onRecommendationAction: (FamilyIntelligenceRecommendationDestination) -> Unit = {}
-) {
+fun FamilyIntelligenceCard(context: Context, modifier: Modifier = Modifier, onRecommendationAction: (FamilyIntelligenceRecommendationDestination) -> Unit = {}) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var summary by remember { mutableStateOf<FamilyIntelligenceSummary?>(null) }
     var trend by remember { mutableStateOf<FamilyUsageTrend?>(null) }
@@ -52,31 +48,18 @@ fun FamilyIntelligenceCard(
         val usageAccess = usageMonitor.hasUsageAccess()
         val accessibilityEnabled = isFamilyIntelligenceAccessibilityEnabled(context)
         val todayStart = todayStartForFamilyIntelligence()
-        val now = System.currentTimeMillis()
-        val totalMinutes = if (usageAccess) {
-            usageMonitor.queryUsage(todayStart, now).sumOf { it.totalTimeInForeground } / 60_000L
-        } else null
+        val totalMinutes = if (usageAccess) usageMonitor.queryUsage(todayStart, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L else null
         val screenLimit = ParentalControlStore(context).load().screenTimeLimit
         val parentalStatus = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, screenLimit)
-        val currentAlerts = AlertStore(context).load()
-        alerts = currentAlerts
-        val currentIncidents = CommunicationRiskIncidentStore(context).load()
-            .filter { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }
+        alerts = AlertStore(context).load()
+        incidents = CommunicationRiskIncidentStore(context).load()
+            .filter { it.status !in CLOSED_INCIDENT_STATUSES }
             .sortedWith(compareByDescending<CommunicationRiskIncident> { it.createdAtMs }.thenBy { it.id })
-        incidents = currentIncidents
-        val communicationAlertCount = currentIncidents.size
-        summary = FamilyIntelligenceAggregator.summarize(
-            parentalStatus,
-            totalMinutes,
-            communicationAlertCount,
-            usageAccess,
-            accessibilityEnabled
-        )
+        summary = FamilyIntelligenceAggregator.summarize(parentalStatus, totalMinutes, incidents.size, usageAccess, accessibilityEnabled)
         trend = if (usageAccess) FamilyUsageTrendEvaluator.evaluate(loadRecentDailyMinutes(usageMonitor, todayStart)) else null
     }
 
     LaunchedEffect(Unit) { refresh() }
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -95,7 +78,7 @@ fun FamilyIntelligenceCard(
             Text("${status.icon} ${status.label}", style = MaterialTheme.typography.headlineSmall)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(current.totalScreenMinutes?.let { "Pantalla hoy: ${formatFamilyMinutes(it)}" } ?: "Pantalla hoy: ⚪ sin datos", Modifier.weight(1f))
-                Text(if (current.communicationAlertCount == 0) "Comunicaciones: 0" else "Comunicaciones: ${current.communicationAlertCount}", Modifier.weight(1f))
+                Text("Comunicaciones: ${current.communicationAlertCount}", Modifier.weight(1f))
             }
 
             trend?.let { usageTrend ->
@@ -122,29 +105,26 @@ fun FamilyIntelligenceCard(
             Text(explanation, style = MaterialTheme.typography.bodyLarge)
 
             if (evidence.isNotEmpty()) {
-                Text("Por qué", style = MaterialTheme.typography.titleSmall)
+                Text("Evidencia", style = MaterialTheme.typography.titleSmall)
                 evidence.take(5).forEach { item ->
                     Text("• ${item.signal} → ${item.conclusion}", style = MaterialTheme.typography.bodyMedium)
-                    item.referenceId?.let { referenceId ->
-                        Text("  Incidente: $referenceId${item.incidentStatus?.let { " · ${formatIncidentStatus(it)}" } ?: ""}", style = MaterialTheme.typography.labelMedium)
-                    }
+                    item.referenceId?.let { referenceId -> Text("  Incidente: $referenceId${item.incidentStatus?.let { " · ${formatIncidentStatus(it)}" } ?: ""}", style = MaterialTheme.typography.labelMedium) }
                     Text("  Acción: ${item.action}", style = MaterialTheme.typography.bodySmall)
                 }
             }
 
             recommendation?.let { currentRecommendation ->
-                Text(currentRecommendation.action, style = MaterialTheme.typography.bodyMedium)
                 if (currentRecommendation.destination != FamilyIntelligenceRecommendationDestination.OBSERVE) {
-                    Button(
-                        onClick = { onRecommendationAction(currentRecommendation.destination) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text(currentRecommendation.title) }
+                    Button(onClick = { onRecommendationAction(currentRecommendation.destination) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(currentRecommendation.title)
+                    }
                 }
             }
-            current.reasons.take(3).forEach { reason -> Text("• $reason") }
         }
     }
 }
+
+private val CLOSED_INCIDENT_STATUSES = setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED)
 
 private fun formatIncidentStatus(status: RiskIncidentStatus): String = when (status) {
     RiskIncidentStatus.DETECTED -> "Detectado"
@@ -162,9 +142,7 @@ private fun FamilyUsageWeekChart(days: List<Long>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Uso de los últimos 7 días", style = MaterialTheme.typography.labelLarge)
         Canvas(Modifier.fillMaxWidth().height(100.dp)) { drawFamilyUsageBars(days, barColor) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            days.indices.forEach { index -> Text(if (index == days.lastIndex) "Hoy" else "-${days.lastIndex - index}", style = MaterialTheme.typography.labelSmall) }
-        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { days.indices.forEach { index -> Text(if (index == days.lastIndex) "Hoy" else "-${days.lastIndex - index}", style = MaterialTheme.typography.labelSmall) } }
     }
 }
 
@@ -188,9 +166,7 @@ private fun loadRecentDailyMinutes(usageMonitor: ParentalUsageMonitor, todayStar
     }
 }
 
-private fun todayStartForFamilyIntelligence(): Long = Calendar.getInstance().apply {
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+private fun todayStartForFamilyIntelligence(): Long = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
 
 private fun formatFamilyMinutes(minutes: Long): String {
     val hours = minutes / 60
