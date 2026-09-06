@@ -35,7 +35,7 @@ object FamilyIntelligenceEvidenceBuilder {
                 CommunicationDirection.UNKNOWN -> "sin dirección determinada"
             }
             val reason = incident.reasons.firstOrNull()?.title ?: "Señal de comunicación detectada"
-            FamilyIntelligenceEvidence(FamilyIntelligenceEvidenceType.COMMUNICATION, "$reason · comunicación $direction", "Señal pendiente de valoración; estado: ${incident.status.label()}.", "Revisar el contexto y la evidencia asociada, sin asumir intención.", incident.id, incident.status)
+            FamilyIntelligenceEvidence(FamilyIntelligenceEvidenceType.COMMUNICATION, "$reason · comunicación $direction", "Señal pendiente de valoración; estado: ${incident.status.label()}.", "Revisar el contexto y la evidencia del incidente, sin asumir intención.", incident.id, incident.status)
         }.toList()
 
     fun fromTrend(trend: FamilyUsageTrend?): List<FamilyIntelligenceEvidence> {
@@ -49,7 +49,7 @@ object FamilyIntelligenceEvidenceBuilder {
         }
         trend.anomaly?.let { anomaly ->
             val direction = if (anomaly.type == FamilyUsageAnomalyType.HIGH) "por encima" else "por debajo"
-            evidence += FamilyIntelligenceEvidence(FamilyIntelligenceEvidenceType.ANOMALY, "El uso está un ${anomaly.deviationPercent}% $direction de la referencia reciente.", "Se observa una variación estadística relevante.", "Revisar el contexto; sin asumir su causa.")
+            evidence += FamilyIntelligenceEvidence(FamilyIntelligenceEvidenceType.ANOMALY, "El uso está un ${anomaly.deviationPercent}% $direction de la referencia reciente.", "Se observa una variación estadística relevante.", "Revisar el contexto; la variación no demuestra una causa.")
         }
         return evidence
     }
@@ -59,8 +59,8 @@ object FamilyIntelligenceEvidenceBuilder {
     /** Single source for explanation priority and wording; the UI only renders the result. */
     fun explain(summary: FamilyIntelligenceSummary, trend: FamilyUsageTrend?, incidents: List<CommunicationRiskIncident> = emptyList()): String {
         val evidence = build(summary, trend, incidents)
-        if (summary.parentalStatus == ParentalStatus.WHITE) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.DATA_GAP }?.conclusion ?: "No puedo valorar completamente la situación todavía: faltan datos o permisos de uso y protección."
-        if (summary.parentalStatus == ParentalStatus.RED) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.STATUS }?.let { "${it.conclusion} ${it.action}" } ?: "El control parental requiere revisión."
+        if (summary.parentalStatus == ParentalStatus.WHITE) return "No puedo valorar completamente la situación todavía: faltan datos o permisos de uso y protección."
+        if (summary.parentalStatus == ParentalStatus.RED) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.STATUS }?.let { "${it.conclusion} ${it.action} El límite configurado requiere atención." } ?: "El límite configurado requiere revisión."
         if (incidents.any { it.status !in CLOSED_INCIDENT_STATUSES }) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION && it.referenceId != null }?.let { "${it.signal}. ${it.conclusion} ${it.action}" } ?: "Hay señales de comunicación pendientes de revisión."
         if (summary.communicationAlertCount > 0) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION }?.signal ?: "Hay señales de comunicación pendientes de revisión."
         evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.ANOMALY }?.let { return it.signal + " Es una variación que conviene observar." }
