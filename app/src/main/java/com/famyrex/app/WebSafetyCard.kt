@@ -1,5 +1,7 @@
 package com.famyrex.app
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,8 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun WebSafetyCard(settings: WebSafetySettings) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+fun WebSafetyCard(settings: WebSafetySettings, context: Context? = null) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = {
+            context?.startActivity(Intent(context, WebSafetyActivity::class.java))
+        }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Seguridad web")
             Text("Protección: ${if (settings.enabled) "activa" else "desactivada"}")
@@ -19,6 +26,7 @@ fun WebSafetyCard(settings: WebSafetySettings) {
             Text("Dominios bloqueados: ${settings.blockedDomains.size}")
             Text("Dominios permitidos: ${settings.allowedDomains.size}")
             Text("La clasificación de malware/phishing se delega a Safe Browsing cuando está disponible.")
+            if (context != null) Text("Toca para abrir la protección web")
         }
     }
 }
