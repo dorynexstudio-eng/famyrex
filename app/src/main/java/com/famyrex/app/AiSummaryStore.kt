@@ -27,22 +27,31 @@ class AiSummaryStore(context: Context) {
 
     fun load(): AiDailySummary? {
         val raw = prefs.getString("latest", null) ?: return null
-        return runCatching {
+        return parse(raw)
+    }
+
+    companion object {
+        /** Parses the persisted summary without allowing one bad insight to hide valid data. */
+        internal fun parse(raw: String): AiDailySummary? = runCatching {
             val o = JSONObject(raw)
             val arr = o.optJSONArray("insights")
             val insights = buildList {
                 if (arr != null) for (i in 0 until arr.length()) {
-                    val x = arr.getJSONObject(i)
-                    val sig = x.optJSONArray("supportingSignals")
-                    val signals = buildList {
-                        if (sig != null) for (j in 0 until sig.length()) add(sig.optString(j))
+                    runCatching {
+                        val x = arr.getJSONObject(i)
+                        val sig = x.optJSONArray("supportingSignals")
+                        val signals = buildList {
+                            if (sig != null) for (j in 0 until sig.length()) {
+                                sig.optString(j).takeIf { it.isNotBlank() }?.let(::add)
+                            }
+                        }
+                        add(AiInsight(
+                            title = x.optString("title"),
+                            summary = x.optString("summary"),
+                            confidence = x.optInt("confidence").coerceIn(0, 100),
+                            supportingSignals = signals
+                        ))
                     }
-                    add(AiInsight(
-                        title = x.optString("title"),
-                        summary = x.optString("summary"),
-                        confidence = x.optInt("confidence").coerceIn(0, 100),
-                        supportingSignals = signals
-                    ))
                 }
             }
             AiDailySummary(
