@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 
 @Composable
 fun FamilyCoreScreen(
@@ -33,11 +34,17 @@ fun FamilyCoreScreen(
 ) {
     val store = remember { FamilyStore(context) }
     val identityStore = remember { FamilyIdentityStore(context) }
+    val agreementStore = remember { FamilyAgreementStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var devices by remember { mutableStateOf(store.devices()) }
+    var agreement by remember { mutableStateOf(agreementStore.load()) }
     var adultName by remember { mutableStateOf("") }
     var childName by remember { mutableStateOf("") }
     var deviceName by remember { mutableStateOf("") }
+    var agreementMinutes by remember { mutableStateOf(agreement?.dailyMinutes?.toString() ?: "120") }
+    var agreementGoal by remember { mutableStateOf(agreement?.goal ?: "Mantener un uso equilibrado") }
+    var agreementConsequence by remember { mutableStateOf(agreement?.consequence ?: "Hablarlo juntos y aplicar lo pactado") }
+    var agreementReviewDate by remember { mutableStateOf(agreement?.reviewDate ?: LocalDate.now().plusDays(30).toString()) }
     var invitation by remember { mutableStateOf<OfflinePairingToken?>(null) }
     var message by remember { mutableStateOf("") }
 
@@ -45,6 +52,7 @@ fun FamilyCoreScreen(
         store.ensureLocalOwner()
         profiles = store.profiles()
         devices = store.devices()
+        agreement = agreementStore.load()
     }
 
     val adults = profiles.filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }
@@ -94,6 +102,44 @@ fun FamilyCoreScreen(
                         message = "Perfil infantil creado y vinculado a los adultos autorizados."
                         onFamilyChanged()
                     }, modifier = Modifier.fillMaxWidth()) { Text("Añadir hijo/a") }
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Acuerdo familiar digital", style = MaterialTheme.typography.titleMedium)
+                    Text("La familia decide las reglas juntas. Famyrex muestra el cumplimiento, pero no ejecuta automáticamente una consecuencia.")
+                    if (children.isEmpty()) {
+                        Text("⚪ Crea primero un perfil infantil para establecer un acuerdo.")
+                    } else {
+                        Text("Perfil: ${children.first().displayName}")
+                        OutlinedTextField(agreementMinutes, { agreementMinutes = it.filter(Char::isDigit).take(4) }, Modifier.fillMaxWidth(), label = { Text("Minutos diarios acordados") })
+                        OutlinedTextField(agreementGoal, { agreementGoal = it }, Modifier.fillMaxWidth(), label = { Text("Objetivo de la familia") })
+                        OutlinedTextField(agreementConsequence, { agreementConsequence = it }, Modifier.fillMaxWidth(), label = { Text("Qué hacer si se incumple") })
+                        OutlinedTextField(agreementReviewDate, { agreementReviewDate = it }, Modifier.fillMaxWidth(), label = { Text("Fecha de revisión (AAAA-MM-DD)") })
+                        Button(
+                            enabled = agreementMinutes.toIntOrNull()?.let { it in 1..1440 } == true && agreementGoal.isNotBlank() && agreementReviewDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")),
+                            onClick = {
+                                val saved = FamilyAgreement(
+                                    childProfileId = children.first().id,
+                                    dailyMinutes = agreementMinutes.toInt(),
+                                    goal = agreementGoal.trim(),
+                                    consequence = agreementConsequence.trim(),
+                                    reviewDate = agreementReviewDate.trim()
+                                )
+                                agreementStore.save(saved)
+                                agreement = saved
+                                message = "Acuerdo familiar guardado. Famyrex observará y explicará el cumplimiento."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (agreement == null) "Crear acuerdo" else "Actualizar acuerdo") }
+                        if (agreement != null) {
+                            OutlinedButton(onClick = { agreementStore.clear(); agreement = null; message = "Acuerdo eliminado de este dispositivo." }, modifier = Modifier.fillMaxWidth()) { Text("Eliminar acuerdo") }
+                            Text("Revisión prevista: ${agreement!!.reviewDate}")
+                        }
+                    }
                 }
             }
         }
