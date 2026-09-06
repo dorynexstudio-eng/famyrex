@@ -101,6 +101,7 @@ fun FamyrexApp(context: Context) {
                     NavigationBarItem(tab == 2, { tab = 2; parentalControlOpen = false }, icon = {}, label = { Text("Familia") })
                     NavigationBarItem(tab == 3, { tab = 3 }, icon = {}, label = { Text("Ubicación") })
                     NavigationBarItem(tab == 4, { tab = 4 }, icon = {}, label = { Text("Asistente") })
+                    NavigationBarItem(tab == 5, { tab = 5 }, icon = {}, label = { Text("Informe") })
                 }
             }
         ) { padding ->
@@ -121,7 +122,8 @@ fun FamyrexApp(context: Context) {
                             }
                             FamilyIntelligenceRecommendationDestination.OBSERVE -> Unit
                         }
-                    }
+                    },
+                    onOpenReport = { tab = 5 }
                 )
                 1 -> RealAlertsScreen(context, Modifier.padding(padding))
                 2 -> if (parentalControlOpen) {
@@ -135,7 +137,8 @@ fun FamyrexApp(context: Context) {
                     )
                 }
                 3 -> LocationScreen(context, zones, { updated -> zones = updated; saveZones(prefs, updated) }, Modifier.padding(padding))
-                else -> FamilyAssistantScreen(context, Modifier.padding(padding))
+                4 -> FamilyAssistantScreen(context, Modifier.padding(padding))
+                5 -> DailyReportScreen(context, onBack = { tab = 0 }, modifier = Modifier.padding(padding))
             }
         }
     }
@@ -154,7 +157,8 @@ fun Dashboard(
     context: Context,
     family: FamilyState,
     modifier: Modifier = Modifier,
-    onRecommendationAction: (FamilyIntelligenceRecommendationDestination) -> Unit = {}
+    onRecommendationAction: (FamilyIntelligenceRecommendationDestination) -> Unit = {},
+    onOpenReport: () -> Unit = {}
 ) {
     val configured = family.parent.isNotBlank() && family.child.isNotBlank()
     var components by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
@@ -253,7 +257,7 @@ fun Dashboard(
                 }
             }
         }
-        item { Button(onClick = {}, Modifier.fillMaxWidth()) { Text("Ver informe diario") } }
+        item { Button(onClick = onOpenReport, Modifier.fillMaxWidth()) { Text("Ver informe diario") } }
     }
 }
 
