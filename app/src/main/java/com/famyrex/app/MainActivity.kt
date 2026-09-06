@@ -325,21 +325,25 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Ubicación y geozonas", style = MaterialTheme.typography.headlineSmall) }
         item { Text("Las geozonas permiten definir lugares seguros, como casa o colegio. La ubicación se usa solo con permiso visible.") }
-        item { Button(onClick = { launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, Modifier.fillMaxWidth()) { Text(if (permissionGranted) "Permiso de ubicación concedido" else "Conceder permiso de ubicación") } }
+        item { Button(onClick = { launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, modifier = Modifier.fillMaxWidth()) { Text(if (permissionGranted) "Permiso de ubicación concedido" else "Conceder permiso de ubicación") } }
         item { Text(status) }
         item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nombre de la geozona") }, placeholder = { Text("Casa, colegio...") }) }
         item { OutlinedTextField(radius, { radius = it.filter(Char::isDigit).take(5) }, Modifier.fillMaxWidth(), label = { Text("Radio en metros") }) }
         item {
-            Button(enabled = permissionGranted && name.isNotBlank(), onClick = {
-                val location = lastKnownLocation(context)
-                if (location != null) {
-                    onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f))
-                    name = ""
-                    status = "Geozona guardada con la última ubicación disponible."
-                } else {
-                    status = "No hay una ubicación reciente disponible."
-                }
-            }, Modifier.fillMaxWidth()) { Text("Guardar geozona") }
+            Button(
+                enabled = permissionGranted && name.isNotBlank(),
+                onClick = {
+                    val location = lastKnownLocation(context)
+                    if (location != null) {
+                        onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f))
+                        name = ""
+                        status = "Geozona guardada con la última ubicación disponible."
+                    } else {
+                        status = "No hay una ubicación reciente disponible."
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Guardar geozona") }
         }
         items(zones) { zone ->
             ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(zone.name, style = MaterialTheme.typography.titleMedium); Text("Radio: ${zone.radiusMeters.toInt()} m"); Text("${zone.latitude}, ${zone.longitude}") } }
