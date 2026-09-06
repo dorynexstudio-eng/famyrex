@@ -1,23 +1,38 @@
 package com.famyrex.app
 
-import android.net.Uri
+import java.net.URI
 
 object WebSafetyEngine {
     fun decide(url: String, settings: WebSafetySettings): WebSafetyDecision {
         if (!settings.enabled) return WebSafetyDecision(WebSafetyAction.ALLOW, "Protección web desactivada.")
 
-        val host = runCatching { Uri.parse(url).host?.lowercase()?.removePrefix("www.") }.getOrNull()
-            ?: return WebSafetyDecision(WebSafetyAction.WARN, "No se ha podido identificar el dominio.")
+        val parsed = runCatching { URI(url.trim()) }.getOrNull()
+        val scheme = parsed?.scheme?.lowercase()
+        val host = parsed?.host?.lowercase()?.removeSuffix(".")
+        if (parsed == null || scheme !in setOf("http", "https") || host.isNullOrBlank()) {
+            return WebSafetyDecision(WebSafetyAction.WARN, "No se ha podido identificar un dominio web válido.")
+        }
 
-        fun matches(rule: String): Boolean =
-            host == rule || host.endsWith(".$rule")
+        fun normalizeRule(rule: String): String = rule.trim().lowercase()
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .substringBefore('/')
+            .removePrefix("www.")
+            .removeSuffix(".")
+
+        fun matches(rule: String): Boolean {
+            val normalized = normalizeRule(rule)
+            return normalized.isNotBlank() && (host == normalized || host.endsWith(".$normalized"))
+        }
+
+        // An explicit block is the stronger local rule: an allow entry must not
+        // accidentally bypass a blocked child domain.
+        if (settings.blockedDomains.any(::matches)) {
+            return WebSafetyDecision(WebSafetyAction.BLOCK, "Dominio incluido en la lista bloqueada.")
+        }
 
         if (settings.allowedDomains.any(::matches)) {
             return WebSafetyDecision(WebSafetyAction.ALLOW, "Dominio incluido en la lista permitida.")
-        }
-
-        if (settings.blockedDomains.any(::matches)) {
-            return WebSafetyDecision(WebSafetyAction.BLOCK, "Dominio incluido en la lista bloqueada.")
         }
 
         // Famyrex does not pretend to classify the entire web locally.
