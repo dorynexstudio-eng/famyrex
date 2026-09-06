@@ -96,23 +96,25 @@ class CommunicationRiskIncidentStore(context: Context) {
 
     fun load(): List<CommunicationRiskIncident> {
         val raw = prefs.getString("items", null) ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            buildList {
-                for (i in 0 until array.length()) {
+        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                runCatching {
                     val o = array.getJSONObject(i)
                     val reasonsJson = o.optJSONArray("reasons") ?: JSONArray()
                     val reasons = buildList {
                         for (j in 0 until reasonsJson.length()) {
-                            val r = reasonsJson.getJSONObject(j)
-                            add(RiskReason(r.getString("code"), r.getString("title"), r.getString("detail")))
+                            runCatching {
+                                val r = reasonsJson.getJSONObject(j)
+                                add(RiskReason(r.getString("code"), r.getString("title"), r.getString("detail")))
+                            }
                         }
                     }
                     val historyJson = o.optJSONArray("statusHistory") ?: JSONArray()
                     val history = buildList {
                         for (j in 0 until historyJson.length()) {
-                            val h = historyJson.getJSONObject(j)
                             runCatching {
+                                val h = historyJson.getJSONObject(j)
                                 add(
                                     RiskIncidentStatusChange(
                                         status = RiskIncidentStatus.valueOf(h.getString("status")),
@@ -140,7 +142,7 @@ class CommunicationRiskIncidentStore(context: Context) {
                     )
                 }
             }
-        }.getOrDefault(emptyList())
+        }
     }
 }
 
