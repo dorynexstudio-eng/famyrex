@@ -106,12 +106,19 @@ internal fun parseRiskIncidentsJson(raw: String): List<CommunicationRiskIncident
         for (i in 0 until array.length()) {
             runCatching {
                 val o = array.getJSONObject(i)
+                val id = o.getString("id").trim()
+                val createdAtMs = o.getLong("createdAtMs")
+                require(id.isNotBlank() && createdAtMs > 0L)
                 val reasonsJson = o.optJSONArray("reasons") ?: JSONArray()
                 val reasons = buildList {
                     for (j in 0 until reasonsJson.length()) {
                         runCatching {
                             val r = reasonsJson.getJSONObject(j)
-                            add(RiskReason(r.getString("code"), r.getString("title"), r.getString("detail")))
+                            val code = r.getString("code").trim()
+                            val title = r.getString("title").trim()
+                            val detail = r.getString("detail").trim()
+                            require(code.isNotBlank() && title.isNotBlank() && detail.isNotBlank())
+                            add(RiskReason(code, title, detail))
                         }
                     }
                 }
@@ -120,10 +127,12 @@ internal fun parseRiskIncidentsJson(raw: String): List<CommunicationRiskIncident
                     for (j in 0 until historyJson.length()) {
                         runCatching {
                             val h = historyJson.getJSONObject(j)
+                            val timestampMs = h.getLong("timestampMs")
+                            require(timestampMs > 0L)
                             add(
                                 RiskIncidentStatusChange(
                                     status = RiskIncidentStatus.valueOf(h.getString("status")),
-                                    timestampMs = h.getLong("timestampMs")
+                                    timestampMs = timestampMs
                                 )
                             )
                         }
@@ -131,8 +140,8 @@ internal fun parseRiskIncidentsJson(raw: String): List<CommunicationRiskIncident
                 }
                 add(
                     CommunicationRiskIncident(
-                        id = o.getString("id"),
-                        createdAtMs = o.getLong("createdAtMs"),
+                        id = id,
+                        createdAtMs = createdAtMs,
                         type = CommunicationRiskType.valueOf(o.getString("type")),
                         confidence = RiskConfidence.valueOf(o.getString("confidence")),
                         score = o.getInt("score"),
