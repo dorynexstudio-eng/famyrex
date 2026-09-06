@@ -24,9 +24,22 @@ class AlertStore(context: Context) {
         prefs.edit().putString("alerts", array.toString()).apply()
     }
 
+    /**
+     * Adds a new alert or refreshes an existing alert with the same id.
+     * The lifecycle status is always owned by the persisted alert and is
+     * preserved across detector regenerations. Returns true only for a new id,
+     * so callers can keep notification semantics unchanged.
+     */
     fun appendIfNew(alert: SmartAlert): Boolean {
         val current = load()
-        if (current.any { it.id == alert.id }) return false
+        val existing = current.firstOrNull { it.id == alert.id }
+        if (existing != null) {
+            val refreshed = alert.copy(lifecycleStatus = existing.lifecycleStatus)
+            if (existing != refreshed) {
+                save(current.map { if (it.id == alert.id) refreshed else it })
+            }
+            return false
+        }
         save(listOf(alert) + current)
         return true
     }
