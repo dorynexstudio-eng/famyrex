@@ -6,7 +6,8 @@ data class FamilyIntelligenceSummary(
     val totalScreenMinutes: Long?,
     val communicationAlertCount: Int,
     val protectionReady: Boolean,
-    val reasons: List<String>
+    val reasons: List<String>,
+    val evidence: List<FamilyIntelligenceEvidence> = emptyList()
 ) {
     /** Requiere atención si hay un riesgo observado o si la protección aún no puede evaluarse por completo. */
     val actionRequired: Boolean
@@ -41,12 +42,14 @@ object FamilyIntelligenceAggregator {
             if (!accessibilityEnabled) add("La guardia parental no está activa.")
         }
 
-        return FamilyIntelligenceSummary(
+        val protectionReady = usageAccess && accessibilityEnabled
+        val summary = FamilyIntelligenceSummary(
             parentalStatus = parentalStatus,
             totalScreenMinutes = totalScreenMinutes,
             communicationAlertCount = communicationAlertCount,
-            protectionReady = usageAccess && accessibilityEnabled,
+            protectionReady = protectionReady,
             reasons = reasons
         )
+        return summary.copy(evidence = FamilyIntelligenceEvidenceBuilder.fromSummary(summary))
     }
 }
