@@ -1,5 +1,6 @@
 package com.famyrex.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
@@ -17,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +54,9 @@ private fun WebSafetyScreen() {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Seguridad web", style = MaterialTheme.typography.headlineSmall)
         Text("Navegación aislada en WebView. Famyrex no intercepta el navegador externo ni lee mensajes de otras aplicaciones.")
+        TextButton(onClick = { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) }) {
+            Text("Consultar política de privacidad")
+        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),
