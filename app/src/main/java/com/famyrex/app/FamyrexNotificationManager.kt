@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import java.security.MessageDigest
 
 object FamyrexNotificationManager {
     private const val CHANNEL_CRITICAL = "famyrex_critical"
@@ -58,6 +59,14 @@ object FamyrexNotificationManager {
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .build()
 
-        NotificationManagerCompat.from(context).notify(alert.id.hashCode(), notification)
+        NotificationManagerCompat.from(context).notify(notificationId(alert.id), notification)
+    }
+
+    internal fun notificationId(alertId: String): Int {
+        val digest = MessageDigest.getInstance("SHA-256").digest(alertId.toByteArray(Charsets.UTF_8))
+        return (digest[0].toInt() and 0xFF) or
+            ((digest[1].toInt() and 0xFF) shl 8) or
+            ((digest[2].toInt() and 0xFF) shl 16) or
+            ((digest[3].toInt() and 0xFF) shl 24)
     }
 }
