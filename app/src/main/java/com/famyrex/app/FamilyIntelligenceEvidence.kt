@@ -63,9 +63,9 @@ object FamilyIntelligenceEvidenceBuilder {
         if (summary.parentalStatus == ParentalStatus.RED) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.STATUS }?.let { "${it.conclusion} ${it.action} El límite configurado requiere atención." } ?: "El límite configurado requiere revisión."
         if (incidents.any { it.status !in CLOSED_INCIDENT_STATUSES }) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION && it.referenceId != null }?.let { "${it.signal}. ${it.conclusion} ${it.action}" } ?: "Hay señales de comunicación pendientes de revisión."
         if (summary.communicationAlertCount > 0) return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION }?.signal ?: "Hay señales de comunicación pendientes de revisión."
-        evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.ANOMALY }?.let { return it.signal + " Es una variación que conviene observar." }
-        evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.TREND }?.let { return if (summary.parentalStatus == ParentalStatus.GREEN) "La protección está en orden. ${it.conclusion} ${it.action}" else it.conclusion }
+        evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.ANOMALY }?.let { return "${it.signal} ${it.action} Es una variación que conviene observar." }
         evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.DATA_GAP }?.let { return "${it.conclusion} ${it.action}" }
+        evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.TREND }?.let { return if (summary.parentalStatus == ParentalStatus.GREEN) "La protección está en orden. ${it.conclusion} ${it.action}" else it.conclusion }
         return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.STATUS }?.let { if (summary.parentalStatus == ParentalStatus.ORANGE) "${it.signal} Es un buen momento para revisar cómo va el día." else "${it.conclusion} ${it.action}" } ?: "No hay datos suficientes."
     }
 
