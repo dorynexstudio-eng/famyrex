@@ -68,7 +68,7 @@ fun DashboardCapabilitiesCard(context: Context) {
         }
         LocationCard(zones, locationState)
 
-        WebSafetyCard(webSettings)
+        WebSafetyCard(webSettings, context)
 
         aiSummary?.let { AiSummaryCard(it) } ?: CapabilityStatusCard(
             title = "Análisis inteligente",
