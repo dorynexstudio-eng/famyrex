@@ -21,9 +21,20 @@ object UsageRepository {
 
     fun loadCurrentHour(context: Context): List<AppUsage> {
         val zone = ZoneId.systemDefault()
-        val start = LocalDateTime.now(zone).withMinute(0).withSecond(0).withNano(0)
-            .atZone(zone).toInstant().toEpochMilli()
-        return query(context, start, System.currentTimeMillis())
+        val now = LocalDateTime.now(zone)
+        return loadHour(context, now.withMinute(0).withSecond(0).withNano(0))
+    }
+
+    fun loadPreviousCompletedHour(context: Context, now: LocalDateTime = LocalDateTime.now(ZoneId.systemDefault())): List<AppUsage> {
+        val hour = now.withMinute(0).withSecond(0).withNano(0).minusHours(1)
+        return loadHour(context, hour)
+    }
+
+    private fun loadHour(context: Context, hour: LocalDateTime): List<AppUsage> {
+        val zone = ZoneId.systemDefault()
+        val start = hour.atZone(zone).toInstant().toEpochMilli()
+        val end = hour.plusHours(1).atZone(zone).toInstant().toEpochMilli()
+        return query(context, start, end)
     }
 
     private fun query(context: Context, start: Long, end: Long): List<AppUsage> {
