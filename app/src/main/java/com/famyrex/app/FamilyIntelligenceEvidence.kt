@@ -155,6 +155,11 @@ object FamilyIntelligenceEvidenceBuilder {
             return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.DATA_GAP }?.conclusion
                 ?: "No puedo valorar completamente la situación todavía: faltan datos o permisos de uso y protección."
         }
+        if (summary.parentalStatus == ParentalStatus.RED) {
+            return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.STATUS }?.let {
+                "${it.conclusion} ${it.action}"
+            } ?: "El control parental requiere revisión."
+        }
         if (incidents.any { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }) {
             return evidence
                 .firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION && it.referenceId != null }
@@ -165,17 +170,12 @@ object FamilyIntelligenceEvidenceBuilder {
             return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.COMMUNICATION }?.signal
                 ?: "Hay señales de comunicación pendientes de revisión."
         }
-        if (summary.parentalStatus == ParentalStatus.RED) {
-            return evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.STATUS }?.let {
-                "${it.conclusion} ${it.action}"
-            } ?: "El control parental requiere revisión."
-        }
         evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.ANOMALY }?.let {
             return it.signal + " Es una variación que conviene observar."
         }
         evidence.firstOrNull { it.type == FamilyIntelligenceEvidenceType.TREND }?.let {
             return when (summary.parentalStatus) {
-                ParentalStatus.GREEN -> "${it.conclusion} ${it.action}"
+                ParentalStatus.GREEN -> "La protección está en orden. ${it.conclusion} ${it.action}"
                 else -> it.conclusion
             }
         }
