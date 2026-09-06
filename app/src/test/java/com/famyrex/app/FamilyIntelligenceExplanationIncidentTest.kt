@@ -68,7 +68,6 @@ class FamilyIntelligenceExplanationIncidentTest {
 
         assertFalse(explanation.contains("culpable", ignoreCase = true))
         assertFalse(explanation.contains("culpa", ignoreCase = true))
-        assertFalse(explanation.contains("intención", ignoreCase = true))
         assertTrue(explanation.contains("sin asumir intención"))
     }
 
