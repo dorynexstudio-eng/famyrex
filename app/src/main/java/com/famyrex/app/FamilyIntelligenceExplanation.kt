@@ -12,6 +12,9 @@ object FamilyIntelligenceExplanation {
         if (summary.communicationAlertCount > 0) {
             return "Hay ${summary.communicationAlertCount} señal${if (summary.communicationAlertCount == 1) "" else "es"} de comunicación pendiente${if (summary.communicationAlertCount == 1) "" else "s"} de revisión."
         }
+        if (summary.parentalStatus == ParentalStatus.RED) {
+            return "El uso de pantalla ha alcanzado o superado un límite configurado. Conviene revisar el límite y el uso de hoy."
+        }
         if (trend?.anomaly != null) {
             val anomaly = trend.anomaly
             return when (anomaly.type) {
@@ -22,7 +25,6 @@ object FamilyIntelligenceExplanation {
             }
         }
         return when (summary.parentalStatus) {
-            ParentalStatus.RED -> "El uso de pantalla ha alcanzado o superado un límite configurado. Conviene revisar el límite y el uso de hoy."
             ParentalStatus.ORANGE -> "El uso de pantalla se acerca a un límite configurado. Es un buen momento para revisar cómo va el día."
             ParentalStatus.GREEN -> when (trend?.direction) {
                 FamilyUsageTrendDirection.INCREASING -> "La protección está en orden, aunque el uso de hoy va por encima de la referencia reciente."
@@ -30,6 +32,7 @@ object FamilyIntelligenceExplanation {
                 FamilyUsageTrendDirection.INSUFFICIENT_DATA -> "La protección está en orden, pero todavía no hay suficientes datos para valorar una tendencia."
                 else -> "La protección está en orden y no hay señales que requieran acción inmediata."
             }
+            ParentalStatus.RED -> "El uso de pantalla ha alcanzado o superado un límite configurado. Conviene revisar el límite y el uso de hoy."
             ParentalStatus.WHITE -> "No hay datos suficientes."
         }
     }
