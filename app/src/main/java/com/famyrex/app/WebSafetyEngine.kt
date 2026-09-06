@@ -4,13 +4,18 @@ import java.net.URI
 
 object WebSafetyEngine {
     fun decide(url: String, settings: WebSafetySettings): WebSafetyDecision {
-        if (!settings.enabled) return WebSafetyDecision(WebSafetyAction.ALLOW, "Protección web desactivada.")
-
         val parsed = runCatching { URI(url.trim()) }.getOrNull()
         val scheme = parsed?.scheme?.lowercase()
         val host = parsed?.host?.lowercase()?.removeSuffix(".")
         if (parsed == null || scheme !in setOf("http", "https") || host.isNullOrBlank()) {
             return WebSafetyDecision(WebSafetyAction.WARN, "No se ha podido identificar un dominio web válido.")
+        }
+
+        // Even when local protection is disabled, Famyrex only acts as a web
+        // browser for HTTP(S). This prevents non-web schemes from being handed
+        // to WebView accidentally.
+        if (!settings.enabled) {
+            return WebSafetyDecision(WebSafetyAction.ALLOW, "Protección web desactivada.")
         }
 
         fun normalizeRule(rule: String): String = rule.trim().lowercase()
