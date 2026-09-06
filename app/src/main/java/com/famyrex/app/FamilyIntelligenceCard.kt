@@ -85,7 +85,7 @@ fun FamilyIntelligenceCard(
 
     val current = summary ?: return
     val status = current.parentalStatus
-    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(alerts)
+    val recommendation = FamilyIntelligenceRecommendationEngine.recommend(alerts, incidents)
     val evidence = FamilyIntelligenceEvidenceBuilder.build(current, trend, incidents)
 
     ElevatedCard(modifier.fillMaxWidth()) {
