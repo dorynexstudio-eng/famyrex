@@ -45,6 +45,7 @@ fun FamilyIntelligenceCard(
     var summary by remember { mutableStateOf<FamilyIntelligenceSummary?>(null) }
     var trend by remember { mutableStateOf<FamilyUsageTrend?>(null) }
     var alerts by remember { mutableStateOf<List<SmartAlert>>(emptyList()) }
+    var incidents by remember { mutableStateOf<List<CommunicationRiskIncident>>(emptyList()) }
 
     fun refresh() {
         val usageMonitor = ParentalUsageMonitor(context)
@@ -59,6 +60,10 @@ fun FamilyIntelligenceCard(
         val parentalStatus = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, screenLimit)
         val currentAlerts = AlertStore(context).load()
         alerts = currentAlerts
+        val currentIncidents = CommunicationRiskIncidentStore(context).load()
+            .filter { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }
+            .sortedWith(compareByDescending<CommunicationRiskIncident> { it.createdAtMs }.thenBy { it.id })
+        incidents = currentIncidents
         val communicationAlertCount = currentAlerts.count { alert ->
             alert.type == AlertType.COMMUNICATION_RISK && alert.lifecycleStatus !in setOf(
                 AlertLifecycleStatus.DISMISSED,
@@ -87,7 +92,7 @@ fun FamilyIntelligenceCard(
     val current = summary ?: return
     val status = current.parentalStatus
     val recommendation = FamilyIntelligenceRecommendationEngine.recommend(alerts)
-    val evidence = FamilyIntelligenceEvidenceBuilder.build(current, trend)
+    val evidence = FamilyIntelligenceEvidenceBuilder.build(current, trend, incidents)
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -125,6 +130,9 @@ fun FamilyIntelligenceCard(
                 Text("Por qué", style = MaterialTheme.typography.titleSmall)
                 evidence.take(5).forEach { item ->
                     Text("• ${item.signal} → ${item.conclusion}", style = MaterialTheme.typography.bodyMedium)
+                    item.referenceId?.let { referenceId ->
+                        Text("  Incidente: $referenceId${item.incidentStatus?.let { " · ${formatIncidentStatus(it)}" } ?: ""}", style = MaterialTheme.typography.labelMedium)
+                    }
                     Text("  Acción: ${item.action}", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -141,6 +149,15 @@ fun FamilyIntelligenceCard(
             current.reasons.take(3).forEach { reason -> Text("• $reason") }
         }
     }
+}
+
+private fun formatIncidentStatus(status: RiskIncidentStatus): String = when (status) {
+    RiskIncidentStatus.DETECTED -> "Detectado"
+    RiskIncidentStatus.REVIEWED -> "Revisado"
+    RiskIncidentStatus.CONFIRMED -> "Confirmado"
+    RiskIncidentStatus.DISMISSED -> "Descartado"
+    RiskIncidentStatus.AUTO_DISMISSED -> "Descartado automáticamente"
+    RiskIncidentStatus.RESOLVED -> "Resuelto"
 }
 
 @Composable
