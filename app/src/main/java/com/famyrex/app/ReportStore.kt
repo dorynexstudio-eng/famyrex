@@ -3,6 +3,7 @@ package com.famyrex.app
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
 
 class ReportStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_reports", Context.MODE_PRIVATE)
@@ -35,32 +36,55 @@ class ReportStore(context: Context) {
 
     fun load(period: ReportPeriod): UsageReport? {
         val raw = prefs.getString(period.name, null) ?: return null
-        return runCatching {
+        return parse(raw, period)
+    }
+
+    companion object {
+        internal fun parse(raw: String, expectedPeriod: ReportPeriod): UsageReport? = runCatching {
             val o = JSONObject(raw)
+            val storedPeriod = ReportPeriod.valueOf(o.getString("period"))
+            require(storedPeriod == expectedPeriod)
+
+            val startDate = o.getString("startDate").also { LocalDate.parse(it) }
+            val endDate = o.getString("endDate").also { LocalDate.parse(it) }
+            require(!endDate.isBefore(LocalDate.parse(startDate)))
+
+            val totalMinutes = o.getLong("totalMinutes").also { require(it >= 0L) }
+            val averageDailyMinutes = o.getLong("averageDailyMinutes").also { require(it >= 0L) }
+            val peakMinutes = o.getLong("peakMinutes").also { require(it >= 0L) }
+            val alertCount = o.getInt("alertCount").also { require(it >= 0) }
+            val importantAlertCount = o.getInt("importantAlertCount").also { require(it >= 0 && it <= alertCount) }
+            val peakDate = o.optString("peakDate").ifBlank { null }?.also { LocalDate.parse(it) }
+            val narrative = o.getString("narrative")
+            val trendPercent = if (o.isNull("trendPercent")) null else o.getInt("trendPercent")
+
             val arr = o.optJSONArray("topApps") ?: JSONArray()
             val apps = buildList {
                 for (i in 0 until arr.length()) {
-                    val a = arr.getJSONObject(i)
-                    add(ReportAppUsage(
-                        a.optString("label"),
-                        a.optString("packageName"),
-                        a.optLong("totalMinutes")
-                    ))
+                    runCatching {
+                        val a = arr.getJSONObject(i)
+                        val packageName = a.getString("packageName").trim()
+                        require(packageName.isNotBlank())
+                        val total = a.getLong("totalMinutes").also { require(it >= 0L) }
+                        val label = a.optString("label").trim().ifBlank { packageName }
+                        add(ReportAppUsage(label, packageName, total))
+                    }
                 }
             }
+
             UsageReport(
-                period = ReportPeriod.valueOf(o.getString("period")),
-                startDate = o.getString("startDate"),
-                endDate = o.getString("endDate"),
-                totalMinutes = o.getLong("totalMinutes"),
-                averageDailyMinutes = o.getLong("averageDailyMinutes"),
-                peakDate = o.optString("peakDate").ifBlank { null },
-                peakMinutes = o.optLong("peakMinutes"),
+                period = storedPeriod,
+                startDate = startDate,
+                endDate = endDate,
+                totalMinutes = totalMinutes,
+                averageDailyMinutes = averageDailyMinutes,
+                peakDate = peakDate,
+                peakMinutes = peakMinutes,
                 topApps = apps,
-                alertCount = o.optInt("alertCount"),
-                importantAlertCount = o.optInt("importantAlertCount"),
-                trendPercent = if (o.isNull("trendPercent")) null else o.optInt("trendPercent"),
-                narrative = o.optString("narrative")
+                alertCount = alertCount,
+                importantAlertCount = importantAlertCount,
+                trendPercent = trendPercent,
+                narrative = narrative
             )
         }.getOrNull()
     }
