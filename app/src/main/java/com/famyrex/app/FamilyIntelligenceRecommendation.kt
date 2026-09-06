@@ -31,7 +31,7 @@ object FamilyIntelligenceRecommendationEngine {
         if (activeIncidents.isNotEmpty()) {
             return FamilyIntelligenceRecommendation(
                 title = "Revisad la situación con apoyo",
-                action = "Hay ${activeIncidents.size} señal${if (activeIncidents.size == 1) "" else "es"} de comunicación que requiere${if (activeIncidents.size == 1) "" else "n"} revisión. Consultad el contexto del incidente más reciente sin asumir intención ni culpabilidad.",
+                action = "Hay ${activeIncidents.size} señal${if (activeIncidents.size == 1) "" else "es"} de comunicación que requiere${if (activeIncidents.size == 1) "" else "n"} revisión. Consultad el contexto del incidente más reciente sin asumir intención ni responsabilidad.",
                 destination = FamilyIntelligenceRecommendationDestination.ALERTS
             )
         }
