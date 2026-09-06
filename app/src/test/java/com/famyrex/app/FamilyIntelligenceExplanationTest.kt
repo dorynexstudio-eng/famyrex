@@ -17,6 +17,23 @@ class FamilyIntelligenceExplanationTest {
     }
 
     @Test
+    fun redStateKeepsRiskExplanationWhenAnomalyAlsoExists() {
+        val summary = FamilyIntelligenceSummary(ParentalStatus.RED, 180, 0, true, emptyList())
+        val trend = FamilyUsageTrend(
+            listOf(60, 70, 80, 180),
+            180,
+            70.0,
+            FamilyUsageTrendDirection.INCREASING,
+            FamilyUsageAnomaly(3, 180, 70.0, 157, FamilyUsageAnomalyType.HIGH)
+        )
+
+        val explanation = FamilyIntelligenceExplanation.explain(summary, trend)
+
+        assertTrue(explanation.contains("límite configurado"))
+        assertTrue(!explanation.contains("157%"))
+    }
+
+    @Test
     fun communicationSignalGetsPriority() {
         val summary = FamilyIntelligenceSummary(ParentalStatus.GREEN, 60, 1, true, emptyList())
         assertTrue(FamilyIntelligenceExplanation.explain(summary, null).contains("señal de comunicación"))
