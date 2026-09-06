@@ -31,34 +31,49 @@ class AiSummaryStore(context: Context) {
     }
 
     companion object {
-        /** Parses the persisted summary without allowing one bad insight to hide valid data. */
-        internal fun parse(raw: String): AiDailySummary? = runCatching {
-            val o = JSONObject(raw)
-            val arr = o.optJSONArray("insights")
-            val insights = buildList {
-                if (arr != null) for (i in 0 until arr.length()) {
-                    runCatching {
-                        val x = arr.getJSONObject(i)
-                        val sig = x.optJSONArray("supportingSignals")
-                        val signals = buildList {
-                            if (sig != null) for (j in 0 until sig.length()) {
-                                sig.optString(j).takeIf { it.isNotBlank() }?.let(::add)
+        internal fun parse(raw: String): AiDailySummary? {
+            val root = try {
+                JSONObject(raw)
+            } catch (_: Exception) {
+                return null
+            }
+
+            val insights = mutableListOf<AiInsight>()
+            val array = root.optJSONArray("insights")
+            if (array != null) {
+                for (i in 0 until array.length()) {
+                    val insight = try {
+                        val item = array.getJSONObject(i)
+                        val title = item.optString("title")
+                        val summary = item.optString("summary")
+                        val confidenceValue = item.opt("confidence")
+                        val confidence = when (confidenceValue) {
+                            is Number -> confidenceValue.toInt().coerceIn(0, 100)
+                            else -> throw IllegalArgumentException("invalid confidence")
+                        }
+                        val signals = mutableListOf<String>()
+                        val signalArray = item.optJSONArray("supportingSignals")
+                        if (signalArray != null) {
+                            for (j in 0 until signalArray.length()) {
+                                signalArray.optString(j).takeIf { it.isNotBlank() }?.let(signals::add)
                             }
                         }
-                        add(AiInsight(
-                            title = x.optString("title"),
-                            summary = x.optString("summary"),
-                            confidence = x.optInt("confidence").coerceIn(0, 100),
-                            supportingSignals = signals
-                        ))
+                        if (title.isBlank() || summary.isBlank()) {
+                            throw IllegalArgumentException("invalid insight")
+                        }
+                        AiInsight(title, summary, confidence, signals)
+                    } catch (_: Exception) {
+                        null
                     }
+                    if (insight != null) insights.add(insight)
                 }
             }
-            AiDailySummary(
-                headline = o.optString("headline"),
-                body = o.optString("body"),
+
+            return AiDailySummary(
+                headline = root.optString("headline"),
+                body = root.optString("body"),
                 insights = insights
             )
-        }.getOrNull()
+        }
     }
 }
