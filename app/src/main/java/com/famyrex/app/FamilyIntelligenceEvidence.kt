@@ -5,7 +5,9 @@ data class FamilyIntelligenceEvidence(
     val type: FamilyIntelligenceEvidenceType,
     val signal: String,
     val conclusion: String,
-    val action: String
+    val action: String,
+    val referenceId: String? = null,
+    val incidentStatus: RiskIncidentStatus? = null
 )
 
 enum class FamilyIntelligenceEvidenceType {
@@ -77,6 +79,30 @@ object FamilyIntelligenceEvidenceBuilder {
         }
     }
 
+    /** Converts the current incident records into auditable evidence without copying their lifecycle elsewhere. */
+    fun fromIncidents(incidents: List<CommunicationRiskIncident>): List<FamilyIntelligenceEvidence> =
+        incidents
+            .asSequence()
+            .filter { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }
+            .sortedWith(compareByDescending<CommunicationRiskIncident> { it.createdAtMs }.thenBy { it.id })
+            .map { incident ->
+                val direction = when (incident.direction) {
+                    CommunicationDirection.INCOMING -> "entrante"
+                    CommunicationDirection.OUTGOING -> "saliente"
+                    CommunicationDirection.UNKNOWN -> "sin dirección determinada"
+                }
+                val reason = incident.reasons.firstOrNull()?.title ?: "Señal de comunicación detectada"
+                FamilyIntelligenceEvidence(
+                    type = FamilyIntelligenceEvidenceType.COMMUNICATION,
+                    signal = "$reason · comunicación $direction",
+                    conclusion = "Señal pendiente de valoración; estado: ${incident.status.label()}.",
+                    action = "Revisar el contexto y la evidencia asociada, sin asumir intención.",
+                    referenceId = incident.id,
+                    incidentStatus = incident.status
+                )
+            }
+            .toList()
+
     fun fromTrend(trend: FamilyUsageTrend?): List<FamilyIntelligenceEvidence> {
         if (trend == null) return emptyList()
         val evidence = mutableListOf<FamilyIntelligenceEvidence>()
@@ -111,6 +137,19 @@ object FamilyIntelligenceEvidenceBuilder {
         return evidence
     }
 
-    fun build(summary: FamilyIntelligenceSummary, trend: FamilyUsageTrend?): List<FamilyIntelligenceEvidence> =
-        fromSummary(summary) + fromTrend(trend)
+    fun build(
+        summary: FamilyIntelligenceSummary,
+        trend: FamilyUsageTrend?,
+        incidents: List<CommunicationRiskIncident> = emptyList()
+    ): List<FamilyIntelligenceEvidence> =
+        fromSummary(summary) + fromIncidents(incidents) + fromTrend(trend)
+}
+
+private fun RiskIncidentStatus.label(): String = when (this) {
+    RiskIncidentStatus.DETECTED -> "Detectado"
+    RiskIncidentStatus.REVIEWED -> "Revisado"
+    RiskIncidentStatus.CONFIRMED -> "Confirmado"
+    RiskIncidentStatus.DISMISSED -> "Descartado"
+    RiskIncidentStatus.AUTO_DISMISSED -> "Descartado automáticamente"
+    RiskIncidentStatus.RESOLVED -> "Resuelto"
 }
