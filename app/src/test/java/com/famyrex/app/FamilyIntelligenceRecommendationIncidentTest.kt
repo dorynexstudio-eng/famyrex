@@ -3,6 +3,7 @@ package com.famyrex.app
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FamilyIntelligenceRecommendationIncidentTest {
@@ -32,7 +33,7 @@ class FamilyIntelligenceRecommendationIncidentTest {
         assertEquals(FamilyIntelligenceRecommendationDestination.ALERTS, result?.destination)
         assertFalse(result?.action.orEmpty().contains("culpable", ignoreCase = true))
         assertFalse(result?.action.orEmpty().contains("culpabilidad", ignoreCase = true))
-        assertFalse(result?.action.orEmpty().contains("intención", ignoreCase = true))
+        assertTrue(result?.action.orEmpty().contains("sin asumir intención"))
     }
 
     @Test
