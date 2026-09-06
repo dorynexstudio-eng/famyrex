@@ -71,4 +71,32 @@ class FamilyIntelligenceExplanationIncidentTest {
         assertFalse(explanation.contains("intención", ignoreCase = true))
         assertTrue(explanation.contains("sin asumir intención"))
     }
+
+    @Test
+    fun redStatusTakesPriorityOverCommunicationIncident() {
+        val summary = FamilyIntelligenceSummary(ParentalStatus.RED, 180, 1, true, emptyList())
+
+        val explanation = FamilyIntelligenceExplanation.explain(
+            summary,
+            null,
+            listOf(incident("incident-44", 200L))
+        )
+
+        assertTrue(explanation.contains("límite configurado"))
+        assertFalse(explanation.contains("Posible conflicto entre iguales"))
+    }
+
+    @Test
+    fun whiteStatusTakesPriorityOverCommunicationIncident() {
+        val summary = FamilyIntelligenceSummary(ParentalStatus.WHITE, null, 1, false, emptyList())
+
+        val explanation = FamilyIntelligenceExplanation.explain(
+            summary,
+            null,
+            listOf(incident("incident-45", 200L))
+        )
+
+        assertTrue(explanation.contains("faltan datos"))
+        assertFalse(explanation.contains("Posible conflicto entre iguales"))
+    }
 }
