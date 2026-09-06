@@ -4,6 +4,7 @@ package com.famyrex.app
 object FamilyIntelligenceExplanation {
     fun explain(
         summary: FamilyIntelligenceSummary,
-        trend: FamilyUsageTrend?
-    ): String = FamilyIntelligenceEvidenceBuilder.explain(summary, trend)
+        trend: FamilyUsageTrend?,
+        incidents: List<CommunicationRiskIncident> = emptyList()
+    ): String = FamilyIntelligenceEvidenceBuilder.explain(summary, trend, incidents)
 }
