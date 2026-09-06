@@ -53,7 +53,7 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         )
 
         if (result.restricted) showBlockingOverlay(targetPackage, result.reasons)
-        else if (blockedPackage == targetPackage) removeBlockingOverlay()
+        else removeBlockingOverlay()
     }
 
     override fun onInterrupt() = removeBlockingOverlay()
