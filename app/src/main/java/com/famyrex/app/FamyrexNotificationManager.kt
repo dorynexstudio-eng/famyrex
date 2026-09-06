@@ -62,6 +62,10 @@ object FamyrexNotificationManager {
         NotificationManagerCompat.from(context).notify(notificationId(alert.id), notification)
     }
 
+    fun cancel(context: Context, alert: SmartAlert) {
+        NotificationManagerCompat.from(context).cancel(notificationId(alert.id))
+    }
+
     internal fun notificationId(alertId: String): Int {
         val digest = MessageDigest.getInstance("SHA-256").digest(alertId.toByteArray(Charsets.UTF_8))
         return (digest[0].toInt() and 0xFF) or
