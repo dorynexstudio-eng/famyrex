@@ -64,13 +64,7 @@ fun FamilyIntelligenceCard(
             .filter { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }
             .sortedWith(compareByDescending<CommunicationRiskIncident> { it.createdAtMs }.thenBy { it.id })
         incidents = currentIncidents
-        val communicationAlertCount = currentAlerts.count { alert ->
-            alert.type == AlertType.COMMUNICATION_RISK && alert.lifecycleStatus !in setOf(
-                AlertLifecycleStatus.DISMISSED,
-                AlertLifecycleStatus.AUTO_DISMISSED,
-                AlertLifecycleStatus.RESOLVED
-            )
-        }
+        val communicationAlertCount = currentIncidents.size
         summary = FamilyIntelligenceAggregator.summarize(
             parentalStatus,
             totalMinutes,
