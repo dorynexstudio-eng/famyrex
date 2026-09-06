@@ -21,7 +21,12 @@ class AlertStore(context: Context) {
                 put("lifecycleStatus", a.lifecycleStatus.name)
             })
         }
-        prefs.edit().putString("alerts", array.toString()).apply()
+        val ids = alerts.take(100).mapTo(hashSetOf()) { it.id }
+        val delivered = loadDeliveredIds().filterTo(hashSetOf()) { it in ids }
+        prefs.edit()
+            .putString("alerts", array.toString())
+            .putStringSet(KEY_NOTIFICATION_DELIVERED, delivered)
+            .apply()
     }
 
     fun appendIfNew(alert: SmartAlert): Boolean {
@@ -42,6 +47,7 @@ class AlertStore(context: Context) {
         val current = load()
         if (current.none { it.id == alert.id }) return false
         save(current.map { if (it.id == alert.id) alert else it })
+        if (alert.lifecycleStatus.isTerminal()) clearNotificationDelivered(alert.id)
         return true
     }
 
@@ -64,6 +70,39 @@ class AlertStore(context: Context) {
     fun load(): List<SmartAlert> {
         val raw = prefs.getString("alerts", null) ?: return emptyList()
         return parseAlertsJson(raw)
+    }
+
+    fun isNotificationDelivered(alertId: String): Boolean =
+        alertId in loadDeliveredIds()
+
+    fun markNotificationDelivered(alertId: String) {
+        val delivered = loadDeliveredIds()
+        if (delivered.add(alertId)) {
+            prefs.edit().putStringSet(KEY_NOTIFICATION_DELIVERED, delivered).apply()
+        }
+    }
+
+    fun clearNotificationDelivered(alertId: String) {
+        val delivered = loadDeliveredIds()
+        if (delivered.remove(alertId)) {
+            prefs.edit().putStringSet(KEY_NOTIFICATION_DELIVERED, delivered).apply()
+        }
+    }
+
+    private fun loadDeliveredIds(): MutableSet<String> =
+        prefs.getStringSet(KEY_NOTIFICATION_DELIVERED, emptySet())?.toMutableSet() ?: mutableSetOf()
+
+    private fun AlertLifecycleStatus.isTerminal(): Boolean = when (this) {
+        AlertLifecycleStatus.DISMISSED,
+        AlertLifecycleStatus.AUTO_DISMISSED,
+        AlertLifecycleStatus.RESOLVED -> true
+        AlertLifecycleStatus.DETECTED,
+        AlertLifecycleStatus.REVIEWED,
+        AlertLifecycleStatus.CONFIRMED -> false
+    }
+
+    companion object {
+        private const val KEY_NOTIFICATION_DELIVERED = "notification_delivered"
     }
 }
 
