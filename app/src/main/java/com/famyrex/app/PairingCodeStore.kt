@@ -24,7 +24,7 @@ class PairingCodeStore(context: Context) {
         val code = prefs.getString("code", null) ?: return null
         val created = prefs.getLong("created", 0L)
         val expires = prefs.getLong("expires", 0L)
-        if (expires <= now || created <= 0L) {
+        if (!PairingCodeProtocol.isValidFormat(code) || expires <= now || created <= 0L || expires <= created) {
             clear()
             return null
         }
@@ -34,7 +34,7 @@ class PairingCodeStore(context: Context) {
     fun consume(input: String, now: Long = System.currentTimeMillis()): Boolean {
         val current = current(now) ?: return false
         val normalized = input.filter(Char::isDigit)
-        val ok = normalized.length == 6 && normalized == current.code
+        val ok = normalized.length == PairingCodeProtocol.CODE_LENGTH && normalized == current.code
         if (ok) clear()
         return ok
     }
