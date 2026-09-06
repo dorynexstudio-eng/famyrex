@@ -40,9 +40,15 @@ class WebSafetyEngineTest {
     }
 
     @Test
-    fun disabledProtectionAllowsWithoutDomainParsing() {
-        val result = WebSafetyEngine.decide("not-a-url", base.copy(enabled = false))
+    fun disabledProtectionAllowsValidWebUrl() {
+        val result = WebSafetyEngine.decide("https://example.com", base.copy(enabled = false))
         assertEquals(WebSafetyAction.ALLOW, result.action)
+    }
+
+    @Test
+    fun disabledProtectionStillRejectsMalformedUrl() {
+        val result = WebSafetyEngine.decide("not-a-url", base.copy(enabled = false))
+        assertEquals(WebSafetyAction.WARN, result.action)
     }
 
     @Test
@@ -54,6 +60,12 @@ class WebSafetyEngineTest {
     @Test
     fun nonWebSchemeProducesWarning() {
         val result = WebSafetyEngine.decide("file:///tmp/page.html", base)
+        assertEquals(WebSafetyAction.WARN, result.action)
+    }
+
+    @Test
+    fun intentSchemeProducesWarning() {
+        val result = WebSafetyEngine.decide("intent://example.com/#Intent;scheme=https;end", base)
         assertEquals(WebSafetyAction.WARN, result.action)
     }
 }
