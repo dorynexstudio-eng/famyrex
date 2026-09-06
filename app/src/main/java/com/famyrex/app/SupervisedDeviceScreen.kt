@@ -18,11 +18,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import java.util.Calendar
 
 @Composable
 fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
     val store = remember { FamilyStore(context) }
+    val agreementStore = remember { FamilyAgreementStore(context) }
     var status by remember { mutableStateOf<ParentalStatus?>(null) }
+    var agreementStatus by remember { mutableStateOf<AgreementStatus?>(null) }
     var childName by remember { mutableStateOf("") }
 
     fun refresh() {
@@ -30,17 +33,19 @@ fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
         val usage = ParentalUsageMonitor(context)
         val usageAccess = usage.hasUsageAccess()
         val accessibilityEnabled = isSupervisedAccessibilityEnabled(context)
+        val start = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
         val totalMinutes = if (usageAccess) {
-            val start = java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 0)
-                set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-            }.timeInMillis
             usage.queryUsage(start, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L
         } else null
         val limit = ParentalControlStore(context).load().screenTimeLimit
         status = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, limit)
+        val agreement = agreementStore.load()
+        agreementStatus = FamilyAgreementEngine.evaluate(agreement, totalMinutes)
     }
 
     LaunchedEffect(Unit) { refresh() }
@@ -50,8 +55,38 @@ fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Famyrex", style = MaterialTheme.typography.headlineMedium)
-        Text("Dispositivo supervisado", style = MaterialTheme.typography.headlineSmall)
-        Text(if (childName.isBlank()) "Este dispositivo está configurado para supervisión familiar." else "Perfil supervisado: $childName")
+        Text("Tu espacio familiar", style = MaterialTheme.typography.headlineSmall)
+        Text(if (childName.isBlank()) "Dispositivo supervisado" else "Perfil: $childName")
+
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Tu acuerdo", style = MaterialTheme.typography.titleLarge)
+                val agreement = agreementStore.load()
+                val current = agreementStatus
+                if (agreement == null) {
+                    Text("⚪ Todavía no hay un acuerdo familiar configurado.")
+                } else {
+                    Text("Límite acordado: ${agreement.dailyMinutes} min al día")
+                    Text("Objetivo: ${agreement.goal}")
+                    when (current?.state) {
+                        AgreementState.ON_TRACK -> Text("🟢 Vas dentro de lo acordado. Te quedan ${current.remainingMinutes} min aproximadamente.")
+                        AgreementState.ATTENTION -> Text("🟠 Te acercas al límite acordado. Te quedan ${current.remainingMinutes} min aproximadamente.")
+                        AgreementState.EXCEEDED -> Text("🟠 Hoy se ha superado el límite acordado. El acuerdo indica: ${agreement.consequence}")
+                        AgreementState.INSUFFICIENT_DATA, null -> Text("⚪ Aún no hay datos suficientes para valorar el cumplimiento.")
+                    }
+                    Text("Revisión del acuerdo: ${agreement.reviewDate}")
+                }
+            }
+        }
+
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Tu bienestar digital", style = MaterialTheme.typography.titleMedium)
+                Text("Aquí puedes ver tu propio uso y cómo va tu acuerdo. Esta pantalla no muestra alertas privadas de comunicación ni sospechas sobre otras personas.")
+                val minutes = agreementStatus?.usedMinutes ?: 0L
+                Text("Uso registrado hoy: ${minutes} min")
+            }
+        }
 
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
