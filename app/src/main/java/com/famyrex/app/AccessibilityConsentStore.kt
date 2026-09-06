@@ -25,25 +25,14 @@ private class SharedPreferencesAccessibilityConsentPreferences(
 }
 
 /** Persists the explicit in-app disclosure acknowledgement for the parental accessibility service. */
-class AccessibilityConsentStore(context: Context) : AccessibilityConsentStore(
-    SharedPreferencesAccessibilityConsentPreferences(
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    )
+class AccessibilityConsentStore internal constructor(
+    private val preferences: AccessibilityConsentPreferences
 ) {
-    internal constructor(preferences: AccessibilityConsentPreferences) : this(preferences, true)
-
-    private constructor(
-        preferences: AccessibilityConsentPreferences,
-        @Suppress("UNUSED_PARAMETER") marker: Boolean
-    ) : this(preferences) {
-        // Secondary constructor exists only to keep the public Context constructor concise.
-    }
-
-    private constructor(preferences: AccessibilityConsentPreferences) {
-        this.preferences = preferences
-    }
-
-    private lateinit var preferences: AccessibilityConsentPreferences
+    constructor(context: Context) : this(
+        SharedPreferencesAccessibilityConsentPreferences(
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        )
+    )
 
     fun isAccepted(): Boolean = preferences.getBoolean(KEY_ACCEPTED, false)
 
