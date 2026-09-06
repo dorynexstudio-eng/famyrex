@@ -9,38 +9,9 @@ class FamilyStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE)
     private val secretProtector = FamilySecretProtector(appContext)
 
-    fun profiles(): List<FamilyProfile> {
-        val raw = prefs.getString("profiles", null) ?: return emptyList()
-        return runCatching {
-            val a = JSONArray(raw)
-            buildList {
-                for (i in 0 until a.length()) {
-                    val o = a.getJSONObject(i)
-                    val guardians = o.optJSONArray("guardianProfileIds")?.let { array ->
-                        buildList { for (j in 0 until array.length()) add(array.optString(j)) }
-                    } ?: emptyList()
-                    add(FamilyProfile(o.optString("id"), o.optString("displayName"),
-                        runCatching { FamilyRole.valueOf(o.optString("role")) }.getOrDefault(FamilyRole.MEMBER),
-                        o.optLong("createdAtMs"), guardians.filter { it.isNotBlank() }))
-                }
-            }
-        }.getOrDefault(emptyList())
-    }
+    fun profiles(): List<FamilyProfile> = parseProfiles(prefs.getString("profiles", null))
 
-    fun devices(): List<FamilyDevice> {
-        val raw = prefs.getString("devices", null) ?: return emptyList()
-        return runCatching {
-            val a = JSONArray(raw)
-            buildList {
-                for (i in 0 until a.length()) {
-                    val o = a.getJSONObject(i)
-                    add(FamilyDevice(o.optString("id"), o.optString("displayName"), o.optString("ownerProfileId"),
-                        runCatching { DeviceLinkState.valueOf(o.optString("linkState")) }.getOrDefault(DeviceLinkState.UNLINKED),
-                        o.optLong("linkedAtMs").takeIf { it > 0 }))
-                }
-            }
-        }.getOrDefault(emptyList())
-    }
+    fun devices(): List<FamilyDevice> = parseDevices(prefs.getString("devices", null))
 
     fun ensureLocalOwner(): FamilyProfile {
         val current = profiles().firstOrNull { it.role == FamilyRole.OWNER }
@@ -76,7 +47,7 @@ class FamilyStore(context: Context) {
         prefs.edit().putString("app_mode", mode.name).apply()
     }
 
-    fun appMode(): FamyrexAppMode = runCatching { FamyrexAppMode.valueOf(prefs.getString("app_mode", FamyrexAppMode.PARENT.name)!!) }.getOrDefault(FamyrexAppMode.PARENT)
+    fun appMode(): FamyrexAppMode = parseAppMode(prefs.getString("app_mode", FamyrexAppMode.PARENT.name))
 
     /** Persists the verified family identity; the binding secret is encrypted with Android Keystore. */
     fun saveVerifiedFamilyIdentity(familyId: String, secret: String, fingerprint: String) {
@@ -143,6 +114,55 @@ class FamilyStore(context: Context) {
         val dashboardPrefs = appContext.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE)
         val existingCode = dashboardPrefs.getString("link_code", "") ?: ""
         dashboardPrefs.edit().putString("parent_name", owner?.displayName.orEmpty()).putString("child_name", child?.displayName.orEmpty()).putString("link_code", existingCode).apply()
+    }
+
+    companion object {
+        internal fun parseProfiles(raw: String?): List<FamilyProfile> {
+            if (raw.isNullOrBlank()) return emptyList()
+            return runCatching {
+                val array = JSONArray(raw)
+                buildList {
+                    for (i in 0 until array.length()) {
+                        runCatching {
+                            val o = array.getJSONObject(i)
+                            val id = o.getString("id").trim()
+                            val displayName = o.getString("displayName").trim()
+                            val role = FamilyRole.valueOf(o.getString("role"))
+                            val createdAtMs = o.getLong("createdAtMs")
+                            require(id.isNotBlank() && displayName.isNotBlank() && createdAtMs > 0L)
+                            val guardians = o.optJSONArray("guardianProfileIds")?.let { ids ->
+                                buildList { for (j in 0 until ids.length()) ids.optString(j).trim().takeIf { it.isNotBlank() }?.let(::add) }
+                            } ?: emptyList()
+                            add(FamilyProfile(id, displayName, role, createdAtMs, guardians.distinct()))
+                        }
+                    }
+                }
+            }.getOrDefault(emptyList())
+        }
+
+        internal fun parseDevices(raw: String?): List<FamilyDevice> {
+            if (raw.isNullOrBlank()) return emptyList()
+            return runCatching {
+                val array = JSONArray(raw)
+                buildList {
+                    for (i in 0 until array.length()) {
+                        runCatching {
+                            val o = array.getJSONObject(i)
+                            val id = o.getString("id").trim()
+                            val displayName = o.getString("displayName").trim()
+                            val ownerProfileId = o.getString("ownerProfileId").trim()
+                            val linkState = DeviceLinkState.valueOf(o.getString("linkState"))
+                            val linkedAtMs = o.optLong("linkedAtMs", 0L).takeIf { it > 0L }
+                            require(id.isNotBlank() && displayName.isNotBlank() && ownerProfileId.isNotBlank())
+                            add(FamilyDevice(id, displayName, ownerProfileId, linkState, linkedAtMs))
+                        }
+                    }
+                }
+            }.getOrDefault(emptyList())
+        }
+
+        internal fun parseAppMode(raw: String?): FamyrexAppMode =
+            runCatching { FamyrexAppMode.valueOf(raw ?: FamyrexAppMode.PARENT.name) }.getOrDefault(FamyrexAppMode.PARENT)
     }
 }
 
