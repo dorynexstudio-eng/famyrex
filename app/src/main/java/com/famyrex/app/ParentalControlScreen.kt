@@ -127,7 +127,7 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
                     Text(if (usageAccess) "🟢 Datos de uso disponibles" else "⚪ Datos de uso no disponibles")
                     Text(if (accessibilityEnabled) "🟢 Guardia parental activa" else "🟠 Guardia parental no activa")
                     if (!usageAccess) Button(onClick = { openUsageSettings(context) }, Modifier.fillMaxWidth()) { Text("Activar acceso al uso") }
-                    if (!accessibilityEnabled) Button(onClick = { openAccessibilitySettings(context) }, Modifier.fillMaxWidth()) { Text("Activar guardia parental") }
+                    if (!accessibilityEnabled) Button(onClick = { openParentalAccessibilitySettings(context) }, Modifier.fillMaxWidth()) { Text("Activar guardia parental") }
                     OutlinedButton(onClick = { openUsageSettings(context) }, Modifier.fillMaxWidth()) { Text("Revisar permisos de control") }
                 }
             }
@@ -311,7 +311,7 @@ private fun openUsageSettings(context: Context) {
     context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
-private fun openAccessibilitySettings(context: Context) {
+private fun openParentalAccessibilitySettings(context: Context) {
     context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
