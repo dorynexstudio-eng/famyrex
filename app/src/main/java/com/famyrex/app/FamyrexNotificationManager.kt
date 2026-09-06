@@ -33,9 +33,9 @@ object FamyrexNotificationManager {
         )
     }
 
-    fun notify(context: Context, alert: SmartAlert) {
+    fun notify(context: Context, alert: SmartAlert): Boolean {
         if (Build.VERSION.SDK_INT >= 33 &&
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
 
         ensureChannels(context)
         val channel = when (alert.severity) {
@@ -60,6 +60,7 @@ object FamyrexNotificationManager {
             .build()
 
         NotificationManagerCompat.from(context).notify(notificationId(alert.id), notification)
+        return true
     }
 
     fun cancel(context: Context, alert: SmartAlert) {
