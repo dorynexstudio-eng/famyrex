@@ -16,10 +16,26 @@ data class FamilyIntelligenceRecommendation(
 
 /**
  * Adaptador de presentación para RecommendationEngine.
- * La lógica de recomendación permanece en una única fuente: las alertas locales.
+ * Las alertas siguen siendo una fuente de recomendaciones generales; los incidentes
+ * de comunicación aportan la evidencia concreta para una recomendación contextual.
  */
 object FamilyIntelligenceRecommendationEngine {
-    fun recommend(alerts: List<SmartAlert>): FamilyIntelligenceRecommendation? {
+    fun recommend(
+        alerts: List<SmartAlert>,
+        incidents: List<CommunicationRiskIncident> = emptyList()
+    ): FamilyIntelligenceRecommendation? {
+        val activeIncidents = incidents
+            .filter { it.status !in setOf(RiskIncidentStatus.DISMISSED, RiskIncidentStatus.AUTO_DISMISSED, RiskIncidentStatus.RESOLVED) }
+            .sortedWith(compareByDescending<CommunicationRiskIncident> { it.createdAtMs }.thenBy { it.id })
+
+        if (activeIncidents.isNotEmpty()) {
+            return FamilyIntelligenceRecommendation(
+                title = "Revisad la situación con apoyo",
+                action = "Hay ${activeIncidents.size} señal${if (activeIncidents.size == 1) "" else "es"} de comunicación que requiere${if (activeIncidents.size == 1) "" else "n"} revisión. Consultad el contexto del incidente más reciente sin asumir intención ni culpabilidad.",
+                destination = FamilyIntelligenceRecommendationDestination.ALERTS
+            )
+        }
+
         val recommendation = RecommendationEngine.evaluate(alerts).firstOrNull() ?: return null
         return FamilyIntelligenceRecommendation(
             title = recommendation.title,
