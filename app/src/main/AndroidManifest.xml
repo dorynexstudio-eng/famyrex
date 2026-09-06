@@ -16,7 +16,9 @@
 
     <application
         android:theme="@style/Theme.Famyrex"
-        android:label="Famyrex">
+        android:label="Famyrex"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher">
         <activity
             android:name=".ModeRouterActivity"
             android:exported="true">
