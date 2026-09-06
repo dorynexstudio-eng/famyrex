@@ -47,7 +47,7 @@ class ReportStore(context: Context) {
 
             val startDate = o.getString("startDate").also { LocalDate.parse(it) }
             val endDate = o.getString("endDate").also { LocalDate.parse(it) }
-            require(!endDate.isBefore(LocalDate.parse(startDate)))
+            require(endDate.compareTo(LocalDate.parse(startDate)) >= 0)
 
             val totalMinutes = o.getLong("totalMinutes").also { require(it >= 0L) }
             val averageDailyMinutes = o.getLong("averageDailyMinutes").also { require(it >= 0L) }
