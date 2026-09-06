@@ -7,7 +7,7 @@ import org.junit.Test
 class ParentalControlStoreTest {
     @Test
     fun invalidRootFallsBackToEmptyConfig() {
-        val result = parse("not-json")
+        val result = parseParentalControlConfig("not-json")
         assertNull(result.screenTimeLimit)
         assertEquals(0, result.pauseSchedules.size)
         assertEquals(0, result.appRestrictions.size)
@@ -15,7 +15,7 @@ class ParentalControlStoreTest {
 
     @Test
     fun malformedScheduleDoesNotDiscardValidSchedules() {
-        val result = parse("""
+        val result = parseParentalControlConfig("""
             {
               "pauseSchedules":[
                 {"startMinuteOfDay":120,"endMinuteOfDay":300,"enabled":true},
@@ -30,7 +30,7 @@ class ParentalControlStoreTest {
 
     @Test
     fun malformedRestrictionDoesNotDiscardValidRestrictions() {
-        val result = parse("""
+        val result = parseParentalControlConfig("""
             {
               "appRestrictions":[
                 {"packageName":"com.valid","dailyMinutes":60,"blocked":true},
@@ -43,28 +43,29 @@ class ParentalControlStoreTest {
         assertEquals(listOf("com.valid", "com.valid2"), result.appRestrictions.map { it.packageName })
     }
 
-    private fun parse(raw: String): ParentalControlConfig =
-        runCatching {
-            val root = org.json.JSONObject(raw)
-            val screenTime = root.optJSONObject("screenTime")?.let { item ->
-                runCatching {
-                    ScreenTimeLimit(item.getInt("dailyMinutes"), item.optBoolean("enabled", true))
-                }.getOrNull()
+    @Test
+    fun invalidScreenTimeDoesNotDiscardOtherValidConfiguration() {
+        val result = parseParentalControlConfig("""
+            {
+              "screenTime":{"dailyMinutes":0,"enabled":true},
+              "pauseSchedules":[{"startMinuteOfDay":60,"endMinuteOfDay":120}],
+              "appRestrictions":[{"packageName":"com.valid","dailyMinutes":30}]
             }
-            val schedules = buildList {
-                val array = root.optJSONArray("pauseSchedules") ?: org.json.JSONArray()
-                for (i in 0 until array.length()) runCatching {
-                    val item = array.getJSONObject(i)
-                    add(PauseSchedule(item.getInt("startMinuteOfDay"), item.getInt("endMinuteOfDay"), item.optBoolean("enabled", true)))
-                }
+        """.trimIndent())
+
+        assertNull(result.screenTimeLimit)
+        assertEquals(listOf(60), result.pauseSchedules.map { it.startMinuteOfDay })
+        assertEquals(listOf("com.valid"), result.appRestrictions.map { it.packageName })
+    }
+
+    @Test
+    fun nullDailyMinutesIsPreservedAsUnlimited() {
+        val result = parseParentalControlConfig("""
+            {
+              "appRestrictions":[{"packageName":"com.valid","dailyMinutes":null,"blocked":false}]
             }
-            val restrictions = buildList {
-                val array = root.optJSONArray("appRestrictions") ?: org.json.JSONArray()
-                for (i in 0 until array.length()) runCatching {
-                    val item = array.getJSONObject(i)
-                    add(AppRestriction(item.getString("packageName"), if (item.has("dailyMinutes") && !item.isNull("dailyMinutes")) item.getInt("dailyMinutes") else null, item.optBoolean("blocked", false)))
-                }
-            }
-            ParentalControlConfig(screenTime, schedules, restrictions)
-        }.getOrDefault(ParentalControlConfig())
+        """.trimIndent())
+
+        assertNull(result.appRestrictions.single().dailyMinutes)
+    }
 }
