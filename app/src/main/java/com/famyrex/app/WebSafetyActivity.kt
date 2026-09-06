@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
@@ -69,54 +70,24 @@ private fun WebSafetyScreen() {
                 }
             }
             item {
-                OutlinedTextField(
-                    value = blockedDomain,
-                    onValueChange = { blockedDomain = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Dominio a bloquear") },
-                    singleLine = true
-                )
-                Button(
-                    enabled = blockedDomain.isNotBlank(),
-                    onClick = {
-                        persist(settings.copy(blockedDomains = settings.blockedDomains + blockedDomain.trim()))
-                        blockedDomain = ""
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Añadir a bloqueados") }
+                OutlinedTextField(blockedDomain, { blockedDomain = it }, Modifier.fillMaxWidth(), label = { Text("Dominio a bloquear") }, singleLine = true)
+                Button(enabled = blockedDomain.isNotBlank(), onClick = {
+                    persist(settings.copy(blockedDomains = settings.blockedDomains + blockedDomain.trim()))
+                    blockedDomain = ""
+                }, modifier = Modifier.fillMaxWidth()) { Text("Añadir a bloqueados") }
             }
             item {
-                OutlinedTextField(
-                    value = allowedDomain,
-                    onValueChange = { allowedDomain = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Dominio permitido") },
-                    singleLine = true
-                )
-                Button(
-                    enabled = allowedDomain.isNotBlank(),
-                    onClick = {
-                        persist(settings.copy(allowedDomains = settings.allowedDomains + allowedDomain.trim()))
-                        allowedDomain = ""
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Añadir a permitidos") }
+                OutlinedTextField(allowedDomain, { allowedDomain = it }, Modifier.fillMaxWidth(), label = { Text("Dominio permitido") }, singleLine = true)
+                Button(enabled = allowedDomain.isNotBlank(), onClick = {
+                    persist(settings.copy(allowedDomains = settings.allowedDomains + allowedDomain.trim()))
+                    allowedDomain = ""
+                }, modifier = Modifier.fillMaxWidth()) { Text("Añadir a permitidos") }
             }
             item { Text("Bloqueados: ${settings.blockedDomains.joinToString().ifBlank { "ninguno" }}") }
             item { Text("Permitidos: ${settings.allowedDomains.joinToString().ifBlank { "ninguno" }}") }
             item {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Dirección web") },
-                    singleLine = true
-                )
-                Button(
-                    enabled = url.isNotBlank(),
-                    onClick = { webView?.loadUrl(url.trim()) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Abrir") }
+                OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("Dirección web") }, singleLine = true)
+                Button(enabled = url.isNotBlank(), onClick = { webView?.loadUrl(url.trim()) }, modifier = Modifier.fillMaxWidth()) { Text("Abrir") }
             }
             item {
                 AndroidView(
