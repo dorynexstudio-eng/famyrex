@@ -26,28 +26,46 @@ class DeviceSecurityStore(context: Context) {
 
     fun load(): DeviceSecuritySnapshot? {
         val raw = prefs.getString("latest", null) ?: return null
-        return runCatching {
+        return parse(raw)
+    }
+
+    companion object {
+        private val REQUIRED_KEYS = listOf(
+            "timestampMs", "androidVersion", "sdkInt", "debuggable", "secureLock",
+            "developerOptions", "installedAppCount", "usageAccess", "foregroundLocation",
+            "backgroundLocation", "securityLevel", "reasons"
+        )
+
+        internal fun parse(raw: String): DeviceSecuritySnapshot? = runCatching {
             val o = JSONObject(raw)
-            val reasonsArray = o.optJSONArray("reasons")
+            require(REQUIRED_KEYS.all(o::has))
+
+            val timestampMs = o.getLong("timestampMs")
+            val androidVersion = o.getString("androidVersion")
+            val sdkInt = o.getInt("sdkInt")
+            val installedAppCount = o.getInt("installedAppCount")
+            require(timestampMs > 0L)
+            require(androidVersion.isNotBlank())
+            require(sdkInt > 0)
+            require(installedAppCount >= 0)
+
+            val reasonsArray = o.getJSONArray("reasons")
             val reasons = buildList {
-                if (reasonsArray != null) {
-                    for (i in 0 until reasonsArray.length()) add(reasonsArray.optString(i))
-                }
+                for (i in 0 until reasonsArray.length()) add(reasonsArray.getString(i))
             }
+
             DeviceSecuritySnapshot(
-                timestampMs = o.optLong("timestampMs"),
-                androidVersion = o.optString("androidVersion"),
-                sdkInt = o.optInt("sdkInt"),
-                isDebuggable = o.optBoolean("debuggable"),
-                hasSecureLockScreen = o.optBoolean("secureLock"),
-                isDeveloperOptionsEnabled = if (o.isNull("developerOptions")) null else o.optBoolean("developerOptions"),
-                installedAppCount = o.optInt("installedAppCount"),
-                usageAccessGranted = o.optBoolean("usageAccess"),
-                foregroundLocationGranted = o.optBoolean("foregroundLocation"),
-                backgroundLocationGranted = o.optBoolean("backgroundLocation"),
-                securityLevel = runCatching {
-                    SecurityLevel.valueOf(o.optString("securityLevel"))
-                }.getOrDefault(SecurityLevel.ATTENTION),
+                timestampMs = timestampMs,
+                androidVersion = androidVersion,
+                sdkInt = sdkInt,
+                isDebuggable = o.getBoolean("debuggable"),
+                hasSecureLockScreen = o.getBoolean("secureLock"),
+                isDeveloperOptionsEnabled = if (o.isNull("developerOptions")) null else o.getBoolean("developerOptions"),
+                installedAppCount = installedAppCount,
+                usageAccessGranted = o.getBoolean("usageAccess"),
+                foregroundLocationGranted = o.getBoolean("foregroundLocation"),
+                backgroundLocationGranted = o.getBoolean("backgroundLocation"),
+                securityLevel = SecurityLevel.valueOf(o.getString("securityLevel")),
                 reasons = reasons
             )
         }.getOrNull()
