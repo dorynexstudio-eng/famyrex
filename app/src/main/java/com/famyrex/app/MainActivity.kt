@@ -346,13 +346,3 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
         }
     }
 }
-
-@Composable
-fun FamilyAssistantScreen(context: Context, modifier: Modifier = Modifier) {
-    val summary = remember { AiSummaryStore(context).load() }
-    LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Asistente", style = MaterialTheme.typography.headlineSmall) }
-        item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Text(summary?.headline ?: "Aún no hay resumen diario", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text(summary?.body ?: "El análisis se genera localmente cuando hay datos suficientes.") } } }
-        summary?.insights?.forEach { insight -> item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(insight.title, style = MaterialTheme.typography.titleMedium); Text(insight.summary); Text("Confianza: ${insight.confidence}%") } } } }
-    }
-}
