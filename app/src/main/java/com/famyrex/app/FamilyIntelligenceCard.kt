@@ -27,7 +27,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -87,6 +87,7 @@ fun FamilyIntelligenceCard(
     val current = summary ?: return
     val status = current.parentalStatus
     val recommendation = FamilyIntelligenceRecommendationEngine.recommend(alerts)
+    val evidence = FamilyIntelligenceEvidenceBuilder.build(current, trend)
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,6 +120,15 @@ fun FamilyIntelligenceCard(
 
             Spacer(Modifier.height(2.dp))
             Text(FamilyIntelligenceExplanation.explain(current, trend), style = MaterialTheme.typography.bodyLarge)
+
+            if (evidence.isNotEmpty()) {
+                Text("Por qué", style = MaterialTheme.typography.titleSmall)
+                evidence.take(5).forEach { item ->
+                    Text("• ${item.signal} → ${item.conclusion}", style = MaterialTheme.typography.bodyMedium)
+                    Text("  Acción: ${item.action}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
             recommendation?.let { currentRecommendation ->
                 Text(currentRecommendation.action, style = MaterialTheme.typography.bodyMedium)
                 if (currentRecommendation.destination != FamilyIntelligenceRecommendationDestination.OBSERVE) {
