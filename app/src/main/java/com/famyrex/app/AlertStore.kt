@@ -24,12 +24,6 @@ class AlertStore(context: Context) {
         prefs.edit().putString("alerts", array.toString()).apply()
     }
 
-    /**
-     * Adds a new alert or refreshes an existing alert with the same id.
-     * The lifecycle status is always owned by the persisted alert and is
-     * preserved across detector regenerations. Returns true only for a new id,
-     * so callers can keep notification semantics unchanged.
-     */
     fun appendIfNew(alert: SmartAlert): Boolean {
         val current = load()
         val existing = current.firstOrNull { it.id == alert.id }
@@ -51,14 +45,8 @@ class AlertStore(context: Context) {
         return true
     }
 
-    /**
-     * Merges a detector refresh into the existing alert history by id.
-     * Alerts produced by other detectors are never discarded.
-     * Existing lifecycle status is preserved when an alert is refreshed.
-     */
     fun mergeById(incoming: List<SmartAlert>) {
         if (incoming.isEmpty()) return
-
         val current = load()
         val incomingById = incoming.associateBy { it.id }
         val merged = current.map { existing ->
@@ -66,12 +54,10 @@ class AlertStore(context: Context) {
                 refreshed.copy(lifecycleStatus = existing.lifecycleStatus)
             } ?: existing
         }.toMutableList()
-
         val existingIds = current.mapTo(hashSetOf()) { it.id }
         incoming.forEach { alert ->
             if (alert.id !in existingIds) merged.add(0, alert)
         }
-
         save(merged)
     }
 
@@ -81,17 +67,23 @@ class AlertStore(context: Context) {
     }
 }
 
-/**
- * Parses the persisted alert history defensively.
- * A malformed root invalidates the whole payload, but a malformed individual
- * record is isolated so valid alerts remain available to the app.
- */
-internal fun parseAlertsJson(raw: String): List<SmartAlert> = runCatching {
-    val array = JSONArray(raw)
-    buildList {
-        for (i in 0 until array.length()) {
-            runCatching {
-                val o = array.getJSONObject(i)
+internal fun parseAlertsJson(raw: String): List<SmartAlert> {
+    val array = try {
+        JSONArray(raw)
+    } catch (_: Exception) {
+        return emptyList()
+    }
+
+    val alerts = mutableListOf<SmartAlert>()
+    for (i in 0 until array.length()) {
+        try {
+            val o = array.getJSONObject(i)
+            val lifecycle = try {
+                AlertLifecycleStatus.valueOf(o.optString("lifecycleStatus"))
+            } catch (_: Exception) {
+                AlertLifecycleStatus.DETECTED
+            }
+            alerts.add(
                 SmartAlert(
                     id = o.getString("id"),
                     type = AlertType.valueOf(o.getString("type")),
@@ -100,11 +92,12 @@ internal fun parseAlertsJson(raw: String): List<SmartAlert> = runCatching {
                     message = o.getString("message"),
                     date = o.getString("date"),
                     packageName = o.optString("packageName").ifBlank { null },
-                    lifecycleStatus = runCatching {
-                        AlertLifecycleStatus.valueOf(o.optString("lifecycleStatus"))
-                    }.getOrDefault(AlertLifecycleStatus.DETECTED)
+                    lifecycleStatus = lifecycle
                 )
-            }.getOrNull()?.let(::add)
+            )
+        } catch (_: Exception) {
+            // Preserve every valid alert even when one record is corrupt.
         }
     }
-}.getOrDefault(emptyList())
+    return alerts
+}
