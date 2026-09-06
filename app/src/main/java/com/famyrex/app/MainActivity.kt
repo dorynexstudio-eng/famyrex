@@ -45,6 +45,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val familyStore = FamilyStore(applicationContext)
+        SupervisedStateRestorer.restore(familyStore)
         FamyrexNotificationManager.ensureChannels(this)
         FamyrexWorkScheduler.scheduleProtectionHealth(applicationContext)
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -334,32 +336,23 @@ fun LocationScreen(context: Context, zones: List<GeoZone>, onZonesChange: (List<
                     onZonesChange(zones + GeoZone(name.trim(), location.latitude, location.longitude, radius.toFloatOrNull() ?: 150f))
                     name = ""
                     status = "Geozona guardada con la última ubicación disponible."
-                } else status = "No hay una ubicación disponible todavía. Activa el GPS y vuelve a intentarlo."
-            }, modifier = Modifier.fillMaxWidth()) { Text("Guardar geozona en mi ubicación actual") }
+                } else {
+                    status = "No hay una ubicación reciente disponible."
+                }
+            }, Modifier.fillMaxWidth()) { Text("Guardar geozona") }
         }
-        item { Text("Geozonas guardadas", style = MaterialTheme.typography.titleMedium) }
-        if (zones.isEmpty()) item { Text("Todavía no hay geozonas configuradas.") }
-        items(zones) { zone -> ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(zone.name, style = MaterialTheme.typography.titleMedium); Text("Radio: ${zone.radiusMeters.toInt()} m"); Text("Coordenadas: %.5f, %.5f".format(zone.latitude, zone.longitude)); TextButton(onClick = { onZonesChange(zones - zone) }) { Text("Eliminar") } } } }
+        items(zones) { zone ->
+            ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(zone.name, style = MaterialTheme.typography.titleMedium); Text("Radio: ${zone.radiusMeters.toInt()} m"); Text("${zone.latitude}, ${zone.longitude}") } }
+        }
     }
 }
 
-private fun randomCode(): String = buildString { val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; repeat(8) { append(chars[Random.nextInt(chars.length)]) } }
-
 @Composable
-private fun RiskCard(components: List<ProtectionComponent>) {
-    val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
-    val notConfigured = components.count { it.status == ProtectionComponentStatus.NOT_CONFIGURED }
-    val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }
-    val status = when {
-        degraded > 0 -> "🟠 ATENCIÓN"
-        notConfigured > 0 -> "⚪ DATOS INSUFICIENTES"
-        else -> "🟢 SIN SEÑALES DE ATENCIÓN"
-    }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Nivel de atención")
-            Text(status, style = MaterialTheme.typography.titleLarge)
-            Text("$active activas · $degraded con atención · $notConfigured sin configurar")
-        }
+fun FamilyAssistantScreen(context: Context, modifier: Modifier = Modifier) {
+    val summary = remember { AiSummaryStore(context).load() }
+    LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("Asistente", style = MaterialTheme.typography.headlineSmall) }
+        item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Text(summary?.headline ?: "Aún no hay resumen diario", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text(summary?.body ?: "El análisis se genera localmente cuando hay datos suficientes.") } } }
+        summary?.insights?.forEach { insight -> item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(insight.title, style = MaterialTheme.typography.titleMedium); Text(insight.summary); Text("Confianza: ${insight.confidence}%") } } } }
     }
 }
