@@ -28,6 +28,34 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    val releaseKeystorePath = System.getenv("FAMYREX_KEYSTORE_PATH")
+    val releaseKeystorePassword = System.getenv("FAMYREX_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("FAMYREX_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("FAMYREX_KEY_PASSWORD")
+
+    signingConfigs {
+        if (!releaseKeystorePath.isNullOrBlank() &&
+            !releaseKeystorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("production") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfigs.findByName("production")?.let {
+                signingConfig = it
+            }
+        }
+    }
 }
 
 dependencies {
