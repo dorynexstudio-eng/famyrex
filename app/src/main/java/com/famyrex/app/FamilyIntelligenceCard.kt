@@ -87,6 +87,7 @@ fun FamilyIntelligenceCard(
     val status = current.parentalStatus
     val recommendation = FamilyIntelligenceRecommendationEngine.recommend(alerts, incidents)
     val evidence = FamilyIntelligenceEvidenceBuilder.build(current, trend, incidents)
+    val explanation = FamilyIntelligenceExplanation.explain(current, trend, incidents)
 
     ElevatedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,7 +119,7 @@ fun FamilyIntelligenceCard(
             }
 
             Spacer(Modifier.height(2.dp))
-            Text(FamilyIntelligenceExplanation.explain(current, trend), style = MaterialTheme.typography.bodyLarge)
+            Text(explanation, style = MaterialTheme.typography.bodyLarge)
 
             if (evidence.isNotEmpty()) {
                 Text("Por qué", style = MaterialTheme.typography.titleSmall)
