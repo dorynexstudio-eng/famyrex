@@ -92,17 +92,21 @@ class ProtectionHealthWorker(
             deliverIfNeeded(context, alertStore, alert)
         }
 
-        val wellbeing = WellbeingTrendEngine.evaluate(history)
-        if (wellbeing != null && wellbeing.score >= 35) {
-            val alert = SmartAlert(
-                id = "wellbeing_trend_${history.maxOf { it.date }}",
-                type = AlertType.PATTERN_CHANGE,
-                severity = if (wellbeing.score >= 70) AlertSeverity.IMPORTANT else AlertSeverity.ATTENTION,
-                title = wellbeing.title,
-                message = "${wellbeing.summary} ${wellbeing.recommendation}",
-                date = now()
-            )
-            deliverIfNeeded(context, alertStore, alert)
+        // No evaluamos una tendencia sin historial: además de no aportar información,
+        // evita intentar construir una alerta con una fecha inexistente en el primer arranque.
+        if (history.isNotEmpty()) {
+            val wellbeing = WellbeingTrendEngine.evaluate(history)
+            if (wellbeing != null && wellbeing.score >= 35) {
+                val alert = SmartAlert(
+                    id = "wellbeing_trend_${history.maxOf { it.date }}",
+                    type = AlertType.PATTERN_CHANGE,
+                    severity = if (wellbeing.score >= 70) AlertSeverity.IMPORTANT else AlertSeverity.ATTENTION,
+                    title = wellbeing.title,
+                    message = "${wellbeing.summary} ${wellbeing.recommendation}",
+                    date = now()
+                )
+                deliverIfNeeded(context, alertStore, alert)
+            }
         }
 
         // Solo marcamos latido correcto al completar todas las comprobaciones sin excepción.
