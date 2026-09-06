@@ -11,6 +11,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.Manifest
 import android.content.pm.PackageManager
@@ -258,6 +259,12 @@ fun Dashboard(
             }
         }
         item { Button(onClick = onOpenReport, Modifier.fillMaxWidth()) { Text("Ver informe diario") } }
+        item {
+            TextButton(
+                onClick = { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Consultar política de privacidad") }
+        }
     }
 }
 
