@@ -7,27 +7,28 @@ class FamilyIntelligenceRecommendationEvidenceIntegrationTest {
     @Test
     fun redStatusEvidenceAndRecommendationBothRequireAction() {
         val summary = FamilyIntelligenceSummary(
-            ParentalStatus.RED,
-            180,
-            0,
-            true,
-            emptyList()
+            parentalStatus = ParentalStatus.RED,
+            totalScreenMinutes = 180,
+            communicationAlertCount = 0,
+            protectionReady = true,
+            reasons = emptyList()
         )
         val evidence = FamilyIntelligenceEvidenceBuilder.fromSummary(summary)
         val recommendation = FamilyIntelligenceRecommendationEngine.recommend(
             listOf(
                 SmartAlert(
                     id = "risk",
-                    type = AlertType.SCREEN_TIME_LIMIT,
+                    type = AlertType.DAILY_LIMIT,
                     severity = AlertSeverity.IMPORTANT,
+                    title = "Límite alcanzado",
                     message = "Límite alcanzado",
-                    timestamp = 1L,
-                    lifecycleStatus = AlertLifecycleStatus.ACTIVE
+                    date = "2026-09-06",
+                    lifecycleStatus = AlertLifecycleStatus.DETECTED
                 )
             )
         )
 
         assertEquals(FamilyIntelligenceEvidenceType.STATUS, evidence.first().type)
-        assertEquals(FamilyIntelligenceRecommendationDestination.ALERTS, recommendation?.destination)
+        assertEquals(FamilyIntelligenceRecommendationDestination.PARENTAL_CONTROL, recommendation?.destination)
     }
 }
