@@ -77,27 +77,34 @@ class AlertStore(context: Context) {
 
     fun load(): List<SmartAlert> {
         val raw = prefs.getString("alerts", null) ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            buildList {
-                for (i in 0 until array.length()) {
-                    val o = array.getJSONObject(i)
-                    add(
-                        SmartAlert(
-                            id = o.getString("id"),
-                            type = AlertType.valueOf(o.getString("type")),
-                            severity = AlertSeverity.valueOf(o.getString("severity")),
-                            title = o.getString("title"),
-                            message = o.getString("message"),
-                            date = o.getString("date"),
-                            packageName = o.optString("packageName").ifBlank { null },
-                            lifecycleStatus = runCatching {
-                                AlertLifecycleStatus.valueOf(o.optString("lifecycleStatus"))
-                            }.getOrDefault(AlertLifecycleStatus.DETECTED)
-                        )
-                    )
-                }
-            }
-        }.getOrDefault(emptyList())
+        return parseAlertsJson(raw)
     }
 }
+
+/**
+ * Parses the persisted alert history defensively.
+ * A malformed root invalidates the whole payload, but a malformed individual
+ * record is isolated so valid alerts remain available to the app.
+ */
+internal fun parseAlertsJson(raw: String): List<SmartAlert> = runCatching {
+    val array = JSONArray(raw)
+    buildList {
+        for (i in 0 until array.length()) {
+            runCatching {
+                val o = array.getJSONObject(i)
+                SmartAlert(
+                    id = o.getString("id"),
+                    type = AlertType.valueOf(o.getString("type")),
+                    severity = AlertSeverity.valueOf(o.getString("severity")),
+                    title = o.getString("title"),
+                    message = o.getString("message"),
+                    date = o.getString("date"),
+                    packageName = o.optString("packageName").ifBlank { null },
+                    lifecycleStatus = runCatching {
+                        AlertLifecycleStatus.valueOf(o.optString("lifecycleStatus"))
+                    }.getOrDefault(AlertLifecycleStatus.DETECTED)
+                )
+            }.getOrNull()?.let(::add)
+        }
+    }
+}.getOrDefault(emptyList())
