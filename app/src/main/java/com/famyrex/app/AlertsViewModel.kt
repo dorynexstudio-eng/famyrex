@@ -18,6 +18,7 @@ class AlertsViewModel(private val context: Context) : ViewModel() {
 
     fun refresh() {
         val loadedAlerts = AlertStore(context).load()
+        reconcileTerminalNotifications(loadedAlerts)
         _alerts.value = loadedAlerts
         _recommendations.value = RecommendationEngine.evaluate(loadedAlerts)
     }
@@ -55,7 +56,26 @@ class AlertsViewModel(private val context: Context) : ViewModel() {
             }
         }
 
+        if (status.isTerminal()) {
+            FamyrexNotificationManager.cancel(context, updatedAlert)
+        }
+
         refresh()
+    }
+
+    private fun reconcileTerminalNotifications(alerts: List<SmartAlert>) {
+        alerts.asSequence()
+            .filter { it.lifecycleStatus.isTerminal() }
+            .forEach { FamyrexNotificationManager.cancel(context, it) }
+    }
+
+    private fun AlertLifecycleStatus.isTerminal(): Boolean = when (this) {
+        AlertLifecycleStatus.DISMISSED,
+        AlertLifecycleStatus.AUTO_DISMISSED,
+        AlertLifecycleStatus.RESOLVED -> true
+        AlertLifecycleStatus.DETECTED,
+        AlertLifecycleStatus.REVIEWED,
+        AlertLifecycleStatus.CONFIRMED -> false
     }
 
     private fun AlertLifecycleStatus.toRiskIncidentStatus(): RiskIncidentStatus = when (this) {
