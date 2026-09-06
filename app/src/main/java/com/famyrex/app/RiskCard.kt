@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -99,4 +100,9 @@ fun RiskCard(context: Context, modifier: Modifier = Modifier) {
         DailyReportCard(context)
         DashboardCapabilitiesCard(context)
     }
+}
+
+@Composable
+fun RiskCard(components: List<ProtectionComponent>, modifier: Modifier = Modifier) {
+    RiskCard(LocalContext.current, modifier)
 }
