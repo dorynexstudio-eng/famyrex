@@ -46,19 +46,39 @@ class UsageSnapshotStore(private val context: Context) {
 
     fun loadHistory(): List<DailyUsage> {
         val raw = prefs.getString("history", null) ?: return emptyList()
-        val array = JSONArray(raw)
-        return buildList {
-            for (i in 0 until array.length()) {
-                val day = array.getJSONObject(i)
-                val apps = day.optJSONArray("topApps") ?: JSONArray()
-                val top = buildList {
-                    for (j in 0 until apps.length()) {
-                        val a = apps.getJSONObject(j)
-                        add(AppUsage(a.getString("packageName"), a.getLong("totalTimeMs"), a.optString("label", a.getString("packageName"))))
+        return parseHistory(raw)
+    }
+
+    companion object {
+        /**
+         * Parses persisted usage history defensively. A malformed root payload
+         * returns no history, while a malformed day or app only discards that
+         * affected record and keeps all valid data that can still be recovered.
+         */
+        internal fun parseHistory(raw: String): List<DailyUsage> = runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (i in 0 until array.length()) {
+                    runCatching {
+                        val day = array.getJSONObject(i)
+                        val date = day.getString("date")
+                        val totalTimeMs = day.getLong("totalTimeMs")
+                        val apps = day.optJSONArray("topApps") ?: JSONArray()
+                        val top = buildList {
+                            for (j in 0 until apps.length()) {
+                                runCatching {
+                                    val a = apps.getJSONObject(j)
+                                    val packageName = a.getString("packageName")
+                                    val total = a.getLong("totalTimeMs")
+                                    val label = a.optString("label").ifBlank { packageName }
+                                    add(AppUsage(packageName, total, label))
+                                }
+                            }
+                        }
+                        add(DailyUsage(date, totalTimeMs, top))
                     }
                 }
-                add(DailyUsage(day.getString("date"), day.getLong("totalTimeMs"), top))
             }
-        }
+        }.getOrDefault(emptyList())
     }
 }
