@@ -1,6 +1,7 @@
 package com.famyrex.app
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.WindowManager
@@ -18,13 +19,17 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val targetPackage = event?.packageName?.toString() ?: return
-        if (targetPackage == applicationContext.packageName) {
+        val launcherPackage = resolveLauncherPackage()
+        if (!ProtectionSurfacePolicy.shouldEvaluate(targetPackage, packageName, launcherPackage)) {
             removeBlockingOverlay()
             return
         }
 
         val monitor = ParentalUsageMonitor(this)
-        if (!monitor.hasUsageAccess()) return
+        if (!monitor.hasUsageAccess()) {
+            removeBlockingOverlay()
+            return
+        }
 
         val now = System.currentTimeMillis()
         val startOfDay = Calendar.getInstance().apply {
@@ -57,6 +62,13 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         removeBlockingOverlay()
         super.onDestroy()
     }
+
+    private fun resolveLauncherPackage(): String? = runCatching {
+        packageManager.resolveActivity(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+            0
+        )?.activityInfo?.packageName
+    }.getOrNull()
 
     private fun showBlockingOverlay(targetPackage: String, reasons: List<String>) {
         if (blockedPackage == targetPackage && blockingView != null) return
