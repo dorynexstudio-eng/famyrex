@@ -96,51 +96,55 @@ class CommunicationRiskIncidentStore(context: Context) {
 
     fun load(): List<CommunicationRiskIncident> {
         val raw = prefs.getString("items", null) ?: return emptyList()
-        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
-        return buildList {
-            for (i in 0 until array.length()) {
-                runCatching {
-                    val o = array.getJSONObject(i)
-                    val reasonsJson = o.optJSONArray("reasons") ?: JSONArray()
-                    val reasons = buildList {
-                        for (j in 0 until reasonsJson.length()) {
-                            runCatching {
-                                val r = reasonsJson.getJSONObject(j)
-                                add(RiskReason(r.getString("code"), r.getString("title"), r.getString("detail")))
-                            }
+        return parseRiskIncidentsJson(raw)
+    }
+}
+
+internal fun parseRiskIncidentsJson(raw: String): List<CommunicationRiskIncident> {
+    val array = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
+    return buildList {
+        for (i in 0 until array.length()) {
+            runCatching {
+                val o = array.getJSONObject(i)
+                val reasonsJson = o.optJSONArray("reasons") ?: JSONArray()
+                val reasons = buildList {
+                    for (j in 0 until reasonsJson.length()) {
+                        runCatching {
+                            val r = reasonsJson.getJSONObject(j)
+                            add(RiskReason(r.getString("code"), r.getString("title"), r.getString("detail")))
                         }
                     }
-                    val historyJson = o.optJSONArray("statusHistory") ?: JSONArray()
-                    val history = buildList {
-                        for (j in 0 until historyJson.length()) {
-                            runCatching {
-                                val h = historyJson.getJSONObject(j)
-                                add(
-                                    RiskIncidentStatusChange(
-                                        status = RiskIncidentStatus.valueOf(h.getString("status")),
-                                        timestampMs = h.getLong("timestampMs")
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    add(
-                        CommunicationRiskIncident(
-                            id = o.getString("id"),
-                            createdAtMs = o.getLong("createdAtMs"),
-                            type = CommunicationRiskType.valueOf(o.getString("type")),
-                            confidence = RiskConfidence.valueOf(o.getString("confidence")),
-                            score = o.getInt("score"),
-                            reasons = reasons,
-                            sourcePackage = o.optString("sourcePackage").ifBlank { null },
-                            direction = runCatching { CommunicationDirection.valueOf(o.optString("direction")) }
-                                .getOrDefault(CommunicationDirection.UNKNOWN),
-                            status = runCatching { RiskIncidentStatus.valueOf(o.optString("status")) }
-                                .getOrDefault(RiskIncidentStatus.DETECTED),
-                            statusHistory = history
-                        )
-                    )
                 }
+                val historyJson = o.optJSONArray("statusHistory") ?: JSONArray()
+                val history = buildList {
+                    for (j in 0 until historyJson.length()) {
+                        runCatching {
+                            val h = historyJson.getJSONObject(j)
+                            add(
+                                RiskIncidentStatusChange(
+                                    status = RiskIncidentStatus.valueOf(h.getString("status")),
+                                    timestampMs = h.getLong("timestampMs")
+                                )
+                            )
+                        }
+                    }
+                }
+                add(
+                    CommunicationRiskIncident(
+                        id = o.getString("id"),
+                        createdAtMs = o.getLong("createdAtMs"),
+                        type = CommunicationRiskType.valueOf(o.getString("type")),
+                        confidence = RiskConfidence.valueOf(o.getString("confidence")),
+                        score = o.getInt("score"),
+                        reasons = reasons,
+                        sourcePackage = o.optString("sourcePackage").ifBlank { null },
+                        direction = runCatching { CommunicationDirection.valueOf(o.optString("direction")) }
+                            .getOrDefault(CommunicationDirection.UNKNOWN),
+                        status = runCatching { RiskIncidentStatus.valueOf(o.optString("status")) }
+                            .getOrDefault(RiskIncidentStatus.DETECTED),
+                        statusHistory = history
+                    )
+                )
             }
         }
     }
