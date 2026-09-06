@@ -23,7 +23,14 @@ class WebSafetyEngineTest {
     }
 
     @Test
-    fun allowedDomainWinsWhenNotBlocked() {
+    fun blockedRuleOverridesAllowedRule() {
+        val settings = base.copy(allowedDomains = setOf("example.com"))
+        val result = WebSafetyEngine.decide("https://sub.example.com", settings)
+        assertEquals(WebSafetyAction.BLOCK, result.action)
+    }
+
+    @Test
+    fun allowedDomainWorksWhenNotBlocked() {
         val settings = base.copy(
             blockedDomains = emptySet(),
             allowedDomains = setOf("example.com")
@@ -45,7 +52,7 @@ class WebSafetyEngineTest {
     }
 
     @Test
-    fun emptyHostProducesWarning() {
+    fun nonWebSchemeProducesWarning() {
         val result = WebSafetyEngine.decide("file:///tmp/page.html", base)
         assertEquals(WebSafetyAction.WARN, result.action)
     }
