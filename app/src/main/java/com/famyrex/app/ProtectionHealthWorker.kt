@@ -13,6 +13,7 @@ class ProtectionHealthWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
+        val alertStore = AlertStore(context)
         GeofenceBootstrap.sync(context)
         InstalledAppsReconciler.reconcile(context)
 
@@ -43,7 +44,7 @@ class ProtectionHealthWorker(
                         message = "${event.component.detail} El problema comenzó en ${formatTime(since)}.",
                         date = now()
                     )
-                    if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+                    deliverIfNeeded(context, alertStore, alert)
                 }
                 ProtectionTransition.RESTORED -> {
                     val since = incidentStore.degradedSince(event.component.key)
@@ -57,7 +58,7 @@ class ProtectionHealthWorker(
                         date = now()
                     )
                     incidentStore.clearDegraded(event.component.key)
-                    if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+                    deliverIfNeeded(context, alertStore, alert)
                 }
             }
         }
@@ -68,7 +69,7 @@ class ProtectionHealthWorker(
                 "protection_restored_global_${health.checkedAtMs}", AlertType.PROTECTION_RESTORED, AlertSeverity.INFO,
                 "Protección restablecida", "Famyrex vuelve a disponer de las funciones de protección comprobadas.", now()
             )
-            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+            deliverIfNeeded(context, alertStore, alert)
         }
 
         val evasionSignals = EvasionSignalChecker.check(context)
@@ -83,12 +84,12 @@ class ProtectionHealthWorker(
                 message = evasion.message,
                 date = now()
             )
-            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+            deliverIfNeeded(context, alertStore, alert)
         }
 
         val history = UsageSnapshotStore(context).loadHistory()
         BehaviorPatternEngine.evaluate(history).forEach { alert ->
-            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+            deliverIfNeeded(context, alertStore, alert)
         }
 
         val wellbeing = WellbeingTrendEngine.evaluate(history)
@@ -101,13 +102,30 @@ class ProtectionHealthWorker(
                 message = "${wellbeing.summary} ${wellbeing.recommendation}",
                 date = now()
             )
-            if (AlertStore(context).appendIfNew(alert)) FamyrexNotificationManager.notify(context, alert)
+            deliverIfNeeded(context, alertStore, alert)
         }
 
         // Solo marcamos latido correcto al completar todas las comprobaciones sin excepción.
         ProtectionWatchdog(context).recordSuccess(health.checkedAtMs)
         Result.success()
     }.getOrElse { Result.retry() }
+
+    private fun deliverIfNeeded(context: Context, store: AlertStore, alert: SmartAlert) {
+        store.appendIfNew(alert)
+        if (alert.lifecycleStatus.isTerminal() || store.isNotificationDelivered(alert.id)) return
+        if (FamyrexNotificationManager.notify(context, alert)) {
+            store.markNotificationDelivered(alert.id)
+        }
+    }
+
+    private fun AlertLifecycleStatus.isTerminal(): Boolean = when (this) {
+        AlertLifecycleStatus.DISMISSED,
+        AlertLifecycleStatus.AUTO_DISMISSED,
+        AlertLifecycleStatus.RESOLVED -> true
+        AlertLifecycleStatus.DETECTED,
+        AlertLifecycleStatus.REVIEWED,
+        AlertLifecycleStatus.CONFIRMED -> false
+    }
 
     private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
     private fun formatTime(timestampMs: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMs))
