@@ -1,92 +1,61 @@
 package com.famyrex.app
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 
-/**
- * Local family agreement. It describes what the family decided together;
- * Famyrex observes and explains compliance but never applies the consequence.
- */
-data class FamilyAgreement(
-    val childProfileId: String,
-    val dailyMinutes: Int,
-    val goal: String,
-    val consequence: String,
-    val reviewDate: String,
-    val active: Boolean = true
-)
-
-data class AgreementStatus(
-    val state: AgreementState,
-    val usedMinutes: Long,
-    val remainingMinutes: Long?,
-    val message: String
-)
-
+data class FamilyAgreement(val childProfileId: String, val dailyMinutes: Int, val goal: String, val consequence: String, val reviewDate: String, val active: Boolean = true)
+data class AgreementStatus(val state: AgreementState, val usedMinutes: Long, val remainingMinutes: Long?, val message: String)
 enum class AgreementState { ON_TRACK, ATTENTION, EXCEEDED, INSUFFICIENT_DATA }
 
 class FamilyAgreementStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_family_agreement", Context.MODE_PRIVATE)
 
-    fun load(): FamilyAgreement? {
-        val raw = prefs.getString("agreement", null) ?: return null
-        return runCatching {
-            val json = JSONObject(raw)
-            FamilyAgreement(
-                childProfileId = json.getString("childProfileId"),
-                dailyMinutes = json.getInt("dailyMinutes"),
-                goal = json.optString("goal"),
-                consequence = json.optString("consequence"),
-                reviewDate = json.optString("reviewDate"),
-                active = json.optBoolean("active", true)
-            )
-        }.getOrNull()
+    fun load(childProfileId: String): FamilyAgreement? = loadAll().firstOrNull { it.childProfileId == childProfileId }
+    fun load(): FamilyAgreement? = loadAll().firstOrNull()
+
+    fun loadAll(): List<FamilyAgreement> {
+        prefs.getString("agreements", null)?.let { raw ->
+            runCatching { return parseArray(JSONArray(raw)) }
+        }
+        val legacy = prefs.getString("agreement", null) ?: return emptyList()
+        return runCatching { listOf(parseAgreement(JSONObject(legacy))) }.getOrDefault(emptyList())
     }
 
     fun save(agreement: FamilyAgreement) {
+        require(agreement.childProfileId.isNotBlank())
         require(agreement.dailyMinutes in 1..1440)
-        JSONObject().apply {
-            put("childProfileId", agreement.childProfileId)
-            put("dailyMinutes", agreement.dailyMinutes)
-            put("goal", agreement.goal.trim())
-            put("consequence", agreement.consequence.trim())
-            put("reviewDate", agreement.reviewDate)
-            put("active", agreement.active)
-        }.also { prefs.edit().putString("agreement", it.toString()).apply() }
+        require(agreement.reviewDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+        val array = JSONArray()
+        (loadAll().filterNot { it.childProfileId == agreement.childProfileId } + agreement).forEach { array.put(toJson(it)) }
+        prefs.edit().putString("agreements", array.toString()).remove("agreement").apply()
     }
 
-    fun clear() = prefs.edit().remove("agreement").apply()
+    fun clear(childProfileId: String) {
+        val array = JSONArray()
+        loadAll().filterNot { it.childProfileId == childProfileId }.forEach { array.put(toJson(it)) }
+        prefs.edit().putString("agreements", array.toString()).apply()
+    }
+
+    fun clear() = prefs.edit().remove("agreement").remove("agreements").apply()
+
+    private fun toJson(a: FamilyAgreement) = JSONObject().apply {
+        put("childProfileId", a.childProfileId); put("dailyMinutes", a.dailyMinutes); put("goal", a.goal.trim())
+        put("consequence", a.consequence.trim()); put("reviewDate", a.reviewDate); put("active", a.active)
+    }
+    private fun parseArray(array: JSONArray): List<FamilyAgreement> = buildList { for (i in 0 until array.length()) runCatching { add(parseAgreement(array.getJSONObject(i))) } }
+    private fun parseAgreement(j: JSONObject) = FamilyAgreement(j.getString("childProfileId").trim(), j.getInt("dailyMinutes"), j.optString("goal"), j.optString("consequence"), j.optString("reviewDate"), j.optBoolean("active", true))
 }
 
 object FamilyAgreementEngine {
-    fun evaluate(
-        agreement: FamilyAgreement?,
-        usageMinutes: Long?,
-        today: LocalDate = LocalDate.now()
-    ): AgreementStatus {
-        if (agreement == null || !agreement.active || usageMinutes == null) {
-            return AgreementStatus(
-                AgreementState.INSUFFICIENT_DATA,
-                usageMinutes ?: 0L,
-                null,
-                "No hay datos suficientes para valorar el cumplimiento del acuerdo."
-            )
-        }
+    fun evaluate(agreement: FamilyAgreement?, usageMinutes: Long?, today: LocalDate = LocalDate.now()): AgreementStatus {
+        if (agreement == null || !agreement.active || usageMinutes == null) return AgreementStatus(AgreementState.INSUFFICIENT_DATA, usageMinutes ?: 0L, null, "No hay datos suficientes para valorar el cumplimiento del acuerdo.")
         val remaining = (agreement.dailyMinutes - usageMinutes).coerceAtLeast(0L)
         return when {
-            usageMinutes > agreement.dailyMinutes -> AgreementStatus(
-                AgreementState.EXCEEDED, usageMinutes, 0L,
-                "Hoy se ha superado el límite acordado por la familia."
-            )
-            usageMinutes >= (agreement.dailyMinutes * 0.85).toLong() -> AgreementStatus(
-                AgreementState.ATTENTION, usageMinutes, remaining,
-                "El uso de hoy se acerca al límite acordado."
-            )
-            else -> AgreementStatus(
-                AgreementState.ON_TRACK, usageMinutes, remaining,
-                "Hoy vas dentro de lo acordado."
-            )
+            usageMinutes > agreement.dailyMinutes -> AgreementStatus(AgreementState.EXCEEDED, usageMinutes, 0L, "Hoy se ha superado el límite acordado por la familia.")
+            usageMinutes >= (agreement.dailyMinutes * 0.85).toLong() -> AgreementStatus(AgreementState.ATTENTION, usageMinutes, remaining, "El uso de hoy se acerca al límite acordado.")
+            else -> AgreementStatus(AgreementState.ON_TRACK, usageMinutes, remaining, "Hoy vas dentro de lo acordado.")
         }
     }
 }
