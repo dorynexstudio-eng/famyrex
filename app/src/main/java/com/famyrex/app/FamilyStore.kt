@@ -43,7 +43,7 @@ class FamilyStore(context: Context) {
             return existing
         }
         val profile = FamilyProfile(profileId, displayName.ifBlank { "Perfil infantil" }, FamilyRole.CHILD, System.currentTimeMillis())
-        saveProfiles(profiles().filterNot { it.role == FamilyRole.CHILD } + profile)
+        saveProfiles(profiles() + profile)
         prefs.edit().putString("supervised_child_profile_id", profileId).apply()
         return profile
     }
