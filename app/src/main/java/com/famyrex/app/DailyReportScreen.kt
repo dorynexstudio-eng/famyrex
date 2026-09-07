@@ -28,14 +28,16 @@ import androidx.compose.ui.unit.dp
 fun DailyReportScreen(context: Context, onBack: () -> Unit, modifier: Modifier = Modifier) {
     var report by remember { mutableStateOf<UsageReport?>(null) }
     var weekly by remember { mutableStateOf<UsageReport?>(null) }
-    var agreementStatus by remember { mutableStateOf<AgreementStatus?>(null) }
+    var agreementStatuses by remember { mutableStateOf<List<Pair<FamilyAgreement, AgreementStatus?>>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         val history = UsageSnapshotStore(context).loadHistory()
         val alerts = AlertStore(context).load()
         report = runCatching { ReportEngine.build(history, alerts, ReportPeriod.DAILY) }.getOrNull()
         weekly = runCatching { ReportEngine.build(history, alerts, ReportPeriod.WEEKLY) }.getOrNull()
-        val agreement = FamilyAgreementStore(context).load()
+
+        val store = FamilyStore(context)
+        val agreementStore = FamilyAgreementStore(context)
         val usage = ParentalUsageMonitor(context)
         val start = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -46,7 +48,17 @@ fun DailyReportScreen(context: Context, onBack: () -> Unit, modifier: Modifier =
         val minutes = if (usage.hasUsageAccess()) {
             usage.queryUsage(start, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L
         } else null
-        agreementStatus = FamilyAgreementEngine.evaluate(agreement, minutes)
+        val supervisedChildId = store.supervisedChildProfileId()
+        agreementStatuses = store.profiles()
+            .filter { it.role == FamilyRole.CHILD }
+            .mapNotNull { child ->
+                agreementStore.load(child.id)?.let { agreement ->
+                    val status = if (child.id == supervisedChildId) {
+                        FamilyAgreementEngine.evaluate(agreement, minutes)
+                    } else null
+                    agreement to status
+                }
+            }
     }
 
     LazyColumn(
@@ -92,14 +104,22 @@ fun DailyReportScreen(context: Context, onBack: () -> Unit, modifier: Modifier =
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(18.dp)) {
-                        Text("Acuerdo familiar", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(8.dp))
-                        when (agreementStatus?.state) {
-                            AgreementState.ON_TRACK -> Text("🟢 El uso de hoy va dentro de lo acordado.")
-                            AgreementState.ATTENTION -> Text("🟠 El uso de hoy se acerca al límite acordado.")
-                            AgreementState.EXCEEDED -> Text("🟠 Hoy se ha superado el límite pactado. La familia decide qué hacer según el acuerdo.")
-                            AgreementState.INSUFFICIENT_DATA, null -> Text("⚪ No hay datos suficientes para valorar el cumplimiento.")
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Acuerdos familiares", style = MaterialTheme.typography.titleMedium)
+                        if (agreementStatuses.isEmpty()) {
+                            Text("⚪ No hay acuerdos familiares configurados.")
+                        } else {
+                            agreementStatuses.forEach { (agreement, status) ->
+                                val child = FamilyStore(context).profiles().firstOrNull { it.id == agreement.childProfileId }
+                                Text("${child?.displayName ?: "Perfil infantil"}: ${agreement.dailyMinutes} min al día · revisión ${agreement.reviewDate}")
+                                when (status?.state) {
+                                    AgreementState.ON_TRACK -> Text("🟢 En este dispositivo, el uso de hoy va dentro de lo acordado.")
+                                    AgreementState.ATTENTION -> Text("🟠 En este dispositivo, el uso de hoy se acerca al límite acordado.")
+                                    AgreementState.EXCEEDED -> Text("🟠 En este dispositivo, hoy se ha superado el límite pactado. La familia decide qué hacer según el acuerdo.")
+                                    AgreementState.INSUFFICIENT_DATA -> Text("⚪ En este dispositivo no hay datos suficientes para valorar el cumplimiento.")
+                                    null -> Text("⚪ El cumplimiento se evalúa en el dispositivo supervisado asignado a este perfil.")
+                                }
+                            }
                         }
                     }
                 }
