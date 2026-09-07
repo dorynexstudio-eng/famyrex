@@ -31,6 +31,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 class WebSafetyActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // WebSafetyActivity is an adult/guardian configuration surface. A supervised
+        // installation must never expose the embedded general-purpose WebView.
+        if (FamilyStore(applicationContext).appMode().name == "SUPERVISED") {
+            finish()
+            return
+        }
+
         setContent { WebSafetyScreen() }
     }
 }
@@ -53,7 +61,7 @@ private fun WebSafetyScreen() {
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Seguridad web", style = MaterialTheme.typography.headlineSmall)
-        Text("Navegación aislada en WebView. Famyrex no intercepta el navegador externo ni lee mensajes de otras aplicaciones.")
+        Text("Configuración para el adulto responsable. En el dispositivo supervisado no se ofrece navegación web general.")
         TextButton(onClick = { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) }) {
             Text("Consultar política de privacidad")
         }
