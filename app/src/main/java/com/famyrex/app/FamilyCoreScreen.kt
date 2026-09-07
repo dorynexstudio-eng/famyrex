@@ -173,22 +173,33 @@ fun FamilyCoreScreen(
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Vinculación offline segura", style = MaterialTheme.typography.titleMedium)
-                    Text("La invitación ya no acepta un número arbitrario: contiene una identidad de familia y un secreto aleatorio. El código de 6 dígitos se deriva con HMAC y caduca.")
+                    Text("La invitación identifica también al perfil infantil seleccionado. El código de 6 dígitos se deriva con HMAC y caduca.")
                     invitation?.let { token ->
                         Text("Código de vinculación", style = MaterialTheme.typography.labelLarge)
                         Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium)
                         Text("Familia: ${token.familyId.take(12)}…")
+                        Text("Perfil: ${token.childDisplayName}")
                         Text("Clave de invitación", style = MaterialTheme.typography.labelLarge)
                         Text(OfflinePairingTokenCodec.encode(token))
                         Text("Huella: ${OfflinePairingTokenCodec.fingerprint(token.secret)}")
                         Text("Caduca en ${((token.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
                     }
-                    Button(onClick = {
-                        val token = OfflinePairingTokenCodec.create(identityStore.identity().familyId, System.currentTimeMillis())
-                        invitation = token
-                        message = "Invitación generada. Transfiere la clave y el código al dispositivo supervisado."
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Generar invitación") }
-                    Text("Sin servidor: el dispositivo supervisado verifica localmente que el código corresponde a la clave, familia y caducidad mostradas aquí.")
+                    Button(
+                        enabled = selectedAgreementChild != null,
+                        onClick = {
+                            val child = selectedAgreementChild ?: return@Button
+                            val token = OfflinePairingTokenCodec.create(
+                                familyId = identityStore.identity().familyId,
+                                childProfileId = child.id,
+                                childDisplayName = child.displayName,
+                                now = System.currentTimeMillis()
+                            )
+                            invitation = token
+                            message = "Invitación generada para ${child.displayName}. Transfiere la clave y el código al dispositivo supervisado de ese hijo/a."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Generar invitación para ${selectedAgreementChild?.displayName ?: "hijo/a"}") }
+                    Text("Sin servidor: el dispositivo supervisado verifica localmente que el código corresponde a la familia, al perfil seleccionado, a la clave y a la caducidad mostradas aquí.")
                 }
             }
         }
