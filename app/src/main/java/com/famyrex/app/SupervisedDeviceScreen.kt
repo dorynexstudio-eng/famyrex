@@ -29,7 +29,8 @@ fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
     var childName by remember { mutableStateOf("") }
 
     fun refresh() {
-        childName = store.profiles().firstOrNull { it.role == FamilyRole.CHILD }?.displayName.orEmpty()
+        val child = store.supervisedChild()
+        childName = child?.displayName.orEmpty()
         val usage = ParentalUsageMonitor(context)
         val usageAccess = usage.hasUsageAccess()
         val accessibilityEnabled = isSupervisedAccessibilityEnabled(context)
@@ -44,7 +45,7 @@ fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
         } else null
         val limit = ParentalControlStore(context).load().screenTimeLimit
         status = ParentalStatusEvaluator.overall(usageAccess, accessibilityEnabled, totalMinutes, limit)
-        val agreement = agreementStore.load()
+        val agreement = child?.id?.let(agreementStore::load)
         agreementStatus = FamilyAgreementEngine.evaluate(agreement, totalMinutes)
     }
 
@@ -61,10 +62,13 @@ fun SupervisedDeviceScreen(context: Context, modifier: Modifier = Modifier) {
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Tu acuerdo", style = MaterialTheme.typography.titleLarge)
-                val agreement = agreementStore.load()
+                val child = store.supervisedChild()
+                val agreement = child?.id?.let(agreementStore::load)
                 val current = agreementStatus
-                if (agreement == null) {
-                    Text("⚪ Todavía no hay un acuerdo familiar configurado.")
+                if (child == null) {
+                    Text("⚪ Este dispositivo todavía no tiene un perfil infantil asignado.")
+                } else if (agreement == null) {
+                    Text("⚪ Todavía no hay un acuerdo familiar configurado para ${child.displayName}.")
                 } else {
                     Text("Límite acordado: ${agreement.dailyMinutes} min al día")
                     Text("Objetivo: ${agreement.goal}")
