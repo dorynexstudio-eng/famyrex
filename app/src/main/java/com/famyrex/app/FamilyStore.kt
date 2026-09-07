@@ -33,6 +33,28 @@ class FamilyStore(context: Context) {
         return profile
     }
 
+    /** Creates/updates the local representation of the exact child selected during pairing. */
+    fun ensureSupervisedChild(profileId: String, displayName: String): FamilyProfile {
+        require(profileId.isNotBlank())
+        val existing = profiles().firstOrNull { it.id == profileId }
+        if (existing != null) {
+            require(existing.role == FamilyRole.CHILD)
+            prefs.edit().putString("supervised_child_profile_id", profileId).apply()
+            return existing
+        }
+        val profile = FamilyProfile(profileId, displayName.ifBlank { "Perfil infantil" }, FamilyRole.CHILD, System.currentTimeMillis())
+        saveProfiles(profiles().filterNot { it.role == FamilyRole.CHILD } + profile)
+        prefs.edit().putString("supervised_child_profile_id", profileId).apply()
+        return profile
+    }
+
+    /** Returns the child identity explicitly assigned to this supervised installation. */
+    fun supervisedChildProfileId(): String? =
+        prefs.getString("supervised_child_profile_id", null)?.trim()?.takeIf { it.isNotBlank() }
+
+    fun supervisedChild(): FamilyProfile? =
+        supervisedChildProfileId()?.let { id -> profiles().firstOrNull { it.id == id && it.role == FamilyRole.CHILD } }
+
     fun addDevice(displayName: String, ownerProfileId: String): FamilyDevice {
         val device = FamilyDevice("device-${UUIDHolder.next()}", displayName.ifBlank { "Dispositivo familiar" }, ownerProfileId, DeviceLinkState.PENDING)
         saveDevices(devices() + device)
@@ -89,6 +111,7 @@ class FamilyStore(context: Context) {
             .remove("verified_family_secret_enc")
             .remove("verified_family_fingerprint")
             .remove("verified_family_at_ms")
+            .remove("supervised_child_profile_id")
             .putString("app_mode", FamyrexAppMode.PARENT.name)
             .apply()
     }
