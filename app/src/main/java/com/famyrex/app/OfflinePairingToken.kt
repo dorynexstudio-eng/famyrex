@@ -9,6 +9,8 @@ import javax.crypto.spec.SecretKeySpec
 
 data class OfflinePairingToken(
     val familyId: String,
+    val childProfileId: String,
+    val childDisplayName: String,
     val secret: String,
     val expiresAtMs: Long
 )
@@ -17,30 +19,41 @@ object OfflinePairingTokenCodec {
     private const val SECRET_BYTES = 16
     private const val CODE_LENGTH = 6
 
-    fun create(familyId: String, now: Long, ttlMinutes: Long = 10): OfflinePairingToken {
+    fun create(
+        familyId: String,
+        childProfileId: String,
+        childDisplayName: String,
+        now: Long,
+        ttlMinutes: Long = 10
+    ): OfflinePairingToken {
         require(familyId.isNotBlank())
+        require(childProfileId.isNotBlank())
+        require(childDisplayName.isNotBlank())
         require(ttlMinutes > 0)
         val bytes = ByteArray(SECRET_BYTES)
         SecureRandom().nextBytes(bytes)
         val secret = bytes.joinToString("") { "%02x".format(it) }
-        return OfflinePairingToken(familyId, secret, now + ttlMinutes * 60_000L)
+        return OfflinePairingToken(familyId, childProfileId, childDisplayName.trim(), secret, now + ttlMinutes * 60_000L)
     }
 
     fun encode(token: OfflinePairingToken): String =
-        "${token.familyId}:${token.secret}:${token.expiresAtMs}"
+        "${token.familyId}:${token.childProfileId}:${token.childDisplayName.encodeTokenPart()}:${token.secret}:${token.expiresAtMs}"
 
     fun decode(value: String, now: Long): OfflinePairingToken? {
         val parts = value.trim().split(":")
-        if (parts.size != 3) return null
-        val expires = parts[2].toLongOrNull() ?: return null
-        if (parts[0].isBlank() || parts[1].length != SECRET_BYTES * 2 ||
-            !parts[1].all { it.isDigit() || it.lowercaseChar() in 'a'..'f' } || expires <= now
+        if (parts.size != 5) return null
+        val expires = parts[4].toLongOrNull() ?: return null
+        if (parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank() ||
+            parts[3].length != SECRET_BYTES * 2 ||
+            !parts[3].all { it.isDigit() || it.lowercaseChar() in 'a'..'f' } || expires <= now
         ) return null
-        return OfflinePairingToken(parts[0], parts[1].lowercase(), expires)
+        val displayName = parts[2].decodeTokenPart().takeIf { it.isNotBlank() } ?: return null
+        return OfflinePairingToken(parts[0], parts[1], displayName, parts[3].lowercase(), expires)
     }
 
     fun code(token: OfflinePairingToken): String {
-        val payload = "FAMYREX|${token.familyId}|${token.expiresAtMs}".toByteArray(StandardCharsets.UTF_8)
+        val payload = "FAMYREX|${token.familyId}|${token.childProfileId}|${token.childDisplayName}|${token.expiresAtMs}"
+            .toByteArray(StandardCharsets.UTF_8)
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(hexToBytes(token.secret), "HmacSHA256"))
         val digest = mac.doFinal(payload)
@@ -62,4 +75,10 @@ object OfflinePairingTokenCodec {
 
     private fun hexToBytes(value: String): ByteArray =
         value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+
+    private fun String.encodeTokenPart(): String =
+        java.net.URLEncoder.encode(this, StandardCharsets.UTF_8.toString())
+
+    private fun String.decodeTokenPart(): String =
+        runCatching { java.net.URLDecoder.decode(this, StandardCharsets.UTF_8.toString()) }.getOrDefault("")
 }
