@@ -23,6 +23,11 @@ data class AgreementStatus(
 
 enum class AgreementState { ON_TRACK, ATTENTION, EXCEEDED, INSUFFICIENT_DATA }
 
+internal fun isValidFamilyAgreementDate(value: String): Boolean = runCatching {
+    LocalDate.parse(value)
+    true
+}.getOrDefault(false)
+
 class FamilyAgreementStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_family_agreement", Context.MODE_PRIVATE)
 
@@ -40,7 +45,7 @@ class FamilyAgreementStore(context: Context) {
     fun save(agreement: FamilyAgreement) {
         require(agreement.childProfileId.isNotBlank())
         require(agreement.dailyMinutes in 1..1440)
-        require(isValidDate(agreement.reviewDate))
+        require(isValidFamilyAgreementDate(agreement.reviewDate))
         val array = JSONArray()
         (loadAll().filterNot { it.childProfileId == agreement.childProfileId } + agreement).forEach { array.put(toJson(it)) }
         prefs.edit().putString("agreements", array.toString()).remove("agreement").apply()
@@ -77,11 +82,6 @@ class FamilyAgreementStore(context: Context) {
         reviewDate = j.optString("reviewDate"),
         active = j.optBoolean("active", true)
     )
-
-    internal fun isValidDate(value: String): Boolean = runCatching {
-        LocalDate.parse(value)
-        true
-    }.getOrDefault(false)
 }
 
 object FamilyAgreementEngine {
