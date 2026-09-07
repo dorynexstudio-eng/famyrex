@@ -8,6 +8,7 @@ class WebSafetySettingsStore(context: Context) {
     fun load(): WebSafetySettings = WebSafetySettings(
         enabled = prefs.getBoolean("enabled", true),
         blockKnownThreats = prefs.getBoolean("blockKnownThreats", true),
+        blockAdultContent = prefs.getBoolean("blockAdultContent", true),
         blockedDomains = prefs.getStringSet("blockedDomains", emptySet())?.map(::normalizeHost)?.toSet().orEmpty(),
         allowedDomains = prefs.getStringSet("allowedDomains", emptySet())?.map(::normalizeHost)?.toSet().orEmpty()
     )
@@ -16,6 +17,7 @@ class WebSafetySettingsStore(context: Context) {
         prefs.edit()
             .putBoolean("enabled", settings.enabled)
             .putBoolean("blockKnownThreats", settings.blockKnownThreats)
+            .putBoolean("blockAdultContent", settings.blockAdultContent)
             .putStringSet("blockedDomains", settings.blockedDomains.map(::normalizeHost).filter(String::isNotBlank).toSet())
             .putStringSet("allowedDomains", settings.allowedDomains.map(::normalizeHost).filter(String::isNotBlank).toSet())
             .apply()
