@@ -32,6 +32,7 @@ fun JoinFamilyScreen(
     var message by remember { mutableStateOf("") }
 
     if (existingIdentity != null) {
+        val child = store.supervisedChild()
         Column(
             modifier = modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -41,6 +42,7 @@ fun JoinFamilyScreen(
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Familia: ${existingIdentity.familyId.take(12)}…")
+                    Text("Perfil infantil: ${child?.displayName ?: "no disponible"}")
                     Text("Huella: ${existingIdentity.fingerprint}")
                     Text("Vinculación local conservada tras reiniciar la aplicación.")
                     Text("No es necesario introducir de nuevo la invitación mientras esta vinculación permanezca guardada en el dispositivo.")
@@ -58,18 +60,14 @@ fun JoinFamilyScreen(
             return
         }
 
-        val child = store.profiles().firstOrNull { it.role == FamilyRole.CHILD }
-            ?: store.addChild(
-                "Dispositivo supervisado",
-                store.profiles().filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }.map { it.id }
-            )
+        val child = store.ensureSupervisedChild(token.childProfileId, token.childDisplayName)
         val pending = store.devices().firstOrNull { it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id }
             ?: store.addDevice("Este dispositivo", child.id)
 
         store.saveVerifiedFamilyIdentity(token.familyId, token.secret, OfflinePairingTokenCodec.fingerprint(token.secret))
         store.setDeviceState(pending.id, DeviceLinkState.LINKED)
         store.setAppMode(FamyrexAppMode.SUPERVISED)
-        message = "Familia ${token.familyId.take(12)}… verificada y guardada en este dispositivo."
+        message = "Familia ${token.familyId.take(12)}… vinculada al perfil ${child.displayName}."
         onJoined()
     }
 
