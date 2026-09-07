@@ -78,7 +78,7 @@ class FamilyAgreementStore(context: Context) {
         active = j.optBoolean("active", true)
     )
 
-    private fun isValidDate(value: String): Boolean = runCatching {
+    internal fun isValidDate(value: String): Boolean = runCatching {
         LocalDate.parse(value)
         true
     }.getOrDefault(false)
