@@ -70,6 +70,13 @@ private fun WebSafetyScreen() {
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Bloqueo de contenido para adultos")
+                    Switch(checked = settings.blockAdultContent, onCheckedChange = { persist(settings.copy(blockAdultContent = it)) })
+                }
+                Text("Activo por defecto. Bloquea dominios adultos conocidos además de las reglas familiares.")
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Safe Browsing para amenazas conocidas")
                     Switch(checked = settings.blockKnownThreats, onCheckedChange = { persist(settings.copy(blockKnownThreats = it)) })
                 }
