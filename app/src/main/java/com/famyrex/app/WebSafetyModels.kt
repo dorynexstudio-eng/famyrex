@@ -5,6 +5,7 @@ enum class WebSafetyAction { ALLOW, BLOCK, WARN }
 data class WebSafetySettings(
     val enabled: Boolean = true,
     val blockKnownThreats: Boolean = true,
+    val blockAdultContent: Boolean = true,
     val blockedDomains: Set<String> = emptySet(),
     val allowedDomains: Set<String> = emptySet()
 )

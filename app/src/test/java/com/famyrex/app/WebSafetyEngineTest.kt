@@ -6,6 +6,8 @@ import org.junit.Test
 class WebSafetyEngineTest {
     private val base = WebSafetySettings(
         enabled = true,
+        blockKnownThreats = true,
+        blockAdultContent = true,
         blockedDomains = setOf("example.com"),
         allowedDomains = emptySet()
     )
@@ -36,6 +38,21 @@ class WebSafetyEngineTest {
             allowedDomains = setOf("example.com")
         )
         val result = WebSafetyEngine.decide("https://www.example.com", settings)
+        assertEquals(WebSafetyAction.ALLOW, result.action)
+    }
+
+    @Test
+    fun knownAdultDomainIsBlockedByDefault() {
+        val result = WebSafetyEngine.decide("https://www.xvideos.com/watch", base.copy(blockedDomains = emptySet()))
+        assertEquals(WebSafetyAction.BLOCK, result.action)
+    }
+
+    @Test
+    fun adultProtectionCanBeDisabledExplicitly() {
+        val result = WebSafetyEngine.decide(
+            "https://www.xvideos.com/watch",
+            base.copy(blockAdultContent = false, blockedDomains = emptySet())
+        )
         assertEquals(WebSafetyAction.ALLOW, result.action)
     }
 
