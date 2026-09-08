@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 @Composable
 fun FamilyRemoteControlScreen(
@@ -43,6 +44,8 @@ fun FamilyRemoteControlScreen(
     var appLimit by remember { mutableStateOf("60") }
     var scheduleStart by remember { mutableStateOf("22:00") }
     var scheduleEnd by remember { mutableStateOf("07:00") }
+    var lastCommandId by remember { mutableStateOf<String?>(null) }
+    var cloudReceipt by remember { mutableStateOf<CloudCommandReceipt?>(null) }
     var lastReceipt by remember { mutableStateOf(receiptStore.load()) }
 
     fun refresh() {
@@ -63,6 +66,21 @@ fun FamilyRemoteControlScreen(
     }
 
     LaunchedEffect(familyId) { refresh() }
+    LaunchedEffect(lastCommandId, selectedUid, familyId) {
+        val commandId = lastCommandId ?: return@LaunchedEffect
+        val id = familyId ?: return@LaunchedEffect
+        val child = children.firstOrNull { it.uid == selectedUid } ?: return@LaunchedEffect
+        delay(1500)
+        repository.loadCommandReceipt(id, commandId, child.deviceId, { receipt ->
+            cloudReceipt = receipt
+            if (receipt != null) {
+                message = if (receipt.success) "Orden ejecutada correctamente en ${child.displayName}." else "Orden rechazada en ${child.displayName}: ${receipt.reason ?: "sin motivo indicado"}"
+            } else {
+                message = "Orden enviada. Esperando confirmación del dispositivo…"
+            }
+        }, { error -> message = error })
+    }
+
     val selected = children.firstOrNull { it.uid == selectedUid }
     val selectedApp = installedApps.firstOrNull { it.packageName == selectedPackage }
 
@@ -77,9 +95,11 @@ fun FamilyRemoteControlScreen(
             return
         }
         loading = true
+        cloudReceipt = null
         repository.issueCommand(id, child, action, value, { commandId ->
             loading = false
-            message = "Orden ${action.name} enviada. ID: ${commandId.take(8)}…"
+            lastCommandId = commandId
+            message = "Orden ${action.name} enviada. Esperando confirmación…"
             lastReceipt = receiptStore.load()
         }, { error ->
             loading = false
@@ -113,10 +133,7 @@ fun FamilyRemoteControlScreen(
                         Text(if (loading) "Cargando dispositivos…" else "⚪ No hay dispositivos cloud disponibles.")
                     } else {
                         children.forEach { child ->
-                            OutlinedButton(
-                                onClick = { selectedUid = child.uid },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                            OutlinedButton(onClick = { selectedUid = child.uid }, modifier = Modifier.fillMaxWidth()) {
                                 Text(if (child.uid == selectedUid) "✓ ${child.displayName}" else child.displayName)
                             }
                         }
@@ -183,6 +200,22 @@ fun FamilyRemoteControlScreen(
                             Button(enabled = !loading && selected != null && appLimit.toIntOrNull()?.let { it in 1..1440 } == true, onClick = { issue(FamilyControlAction.SET_APP_LIMIT, "${it.packageName}:$appLimit") }, modifier = Modifier.fillMaxWidth()) { Text("Aplicar límite a la app") }
                         }
                     }
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Estado de la última orden", style = MaterialTheme.typography.titleMedium)
+                    cloudReceipt?.let { receipt ->
+                        Text(if (receipt.success) "🟢 Ejecutada" else "🔴 Rechazada")
+                        Text("${receipt.action.name} · ${receipt.commandId.take(8)}…")
+                        receipt.reason?.let { Text("Motivo: $it") }
+                    } ?: lastCommandId?.let {
+                        Text("🟠 Enviada · ${it.take(8)}…")
+                        Text("El dispositivo todavía no ha confirmado la ejecución.")
+                    } ?: Text("⚪ No hay una orden remota reciente en esta sesión.")
                 }
             }
         }
