@@ -8,7 +8,7 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.UUID
 
-/** Adult-side gateway for discovering supervised devices, issuing commands and reading execution status. */
+/** Adult-side gateway for discovering supervised devices, app inventory, issuing commands and reading execution status. */
 class FamilyCloudControlRepository(context: Context) {
     private val appContext = context.applicationContext
 
@@ -40,6 +40,39 @@ class FamilyCloudControlRepository(context: Context) {
                 onSuccess(children)
             }
             .addOnFailureListener { onError(it.message ?: "No se pudieron cargar los dispositivos infantiles.") }
+    }
+
+    fun loadChildAppInventory(
+        familyId: String,
+        child: CloudChildDevice,
+        onSuccess: (ChildAppInventoryState) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (familyId.isBlank() || child.uid.isBlank() || child.deviceId.isBlank()) {
+            onError("No se puede consultar el inventario sin una identidad infantil completa.")
+            return
+        }
+        if (!isAdultConfigured()) {
+            onError("La cuenta de adulto todavía no está conectada a Firebase.")
+            return
+        }
+        FirebaseFirestore.getInstance()
+            .collection("families").document(familyId)
+            .collection("devices").document(child.uid)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                val rawApps = snapshot.get("appInventory") as? List<*> ?: emptyList<Any?>()
+                val apps = rawApps.mapNotNull { raw ->
+                    val map = raw as? Map<*, *> ?: return@mapNotNull null
+                    val packageName = map["packageName"] as? String ?: return@mapNotNull null
+                    if (!PACKAGE_NAME_REGEX.matches(packageName)) return@mapNotNull null
+                    val label = (map["label"] as? String).orEmpty().trim().take(100).ifBlank { packageName }
+                    ChildAppInventoryItem(packageName, label)
+                }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+                val updatedAtMs = snapshot.getLong("appInventoryUpdatedAtMs") ?: 0L
+                onSuccess(ChildAppInventoryState(apps, updatedAtMs))
+            }
+            .addOnFailureListener { onError(it.message ?: "No se pudo consultar el inventario de aplicaciones.") }
     }
 
     fun issueCommand(
@@ -137,6 +170,10 @@ class FamilyCloudControlRepository(context: Context) {
             ?: message?.takeIf { it.isNotBlank() }
             ?: "No se pudo enviar el comando al dispositivo infantil."
     }
+
+    companion object {
+        private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
+    }
 }
 
 data class CloudChildDevice(
@@ -144,6 +181,16 @@ data class CloudChildDevice(
     val memberId: String,
     val displayName: String,
     val deviceId: String
+)
+
+data class ChildAppInventoryItem(
+    val packageName: String,
+    val label: String
+)
+
+data class ChildAppInventoryState(
+    val apps: List<ChildAppInventoryItem>,
+    val updatedAtMs: Long
 )
 
 data class CloudCommandReceipt(
