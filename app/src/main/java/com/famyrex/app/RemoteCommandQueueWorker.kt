@@ -14,9 +14,17 @@ class RemoteCommandQueueWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
-        val identity = FamilyDeviceIdentityStore(context).current() ?: return Result.success()
-        val firebaseUid = identity.firebaseUid ?: FirebaseAuth.getInstance().currentUser?.uid
+        val identity = FamilyDeviceIdentityStore(context).current()
             ?: return Result.success()
+        if (!identity.isSupervised) return Result.success()
+
+        val currentUser = FirebaseAuth.getInstance().currentUser
+            ?: return Result.success()
+        // Recovery is only valid for the anonymous child transport identity.
+        if (!currentUser.isAnonymous) return Result.success()
+        val firebaseUid = identity.firebaseUid ?: currentUser.uid
+        if (firebaseUid != currentUser.uid) return Result.success()
+
         val familyId = identity.familyId ?: return Result.success()
 
         // Filter status locally to avoid requiring a composite Firestore index.
@@ -36,7 +44,10 @@ class RemoteCommandQueueWorker(
             .sortedBy { it.getLong("issuedAtMs") ?: Long.MAX_VALUE }
             .forEach { document ->
                 val command = document.toRemoteCommand() ?: return@forEach
-                if (command.familyId != familyId || command.memberId != identity.famyrexMemberId || command.deviceId != identity.deviceId) return@forEach
+                if (command.familyId != familyId ||
+                    command.memberId != identity.famyrexMemberId ||
+                    command.deviceId != identity.deviceId
+                ) return@forEach
                 if (command.expiresAtMs <= now) return@forEach
                 executor.execute(command, identity, now)
             }
