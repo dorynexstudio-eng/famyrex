@@ -69,7 +69,8 @@ class FamilyCloudControlRepository(context: Context) {
                     val label = (map["label"] as? String).orEmpty().trim().take(100).ifBlank { packageName }
                     ChildAppInventoryItem(packageName, label)
                 }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
-                val updatedAtMs = snapshot.getLong("appInventoryUpdatedAtMs") ?: 0L
+                val rawUpdatedAtMs = snapshot.getLong("appInventoryUpdatedAtMs") ?: 0L
+                val updatedAtMs = rawUpdatedAtMs.takeIf { isPlausibleInventoryTimestamp(it) } ?: 0L
                 onSuccess(ChildAppInventoryState(apps, updatedAtMs))
             }
             .addOnFailureListener { onError(it.message ?: "No se pudo consultar el inventario de aplicaciones.") }
@@ -164,6 +165,12 @@ class FamilyCloudControlRepository(context: Context) {
         FirebaseApp.getApps(appContext).isNotEmpty() &&
             FirebaseAuth.getInstance().currentUser?.isAnonymous == false
 
+    private fun isPlausibleInventoryTimestamp(timestampMs: Long): Boolean {
+        if (timestampMs <= 0L) return false
+        val now = System.currentTimeMillis()
+        return timestampMs <= now + FUTURE_TIMESTAMP_SKEW_MS
+    }
+
     private fun Throwable.toUserMessage(): String {
         val firebase = this as? FirebaseFunctionsException
         return firebase?.message?.takeIf { it.isNotBlank() }
@@ -173,6 +180,7 @@ class FamilyCloudControlRepository(context: Context) {
 
     companion object {
         private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
+        private const val FUTURE_TIMESTAMP_SKEW_MS = 10L * 60L * 1000L
     }
 }
 
