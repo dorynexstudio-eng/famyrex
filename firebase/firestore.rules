@@ -45,15 +45,21 @@ service cloud.firestore {
     match /families/{familyId}/members/{memberUid} {
       allow read: if memberExists(familyId);
 
-      // Membership is normally created/claimed by the trusted pairing backend.
-      // A parent may also add another adult explicitly from the family UI.
-      allow create: if isParent(familyId)
-        && memberUid == request.resource.data.uid
-        && request.resource.data.keys().hasOnly([
-          'uid', 'role', 'displayName', 'createdAt', 'status'
-        ])
-        && request.resource.data.role == 'parent'
-        && request.resource.data.uid == memberUid;
+      // The family creator may bootstrap their own parent membership. After
+      // that, existing parents may explicitly add another adult. Child
+      // membership is claimed only by the trusted pairing backend.
+      allow create: if (
+          signedIn()
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && memberUid == request.auth.uid
+          && request.resource.data.uid == memberUid
+          && request.resource.data.role == 'parent'
+          && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid
+        ) || (
+          isParent(familyId)
+          && request.resource.data.uid == memberUid
+          && request.resource.data.role == 'parent'
+        );
 
       allow update: if isParent(familyId)
         && request.resource.data.uid == resource.data.uid
