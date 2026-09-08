@@ -8,17 +8,23 @@ object FamilyControlPolicySync {
         val now = System.currentTimeMillis()
         val validationError = validate(snapshot)
         if (validationError != null) {
-            return FamilyControlReceipt(
-                commandId = "policy-${snapshot.deviceId}-${snapshot.revision}",
-                action = FamilyControlAction.SYNC_POLICY,
-                acceptedAtMs = now,
-                completedAtMs = now,
-                success = false,
-                reason = validationError
+            return failure(snapshot, now, validationError)
+        }
+
+        val appContext = context.applicationContext
+        val state = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val lastRevision = state.getLong(revisionKey(snapshot.deviceId), -1L)
+        if (snapshot.revision <= lastRevision) {
+            return failure(
+                snapshot,
+                now,
+                "La política es antigua: revisión ${snapshot.revision}, última aplicada $lastRevision."
             )
         }
 
-        ParentalControlStore(context).save(DevicePolicySnapshotAdapter.toLocalConfig(snapshot))
+        ParentalControlStore(appContext).save(DevicePolicySnapshotAdapter.toLocalConfig(snapshot))
+        state.edit().putLong(revisionKey(snapshot.deviceId), snapshot.revision).apply()
+
         return FamilyControlReceipt(
             commandId = "policy-${snapshot.deviceId}-${snapshot.revision}",
             action = FamilyControlAction.SYNC_POLICY,
@@ -28,6 +34,17 @@ object FamilyControlPolicySync {
             reason = "Política sincronizada localmente"
         )
     }
+
+    private fun failure(snapshot: DevicePolicySnapshot, now: Long, reason: String) = FamilyControlReceipt(
+        commandId = "policy-${snapshot.deviceId}-${snapshot.revision}",
+        action = FamilyControlAction.SYNC_POLICY,
+        acceptedAtMs = now,
+        completedAtMs = now,
+        success = false,
+        reason = reason
+    )
+
+    private fun revisionKey(deviceId: String): String = "revision_$deviceId"
 
     private fun validate(snapshot: DevicePolicySnapshot): String? {
         if (snapshot.deviceId.isBlank()) return "El deviceId de la política está vacío"
@@ -48,4 +65,6 @@ object FamilyControlPolicySync {
         }
         return null
     }
+
+    private const val PREFS_NAME = "famyrex_policy_sync"
 }
