@@ -17,8 +17,8 @@
     <application
         android:theme="@style/Theme.Famyrex"
         android:label="Famyrex"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher">
+        android:icon="@drawable/ic_famyrex_logo"
+        android:roundIcon="@drawable/ic_famyrex_logo">
         <activity
             android:name=".ModeRouterActivity"
             android:exported="true">
@@ -27,6 +27,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".PremiumMainActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="false" />
         <activity android:name=".SupervisedDeviceActivity" android:exported="false" />
         <activity android:name=".SupervisedOnboardingActivity" android:exported="false" />
@@ -37,7 +38,7 @@
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
         <service android:name=".FamyrexParentalAccessibilityService" android:label="Famyrex · control parental" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <intent-filter><action android:name="android.service.accessibility.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/famyrex_parental_accessibility_service" />
         </service>
         <receiver android:name=".GeofenceBroadcastReceiver" android:exported="false" />
