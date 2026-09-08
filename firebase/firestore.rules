@@ -45,21 +45,15 @@ service cloud.firestore {
     match /families/{familyId}/members/{memberUid} {
       allow read: if memberExists(familyId);
 
-      // The family creator may bootstrap their own parent membership. After
-      // that, existing parents may explicitly add another adult. Child
-      // membership is claimed only by the trusted pairing backend.
-      allow create: if (
-          signedIn()
-          && request.auth.token.firebase.sign_in_provider == 'google.com'
-          && memberUid == request.auth.uid
-          && request.resource.data.uid == memberUid
-          && request.resource.data.role == 'parent'
-          && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid
-        ) || (
-          isParent(familyId)
-          && request.resource.data.uid == memberUid
-          && request.resource.data.role == 'parent'
-        );
+      // Only the family owner can bootstrap the first parent membership.
+      // Additional adults and children are linked by trusted Functions so
+      // clients cannot manufacture family membership by themselves.
+      allow create: if signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && memberUid == request.auth.uid
+        && request.resource.data.uid == memberUid
+        && request.resource.data.role == 'parent'
+        && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid;
 
       allow update: if isParent(familyId)
         && request.resource.data.uid == resource.data.uid
@@ -70,10 +64,13 @@ service cloud.firestore {
     }
 
     match /families/{familyId}/invites/{inviteId} {
-      // The child never reads this collection directly. Pairing redemption is
-      // performed by the trusted backend after validating the short code and
-      // the high-entropy token/rate limits.
-      allow read, create, update, delete: if isParent(familyId);
+      // Pairing invites are created and redeemed only by trusted Functions.
+      allow read, create, update, delete: if false;
+    }
+
+    match /families/{familyId}/parentInvites/{inviteId} {
+      // Parent invitation tokens are never readable from the client database.
+      allow read, create, update, delete: if false;
     }
 
     match /families/{familyId}/alerts/{alertId} {
