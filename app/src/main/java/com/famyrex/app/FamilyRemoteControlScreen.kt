@@ -1,7 +1,6 @@
 package com.famyrex.app
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
+private const val INVENTORY_STALE_MS = 72L * 60L * 60L * 1000L
+
 @Composable
 fun FamilyRemoteControlScreen(
     context: Context,
@@ -33,31 +34,34 @@ fun FamilyRemoteControlScreen(
 ) {
     val repository = remember { FamilyCloudControlRepository(context) }
     val receiptStore = remember { RemoteCommandReceiptStore(context) }
-    val installedApps = remember { loadLaunchableApps(context) }
     var children by remember { mutableStateOf(emptyList<CloudChildDevice>()) }
     var selectedUid by remember { mutableStateOf<String?>(null) }
-    var selectedPackage by remember { mutableStateOf<String?>(null) }
+    var inventory by remember { mutableStateOf<ChildAppInventoryState?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var inventoryLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var extraMinutes by remember { mutableStateOf("30") }
     var dailyLimit by remember { mutableStateOf("120") }
     var appLimit by remember { mutableStateOf("60") }
     var scheduleStart by remember { mutableStateOf("22:00") }
     var scheduleEnd by remember { mutableStateOf("07:00") }
+    var selectedPackage by remember { mutableStateOf<String?>(null) }
     var lastCommandId by remember { mutableStateOf<String?>(null) }
     var cloudReceipt by remember { mutableStateOf<CloudCommandReceipt?>(null) }
     var lastReceipt by remember { mutableStateOf(receiptStore.load()) }
 
-    fun refresh() {
+    fun refreshChildren() {
         val id = familyId?.takeIf { it.isNotBlank() } ?: run {
             children = emptyList()
+            inventory = null
             message = "La familia cloud todavía no está disponible en esta instalación."
             return
         }
         loading = true
         repository.loadChildren(id, { result ->
             children = result
-            if (selectedUid == null || result.none { it.uid == selectedUid }) selectedUid = result.firstOrNull()?.uid
+            val next = if (selectedUid != null && result.any { it.uid == selectedUid }) selectedUid else result.firstOrNull()?.uid
+            selectedUid = next
             loading = false
         }, { error ->
             loading = false
@@ -65,7 +69,29 @@ fun FamilyRemoteControlScreen(
         })
     }
 
-    LaunchedEffect(familyId) { refresh() }
+    fun refreshInventory(child: CloudChildDevice?) {
+        val id = familyId?.takeIf { it.isNotBlank() } ?: return
+        if (child == null) {
+            inventory = null
+            selectedPackage = null
+            return
+        }
+        inventoryLoading = true
+        selectedPackage = null
+        repository.loadChildAppInventory(id, child, { state ->
+            inventory = state
+            inventoryLoading = false
+        }, { error ->
+            inventory = null
+            inventoryLoading = false
+            message = error
+        })
+    }
+
+    LaunchedEffect(familyId) { refreshChildren() }
+    LaunchedEffect(selectedUid, children) {
+        refreshInventory(children.firstOrNull { it.uid == selectedUid })
+    }
     LaunchedEffect(lastCommandId, selectedUid, familyId) {
         val commandId = lastCommandId ?: return@LaunchedEffect
         val id = familyId ?: return@LaunchedEffect
@@ -73,16 +99,18 @@ fun FamilyRemoteControlScreen(
         delay(1500)
         repository.loadCommandReceipt(id, commandId, child.deviceId, { receipt ->
             cloudReceipt = receipt
-            if (receipt != null) {
-                message = if (receipt.success) "Orden ejecutada correctamente en ${child.displayName}." else "Orden rechazada en ${child.displayName}: ${receipt.reason ?: "sin motivo indicado"}"
-            } else {
-                message = "Orden enviada. Esperando confirmación del dispositivo…"
+            message = when {
+                receipt == null -> "Orden enviada. Esperando confirmación del dispositivo…"
+                receipt.success -> "Orden ejecutada correctamente en ${child.displayName}."
+                else -> "Orden rechazada en ${child.displayName}: ${receipt.reason ?: "sin motivo indicado"}"
             }
         }, { error -> message = error })
     }
 
     val selected = children.firstOrNull { it.uid == selectedUid }
-    val selectedApp = installedApps.firstOrNull { it.packageName == selectedPackage }
+    val selectedApp = inventory?.apps?.firstOrNull { it.packageName == selectedPackage }
+    val inventoryAge = inventory?.updatedAtMs?.let { (System.currentTimeMillis() - it).coerceAtLeast(0L) }
+    val inventoryIsStale = inventory?.updatedAtMs?.let { it <= 0L || System.currentTimeMillis() - it > INVENTORY_STALE_MS } == true
 
     fun issue(action: FamilyControlAction, value: String? = null) {
         val id = familyId?.takeIf { it.isNotBlank() } ?: return
@@ -141,7 +169,7 @@ fun FamilyRemoteControlScreen(
                             Text("Perfil: ${it.displayName}")
                             Text("Device ID: ${it.deviceId}")
                         }
-                        OutlinedButton(onClick = { refresh() }, modifier = Modifier.fillMaxWidth()) { Text("Actualizar dispositivos") }
+                        OutlinedButton(onClick = { refreshChildren() }, modifier = Modifier.fillMaxWidth()) { Text("Actualizar dispositivos") }
                     }
                 }
             }
@@ -179,16 +207,24 @@ fun FamilyRemoteControlScreen(
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Aplicaciones supervisadas", style = MaterialTheme.typography.titleMedium)
-                    Text("Selecciona una aplicación instalada en este panel para enviar su paquete Android al dispositivo vinculado.", style = MaterialTheme.typography.bodySmall)
-                    if (installedApps.isEmpty()) {
-                        Text("⚪ No se han encontrado aplicaciones iniciables.")
-                    } else {
-                        installedApps.take(30).forEach { app ->
-                            OutlinedButton(onClick = { selectedPackage = app.packageName }, modifier = Modifier.fillMaxWidth()) {
-                                Text(if (app.packageName == selectedPackage) "✓ ${app.label}" else app.label)
+                    Text("Aplicaciones del dispositivo infantil", style = MaterialTheme.typography.titleMedium)
+                    when {
+                        selected == null -> Text("⚪ Selecciona primero un dispositivo infantil.")
+                        inventoryLoading -> Text("🟠 Consultando inventario del dispositivo…")
+                        inventory == null -> Text("⚪ El inventario todavía no está disponible.")
+                        inventory!!.apps.isEmpty() -> Text("⚪ El dispositivo no ha comunicado aplicaciones iniciables.")
+                        inventoryIsStale -> Text("🟠 Inventario desactualizado. Última actualización: ${formatInventoryAge(inventoryAge)}. Actualiza el dispositivo infantil antes de tomar decisiones sobre una app.")
+                        else -> {
+                            Text("🟢 Inventario recibido del dispositivo infantil · ${inventory!!.apps.size} apps")
+                            inventory!!.apps.take(50).forEach { app ->
+                                OutlinedButton(onClick = { selectedPackage = app.packageName }, modifier = Modifier.fillMaxWidth()) {
+                                    Text(if (app.packageName == selectedPackage) "✓ ${app.label}" else app.label)
+                                }
                             }
                         }
+                    }
+                    OutlinedButton(enabled = selected != null && !inventoryLoading, onClick = { refreshInventory(selected) }, modifier = Modifier.fillMaxWidth()) { Text("Actualizar inventario") }
+                    if (!inventoryIsStale) {
                         selectedApp?.let {
                             Text("Aplicación: ${it.label}")
                             Text(it.packageName, style = MaterialTheme.typography.bodySmall)
@@ -250,19 +286,8 @@ fun FamilyRemoteControlScreen(
     }
 }
 
-private data class InstalledApp(
-    val packageName: String,
-    val label: String
-)
-
-private fun loadLaunchableApps(context: Context): List<InstalledApp> = runCatching {
-    val packageManager = context.packageManager
-    packageManager.getInstalledApplications(0)
-        .asSequence()
-        .filter { it.packageName != context.packageName }
-        .filter { packageManager.getLaunchIntentForPackage(it.packageName) != null }
-        .map { info: ApplicationInfo -> InstalledApp(info.packageName, info.loadLabel(packageManager).toString().ifBlank { info.packageName }) }
-        .distinctBy { it.packageName }
-        .sortedBy { it.label.lowercase() }
-        .toList()
-}.getOrDefault(emptyList())
+private fun formatInventoryAge(ageMs: Long?): String {
+    if (ageMs == null) return "desconocida"
+    val hours = ageMs / (60L * 60L * 1000L)
+    return if (hours < 1) "hace menos de 1 h" else "hace ${hours} h"
+}
