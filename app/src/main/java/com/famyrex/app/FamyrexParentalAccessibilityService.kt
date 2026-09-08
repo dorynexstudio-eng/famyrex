@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
+import java.time.LocalDate
 import java.util.Calendar
 
 /**
@@ -21,9 +22,6 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         val targetPackage = event?.packageName?.toString() ?: return
         val launcherPackage = resolveLauncherPackage()
 
-        // A remote emergency lock is an explicit parent command and takes
-        // precedence over per-app policy. It is still enforced through the
-        // user-enabled accessibility guard rather than covert device control.
         if (DeviceEmergencyLockStore(this).isLocked()) {
             showBlockingOverlay(targetPackage, listOf("El dispositivo está bloqueado temporalmente por un adulto autorizado."))
             return
@@ -51,7 +49,9 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         val usage = monitor.queryUsage(startOfDay, now)
         val appUsed = usage.firstOrNull { it.packageName == targetPackage }
             ?.totalTimeInForeground?.div(60_000L) ?: 0L
-        val totalUsed = usage.sumOf { it.totalTimeInForeground }.div(60_000L)
+        val rawTotalUsed = usage.sumOf { it.totalTimeInForeground }.div(60_000L)
+        val extraTime = ExtraTimeAllowanceStore(this).grantedMinutes(LocalDate.now())
+        val totalUsed = (rawTotalUsed - extraTime).coerceAtLeast(0L)
 
         val result = ParentalPolicyEngine.evaluate(
             config = ParentalControlStore(this).load(),
