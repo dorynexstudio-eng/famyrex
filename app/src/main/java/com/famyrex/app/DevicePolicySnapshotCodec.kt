@@ -64,6 +64,14 @@ object DevicePolicySnapshotCodec {
 
     private fun JSONObject.optNullableInt(name: String): Int? {
         if (isNull(name)) return null
-        return getInt(name)
+        val value = get(name)
+        return when (value) {
+            is Int -> value
+            is Long -> value.takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+                ?: error("Integer out of range")
+            is Number -> value.toLong().takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+                ?: error("Integer out of range")
+            else -> error("Expected integer")
+        }
     }
 }
