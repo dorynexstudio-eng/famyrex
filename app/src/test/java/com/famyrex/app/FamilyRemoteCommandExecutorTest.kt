@@ -15,22 +15,11 @@ class FamilyRemoteCommandExecutorTest {
 
     @Test
     fun `accepted command changes local policy and replay is rejected`() {
-        context.getSharedPreferences("famyrex_parental_controls", Context.MODE_PRIVATE).edit().clear().commit()
-        context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
-
-        val identity = FamyrexDeviceIdentity(
-            deviceId = "device-1",
-            famyrexMemberId = "member-1",
-            familyId = "family-1"
-        )
+        clearState()
+        val identity = FamyrexDeviceIdentity("device-1", "member-1", "family-1")
         val command = FamilyControlCommand(
-            commandId = "cmd-1",
-            familyId = "family-1",
-            memberId = "member-1",
-            deviceId = "device-1",
-            action = FamilyControlAction.BLOCK_APP,
-            issuedAtMs = 1_000L,
-            expiresAtMs = 10_000L,
+            commandId = "cmd-1", familyId = "family-1", memberId = "member-1", deviceId = "device-1",
+            action = FamilyControlAction.BLOCK_APP, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
             value = "com.example.app"
         )
 
@@ -41,30 +30,77 @@ class FamilyRemoteCommandExecutorTest {
         assertTrue(first.success)
         assertFalse(second.success)
         assertTrue(second.reason.orEmpty().contains("procesado"))
-        assertTrue(
-            ParentalControlStore(context).load().appRestrictions
-                .any { it.packageName == "com.example.app" && it.blocked }
-        )
+        assertTrue(ParentalControlStore(context).load().appRestrictions.any { it.packageName == "com.example.app" && it.blocked })
     }
 
     @Test
-    fun `unsupported command produces explicit failure`() {
-        context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
+    fun `unsupported command is not consumed and can be retried`() {
+        clearState()
         val identity = FamyrexDeviceIdentity("device-2", "member-2", "family-2")
         val command = FamilyControlCommand(
-            commandId = "cmd-unsupported",
-            familyId = "family-2",
-            memberId = "member-2",
-            deviceId = "device-2",
-            action = FamilyControlAction.LOCK_DEVICE,
-            issuedAtMs = 1_000L,
-            expiresAtMs = 10_000L
+            commandId = "cmd-unsupported", familyId = "family-2", memberId = "member-2", deviceId = "device-2",
+            action = FamilyControlAction.LOCK_DEVICE, issuedAtMs = 1_000L, expiresAtMs = 10_000L
+        )
+
+        val executor = FamilyRemoteCommandExecutor(context)
+        val first = executor.execute(command, identity, nowMs = 2_000L)
+        val second = executor.execute(command, identity, nowMs = 3_000L)
+
+        assertFalse(first.success)
+        assertFalse(second.success)
+        assertEquals(first.reason, second.reason)
+        assertTrue(second.reason.orEmpty().contains("ejecución local segura"))
+    }
+
+    @Test
+    fun `sync policy accepts nullable fields and multiple apps`() {
+        clearState()
+        val identity = FamyrexDeviceIdentity("device-sync", "member-sync", "family-sync")
+        val snapshot = DevicePolicySnapshot(
+            deviceId = "device-sync",
+            dailyLimitMinutes = null,
+            bedtimeStartMinutes = null,
+            bedtimeEndMinutes = null,
+            apps = listOf(
+                AppPolicy("com.example.one", "One", blocked = true, dailyLimitMinutes = null),
+                AppPolicy("com.example.two", "Dos, con coma", dailyLimitMinutes = 45, approvalRequired = true)
+            ),
+            webPolicyVersion = 4L,
+            revision = 8L
+        )
+        val command = FamilyControlCommand(
+            commandId = "cmd-sync", familyId = "family-sync", memberId = "member-sync", deviceId = "device-sync",
+            action = FamilyControlAction.SYNC_POLICY, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
+            value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
         val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        val stored = ParentalControlStore(context).load()
 
+        assertTrue(receipt.success)
+        assertEquals(2, stored.appRestrictions.size)
+        assertTrue(stored.appRestrictions.any { it.packageName == "com.example.one" && it.blocked })
+        assertTrue(stored.appRestrictions.any { it.packageName == "com.example.two" && it.dailyMinutes == 45 })
+    }
+
+    @Test
+    fun `sync policy rejects snapshot for another device`() {
+        clearState()
+        val identity = FamyrexDeviceIdentity("device-real", "member-1", "family-1")
+        val snapshot = DevicePolicySnapshot(deviceId = "device-other", revision = 1L)
+        val command = FamilyControlCommand(
+            commandId = "cmd-wrong-device", familyId = "family-1", memberId = "member-1", deviceId = "device-real",
+            action = FamilyControlAction.SYNC_POLICY, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
+            value = DevicePolicySnapshotCodec.encode(snapshot)
+        )
+
+        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
         assertFalse(receipt.success)
-        assertEquals(FamilyControlAction.LOCK_DEVICE, receipt.action)
-        assertTrue(receipt.reason.orEmpty().contains("ejecución local segura"))
+        assertTrue(receipt.reason.orEmpty().contains("no coincide"))
+    }
+
+    private fun clearState() {
+        context.getSharedPreferences("famyrex_parental_controls", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
     }
 }
