@@ -52,6 +52,37 @@ class FamilyRemoteCommandExecutorTest {
     }
 
     @Test
+    fun `remote extra time is accumulated for the current day`() {
+        clearState()
+        val identity = FamyrexDeviceIdentity("device-extra", "member-extra", "family-extra")
+        val executor = FamilyRemoteCommandExecutor(context)
+        val command = FamilyControlCommand(
+            commandId = "cmd-extra", familyId = "family-extra", memberId = "member-extra", deviceId = "device-extra",
+            action = FamilyControlAction.GRANT_EXTRA_TIME, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
+            value = "30"
+        )
+
+        assertTrue(executor.execute(command, identity, nowMs = 2_000L).success)
+        assertTrue(executor.execute(command.copy(commandId = "cmd-extra-2"), identity, nowMs = 3_000L).success)
+        assertEquals(60, ExtraTimeAllowanceStore(context).grantedMinutes())
+    }
+
+    @Test
+    fun `invalid extra time is rejected and not consumed`() {
+        clearState()
+        val identity = FamyrexDeviceIdentity("device-extra-invalid", "member-extra-invalid", "family-extra-invalid")
+        val command = FamilyControlCommand(
+            commandId = "cmd-extra-invalid", familyId = "family-extra-invalid", memberId = "member-extra-invalid", deviceId = "device-extra-invalid",
+            action = FamilyControlAction.GRANT_EXTRA_TIME, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
+            value = "0"
+        )
+
+        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        assertFalse(receipt.success)
+        assertEquals(0, ExtraTimeAllowanceStore(context).grantedMinutes())
+    }
+
+    @Test
     fun `replayed lock command is rejected without changing state twice`() {
         clearState()
         val identity = FamyrexDeviceIdentity("device-replay", "member-replay", "family-replay")
@@ -120,5 +151,6 @@ class FamilyRemoteCommandExecutorTest {
         context.getSharedPreferences("famyrex_parental_controls", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("famyrex_emergency_lock", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("famyrex_extra_time", Context.MODE_PRIVATE).edit().clear().commit()
     }
 }
