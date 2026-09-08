@@ -17,6 +17,10 @@ class FamilyCloudControlRepository(context: Context) {
         onSuccess: (List<CloudChildDevice>) -> Unit,
         onError: (String) -> Unit
     ) {
+        if (familyId.isBlank()) {
+            onError("La familia no tiene un identificador válido.")
+            return
+        }
         if (!isAdultConfigured()) {
             onError("La cuenta de adulto todavía no está conectada a Firebase.")
             return
@@ -46,10 +50,23 @@ class FamilyCloudControlRepository(context: Context) {
         onSuccess: (commandId: String) -> Unit,
         onError: (String) -> Unit
     ) {
+        if (familyId.isBlank()) {
+            onError("La familia no tiene un identificador válido.")
+            return
+        }
+        if (!RemoteControlActionPolicy.isSupported(action)) {
+            onError("Esta acción todavía no está disponible en el dispositivo supervisado.")
+            return
+        }
+        if (child.uid.isBlank() || child.memberId.isBlank() || child.deviceId.isBlank()) {
+            onError("El dispositivo infantil no tiene una identidad cloud completa.")
+            return
+        }
         if (!isAdultConfigured()) {
             onError("La cuenta de adulto todavía no está conectada a Firebase.")
             return
         }
+
         val commandId = UUID.randomUUID().toString()
         FirebaseFunctions.getInstance("europe-west1")
             .getHttpsCallable("issueFamilyCommand")
