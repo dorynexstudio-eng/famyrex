@@ -2,103 +2,44 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function memberExists(familyId) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
-    }
-
-    function memberRole(familyId) {
-      return get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role;
-    }
-
-    function isParent(familyId) {
-      return memberExists(familyId) && memberRole(familyId) == 'parent';
-    }
-
-    function isChild(familyId) {
-      return memberExists(familyId)
-        && memberRole(familyId) == 'child'
-        && request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
+    function signedIn() { return request.auth != null; }
+    function memberExists(familyId) { return signedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)); }
+    function memberRole(familyId) { return get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role; }
+    function isParent(familyId) { return memberExists(familyId) && memberRole(familyId) == 'parent'; }
+    function isChild(familyId) { return memberExists(familyId) && memberRole(familyId) == 'child' && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
 
     match /families/{familyId} {
-      allow create: if signedIn()
-        && request.auth.token.firebase.sign_in_provider == 'google.com'
-        && request.resource.data.keys().hasOnly(['ownerUid', 'name', 'createdAt'])
-        && request.resource.data.ownerUid == request.auth.uid;
-
+      allow create: if signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com' && request.resource.data.keys().hasOnly(['ownerUid', 'name', 'createdAt']) && request.resource.data.ownerUid == request.auth.uid;
       allow read: if memberExists(familyId);
-
-      allow update: if isParent(familyId)
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == resource.data.ownerUid;
-
-      allow delete: if isParent(familyId)
-        && resource.data.ownerUid == request.auth.uid;
+      allow update: if isParent(familyId) && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isParent(familyId) && resource.data.ownerUid == request.auth.uid;
     }
 
     match /families/{familyId}/members/{memberUid} {
       allow read: if memberExists(familyId);
-
-      // Only the family owner can bootstrap the first parent membership.
-      // Additional adults and children are linked by trusted Functions so
-      // clients cannot manufacture family membership by themselves.
-      allow create: if signedIn()
-        && request.auth.token.firebase.sign_in_provider == 'google.com'
-        && memberUid == request.auth.uid
-        && request.resource.data.uid == memberUid
-        && request.resource.data.role == 'parent'
-        && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid;
-
-      allow update: if isParent(familyId)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.role == resource.data.role;
-
-      allow delete: if isParent(familyId)
-        && memberUid != resource.data.uid;
+      allow create: if signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com' && memberUid == request.auth.uid && request.resource.data.uid == memberUid && request.resource.data.role == 'parent' && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid;
+      allow update: if isParent(familyId) && request.resource.data.uid == resource.data.uid && request.resource.data.role == resource.data.role;
+      allow delete: if isParent(familyId) && memberUid != resource.data.uid;
     }
 
-    match /families/{familyId}/invites/{inviteId} {
-      // Pairing invites are created and redeemed only by trusted Functions.
-      allow read, create, update, delete: if false;
-    }
-
-    match /families/{familyId}/parentInvites/{inviteId} {
-      // Parent invitation tokens are never readable from the client database.
-      allow read, create, update, delete: if false;
-    }
+    match /families/{familyId}/invites/{inviteId} { allow read, create, update, delete: if false; }
+    match /families/{familyId}/parentInvites/{inviteId} { allow read, create, update, delete: if false; }
 
     match /families/{familyId}/alerts/{alertId} {
-      // Alerts contain ciphertext only. No raw notification/chat text is
-      // accepted by these rules.
-      allow create: if isChild(familyId)
-        && request.resource.data.keys().hasOnly([
-          'childUid', 'ciphertext', 'schemaVersion', 'createdAt', 'expiresAt'
-        ])
-        && request.resource.data.childUid == request.auth.uid
-        && request.resource.data.ciphertext is string
-        && request.resource.data.ciphertext.size() > 0
-        && request.resource.data.schemaVersion is int
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.expiresAt is timestamp;
-
+      allow create: if isChild(familyId) && request.resource.data.keys().hasOnly(['childUid', 'ciphertext', 'schemaVersion', 'createdAt', 'expiresAt']) && request.resource.data.childUid == request.auth.uid && request.resource.data.ciphertext is string && request.resource.data.ciphertext.size() > 0 && request.resource.data.schemaVersion is int && request.resource.data.createdAt is timestamp && request.resource.data.expiresAt is timestamp;
       allow read: if isParent(familyId);
       allow update, delete: if false;
     }
 
     match /families/{familyId}/devices/{deviceUid} {
-      allow read: if memberExists(familyId)
-        && (isParent(familyId) || request.auth.uid == deviceUid);
-
-      allow create, update: if isChild(familyId)
-        && deviceUid == request.auth.uid;
-
+      allow read: if memberExists(familyId) && (isParent(familyId) || request.auth.uid == deviceUid);
+      allow create, update: if isChild(familyId) && deviceUid == request.auth.uid && request.resource.data.uid == request.auth.uid && request.resource.data.memberUid == request.auth.uid;
       allow delete: if isParent(familyId);
+    }
+
+    match /families/{familyId}/commands/{commandId} {
+      allow read: if isParent(familyId) || (isChild(familyId) && resource.data.deviceId == request.auth.uid);
+      allow create, update, delete: if false;
     }
   }
 }
