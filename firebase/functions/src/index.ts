@@ -49,6 +49,51 @@ function requireAnonymousDevice(request: any): string {
   if (!request.app) throw new HttpsError("failed-precondition", "No se pudo verificar que la solicitud procede de Famyrex.");
   return request.auth.uid;
 }
+function validateCommandValue(action: string, value: string | null): void {
+  switch (action) {
+    case "LOCK_DEVICE":
+    case "UNLOCK_DEVICE":
+      if (value !== null) throw new HttpsError("invalid-argument", "Esta acción no admite contenido adicional.");
+      return;
+    case "GRANT_EXTRA_TIME":
+    case "SET_DAILY_LIMIT": {
+      const minutes = value === null ? NaN : Number(value.trim());
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) throw new HttpsError("invalid-argument", "El valor debe ser un número entero entre 1 y 1440 minutos.");
+      return;
+    }
+    case "SET_SCHEDULE": {
+      const parts = value?.trim().split("-");
+      const start = parts?.length === 2 ? Number(parts[0]) : NaN;
+      const end = parts?.length === 2 ? Number(parts[1]) : NaN;
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start > 1439 || end < 0 || end > 1439) {
+        throw new HttpsError("invalid-argument", "El horario debe usar minutos entre 0 y 1439.");
+      }
+      return;
+    }
+    case "BLOCK_APP":
+    case "ALLOW_APP": {
+      const packageName = value?.trim() ?? "";
+      if (packageName.length < 1 || packageName.length > 255 || !/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(packageName)) {
+        throw new HttpsError("invalid-argument", "El paquete de la aplicación no es válido.");
+      }
+      return;
+    }
+    case "SET_APP_LIMIT": {
+      const parts = value?.split(":", 2);
+      const packageName = parts?.[0]?.trim() ?? "";
+      const minutes = parts?.length === 2 ? Number(parts[1].trim()) : NaN;
+      if (packageName.length < 1 || packageName.length > 255 || !/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(packageName) || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+        throw new HttpsError("invalid-argument", "El límite de aplicación no es válido.");
+      }
+      return;
+    }
+    case "SYNC_POLICY":
+      if (value === null || value.trim().length === 0) throw new HttpsError("invalid-argument", "SYNC_POLICY requiere un snapshot.");
+      return;
+    default:
+      throw new HttpsError("invalid-argument", "Acción no permitida.");
+  }
+}
 
 export const createPairingInvite = onCall(async (request) => {
   const parentUid = requireParent(request);
@@ -132,6 +177,7 @@ export const issueFamilyCommand = onCall(async (request) => {
   const commandId = String(request.data?.commandId ?? randomBytes(16).toString("hex")).trim(); const action = String(request.data?.action ?? "").trim(); const value = request.data?.value == null ? null : String(request.data.value);
   if (!familyId || !targetDeviceUid || !memberId || !commandId || !ALLOWED_COMMAND_ACTIONS.has(action)) throw new HttpsError("invalid-argument", "Comando incompleto o acción no permitida.");
   if (value !== null && value.length > MAX_COMMAND_VALUE_LENGTH) throw new HttpsError("invalid-argument", "El contenido del comando es demasiado grande.");
+  validateCommandValue(action, value);
   const memberRef = db.doc(`families/${familyId}/members/${parentUid}`); const targetRef = db.doc(`families/${familyId}/members/${targetDeviceUid}`); const targetDeviceRef = db.doc(`families/${familyId}/devices/${targetDeviceUid}`);
   const [parent, target, device] = await Promise.all([memberRef.get(), targetRef.get(), targetDeviceRef.get()]);
   if (!parent.exists || parent.data()?.role !== "parent") throw new HttpsError("permission-denied", "No perteneces a esta familia como adulto.");
@@ -147,8 +193,9 @@ export const issueFamilyCommand = onCall(async (request) => {
   try {
     await messaging.send({ token: device.data()!.fcmToken, data: { famyrex_command: JSON.stringify(command) } });
   } catch (error: any) {
-    await commandRef.update({ status: "delivery_failed", deliveryError: String(error?.code ?? "unknown").slice(0, 120) });
-    throw new HttpsError("unavailable", "No se pudo entregar el comando al dispositivo.");
+    // Keep the command recoverable: WorkManager only polls `sent` commands.
+    console.warn("FCM delivery failed; keeping command pending for recovery", error?.code ?? "unknown");
+    throw new HttpsError("unavailable", "No se pudo entregar el comando ahora; quedará pendiente para recuperación.");
   }
   return { commandId, expiresAtMs };
 });
