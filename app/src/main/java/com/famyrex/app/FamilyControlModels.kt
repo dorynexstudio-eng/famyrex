@@ -16,6 +16,12 @@ enum class FamilyControlAction {
     SYNC_POLICY
 }
 
+enum class AppInstallSource {
+    GOOGLE_PLAY,
+    APK,
+    UNKNOWN
+}
+
 data class FamilyControlCommand(
     val commandId: String,
     val familyId: String,
@@ -35,7 +41,9 @@ data class AppPolicy(
     val displayName: String,
     val blocked: Boolean = false,
     val dailyLimitMinutes: Int? = null,
-    val approvalRequired: Boolean = false
+    val approvalRequired: Boolean = false,
+    val installAllowed: Boolean = true,
+    val source: AppInstallSource = AppInstallSource.UNKNOWN
 )
 
 data class DevicePolicySnapshot(
@@ -46,4 +54,28 @@ data class DevicePolicySnapshot(
     val apps: List<AppPolicy> = emptyList(),
     val webPolicyVersion: Long = 0L,
     val revision: Long = 0L
+)
+
+/** A locally generated request shown to the adult before a managed app is allowed. */
+data class AppApprovalRequest(
+    val requestId: String,
+    val familyId: String,
+    val memberId: String,
+    val deviceId: String,
+    val packageName: String,
+    val displayName: String,
+    val source: AppInstallSource,
+    val createdAtMs: Long,
+    val expiresAtMs: Long,
+    val approved: Boolean? = null
+)
+
+/** Receipt kept locally so remote commands remain auditable and idempotent. */
+data class FamilyControlReceipt(
+    val commandId: String,
+    val action: FamilyControlAction,
+    val acceptedAtMs: Long,
+    val completedAtMs: Long? = null,
+    val success: Boolean,
+    val reason: String? = null
 )
