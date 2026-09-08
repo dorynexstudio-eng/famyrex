@@ -17,6 +17,7 @@ class FamyrexFirebaseMessagingService : FirebaseMessagingService() {
 
         val receipt = FamilyRemoteCommandExecutor(this).execute(command, identity)
         RemoteCommandReceiptStore(this).save(receipt)
+        RemoteCommandReceiptReporter.report(this, receipt)
         if (!receipt.success) Log.w(TAG, "Remote command rejected: ${receipt.reason}")
     }
 
