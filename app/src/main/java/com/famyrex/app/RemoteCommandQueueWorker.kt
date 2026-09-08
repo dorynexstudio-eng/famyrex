@@ -6,7 +6,6 @@ import androidx.work.WorkerParameters
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 
 /** Recovery path for remote commands missed by FCM while the device was offline. */
 class RemoteCommandQueueWorker(
@@ -20,24 +19,27 @@ class RemoteCommandQueueWorker(
             ?: return Result.success()
         val familyId = identity.familyId ?: return Result.success()
 
+        // Filter status locally to avoid requiring a composite Firestore index.
         val snapshot = Tasks.await(
             FirebaseFirestore.getInstance()
                 .collection("families").document(familyId).collection("commands")
                 .whereEqualTo("targetDeviceUid", firebaseUid)
-                .whereEqualTo("status", "sent")
-                .orderBy("createdAt", Query.Direction.ASCENDING)
-                .limit(20)
+                .limit(50)
                 .get()
         )
 
         val executor = FamilyRemoteCommandExecutor(context)
         val now = System.currentTimeMillis()
-        snapshot.documents.forEach { document ->
-            val command = document.toRemoteCommand() ?: return@forEach
-            if (command.familyId != familyId || command.memberId != identity.famyrexMemberId || command.deviceId != identity.deviceId) return@forEach
-            if (command.expiresAtMs <= now) return@forEach
-            executor.execute(command, identity, now)
-        }
+        snapshot.documents
+            .asSequence()
+            .filter { it.getString("status") == "sent" }
+            .sortedBy { it.getLong("issuedAtMs") ?: Long.MAX_VALUE }
+            .forEach { document ->
+                val command = document.toRemoteCommand() ?: return@forEach
+                if (command.familyId != familyId || command.memberId != identity.famyrexMemberId || command.deviceId != identity.deviceId) return@forEach
+                if (command.expiresAtMs <= now) return@forEach
+                executor.execute(command, identity, now)
+            }
         Result.success()
     }.getOrElse { Result.retry() }
 
