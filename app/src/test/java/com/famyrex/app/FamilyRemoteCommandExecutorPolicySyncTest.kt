@@ -18,6 +18,18 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
         ParentalControlStore(context).clear()
         context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
         val identity = FamyrexDeviceIdentity("device-sync", "member-1", "family-1")
+        val snapshot = DevicePolicySnapshot(
+            deviceId = "device-sync",
+            dailyLimitMinutes = 120,
+            bedtimeStartMinutes = 1320,
+            bedtimeEndMinutes = 420,
+            webPolicyVersion = 0L,
+            revision = 7L,
+            apps = listOf(
+                AppPolicy("com.example.blocked", "Blocked", blocked = true),
+                AppPolicy("com.example.limited", "Limited", dailyLimitMinutes = 30)
+            )
+        )
         val command = FamilyControlCommand(
             commandId = "sync-1",
             familyId = "family-1",
@@ -26,7 +38,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
             action = FamilyControlAction.SYNC_POLICY,
             issuedAtMs = 1_000L,
             expiresAtMs = 10_000L,
-            value = "device-sync|120|1320|420|7|com.example.blocked,true,null;com.example.limited,false,30"
+            value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
         val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
@@ -43,6 +55,14 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
         ParentalControlStore(context).clear()
         context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
         val identity = FamyrexDeviceIdentity("device-real", "member-1", "family-1")
+        val snapshot = DevicePolicySnapshot(
+            deviceId = "device-other",
+            dailyLimitMinutes = 120,
+            bedtimeStartMinutes = 1320,
+            bedtimeEndMinutes = 420,
+            revision = 7L,
+            apps = emptyList()
+        )
         val command = FamilyControlCommand(
             commandId = "sync-wrong-device",
             familyId = "family-1",
@@ -51,7 +71,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
             action = FamilyControlAction.SYNC_POLICY,
             issuedAtMs = 1_000L,
             expiresAtMs = 10_000L,
-            value = "device-other|120|1320|420|7|"
+            value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
         val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
