@@ -12,6 +12,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
     private val policyStore = ParentalControlStore(appContext)
     private val emergencyLockStore = DeviceEmergencyLockStore(appContext)
     private val extraTimeStore = ExtraTimeAllowanceStore(appContext)
+    private val auditStore = RemoteCommandAuditStore(appContext)
 
     fun execute(
         command: FamilyControlCommand,
@@ -65,6 +66,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
         }
 
         if (receipt.success) gate.complete(command.commandId, receipt.completedAtMs ?: nowMs)
+        auditStore.record(receipt)
         receipt
     }
 
