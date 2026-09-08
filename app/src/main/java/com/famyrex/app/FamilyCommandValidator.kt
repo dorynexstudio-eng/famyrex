@@ -20,13 +20,16 @@ object FamilyCommandValidator {
         if (command.deviceId != identity.deviceId) {
             return "El dispositivo del comando no coincide."
         }
+        if (command.issuedAtMs < 0L || command.expiresAtMs < 0L) {
+            return "Las fechas del comando no son válidas."
+        }
         if (command.expiresAtMs <= command.issuedAtMs || nowMs >= command.expiresAtMs) {
             return "El comando ha caducado."
         }
-        if (command.issuedAtMs > nowMs + MAX_CLOCK_SKEW_MS) {
+        if (command.issuedAtMs > nowMs && command.issuedAtMs - nowMs > MAX_CLOCK_SKEW_MS) {
             return "El comando tiene una fecha futura no válida."
         }
-        if (command.expiresAtMs - command.issuedAtMs > MAX_COMMAND_LIFETIME_MS) {
+        if (command.expiresAtMs > command.issuedAtMs + MAX_COMMAND_LIFETIME_MS) {
             return "La duración del comando no es válida."
         }
         if (command.action == FamilyControlAction.SYNC_POLICY && command.value.isNullOrBlank()) {
