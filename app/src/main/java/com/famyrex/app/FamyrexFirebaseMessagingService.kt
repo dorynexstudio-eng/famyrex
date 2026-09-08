@@ -9,20 +9,21 @@ class FamyrexFirebaseMessagingService : FirebaseMessagingService() {
         val raw = message.data[KEY_COMMAND] ?: return
         val command = FamilyControlCommandCodec.decode(raw) ?: return
         val identity = FamilyDeviceIdentityStore(this).current() ?: return
-        FamilyControlCommandExecutor(this).execute(command, identity)
+        if (command.familyId != identity.familyId ||
+            command.memberId != identity.famyrexMemberId ||
+            command.deviceId != identity.deviceId
+        ) return
+
+        FamilyRemoteCommandExecutor(this).execute(command, identity)
     }
 
     override fun onNewToken(token: String) {
         if (token.isBlank()) return
-        getSharedPreferences(PREFS, MODE_PRIVATE)
-            .edit()
-            .putString(KEY_FCM_TOKEN, token)
-            .apply()
+        FamilyDeviceTokenRegistrar.rememberToken(this, token)
+        FamilyDeviceTokenRegistrar.register(this, token)
     }
 
     companion object {
         const val KEY_COMMAND = "famyrex_command"
-        private const val PREFS = "famyrex_messaging"
-        private const val KEY_FCM_TOKEN = "fcm_token"
     }
 }
