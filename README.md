@@ -67,17 +67,22 @@ Aplicación Android de protección y bienestar familiar, orientada a ayudar a la
 - Checklist de publicación y Data safety en `docs/PLAY_STORE_CHECKLIST.md`.
 - Revisión final de permisos, UX, rendimiento, compatibilidad y publicación pendiente antes del lanzamiento.
 
-### 2.1 — Arquitectura online en preparación
+### 2.1 — Arquitectura familiar conectada en preparación
 
 - Google Sign-In para adultos mediante Firebase Authentication.
-- Más de un adulto por familia, cada uno con su propia cuenta Google.
-- Dispositivos infantiles sin cuenta Google; identidad Firebase anónima invisible para las reglas de seguridad.
+- Más de un adulto por familia, cada uno con su propia identidad.
+- **Identidad de miembro separada de identidad de dispositivo.**
+- La cuenta Google del menor queda contemplada como identidad familiar de primera clase para permitir una integración más profunda con el ecosistema Android/Google cuando las APIs y políticas aplicables lo permitan.
+- La cuenta Google no se utiliza como sustituto de los mecanismos técnicos de control de Android: los permisos y capacidades reales dependen de las APIs y autorizaciones disponibles en cada versión/dispositivo.
+- La identidad técnica de Firebase puede ser anónima durante el emparejamiento y posteriormente vincularse al dispositivo/membresía sin convertirse en la identidad de la persona.
 - Firestore preparado para familias, miembros, dispositivos, invitaciones y alertas cifradas.
 - Cloud Functions 2nd gen para emparejamiento seguro.
 - App Check / Play Integrity preparado para reducir abuso de los endpoints de emparejamiento.
 - FCM preparado para avisos sin transportar contenido sensible.
+- Modelo local preparado para políticas de aplicaciones: bloqueo/permiso, límites, aprobación y sincronización de políticas.
+- Modelo local preparado para acciones remotas: bloqueo/desbloqueo, tiempo adicional, límites, horarios, aplicaciones, ubicación y política web.
 
-La conexión al proyecto Firebase real y el `google-services.json` todavía son el punto externo pendiente de activar esta arquitectura.
+La conexión al proyecto Firebase real y el `google-services.json` siguen siendo el punto externo pendiente de activar la capa conectada.
 
 ## Privacidad
 
