@@ -25,14 +25,15 @@ class FamilyControlCommandExecutorReplayTest {
     @Test
     fun unsupportedCommandIsNotConsumedAndCanBeRetried() {
         val commandId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
         val command = FamilyControlCommand(
             commandId = commandId,
             familyId = "family-test",
             memberId = "member-test-1234",
             deviceId = "device-test-1234",
-            action = FamilyControlAction.LOCK_DEVICE,
-            issuedAtMs = System.currentTimeMillis(),
-            expiresAtMs = System.currentTimeMillis() + 60_000L
+            action = FamilyControlAction.REFRESH_LOCATION,
+            issuedAtMs = now,
+            expiresAtMs = now + 60_000L
         )
         val identity = FamyrexDeviceIdentity(
             deviceId = command.deviceId,
@@ -41,12 +42,12 @@ class FamilyControlCommandExecutorReplayTest {
             isSupervised = true
         )
 
-        val first = FamilyControlCommandExecutor(context).execute(command, identity)
-        val second = FamilyControlCommandExecutor(context).execute(command, identity)
+        val first = FamilyControlCommandExecutor(context).execute(command, identity, now)
+        val second = FamilyControlCommandExecutor(context).execute(command, identity, now + 1)
 
         assertFalse(first.success)
         assertFalse(second.success)
+        assertTrue(first.reason?.contains("soport", ignoreCase = true) == true)
         assertEquals(first.reason, second.reason)
-        assertTrue(second.reason?.contains("soport", ignoreCase = true) == true)
     }
 }
