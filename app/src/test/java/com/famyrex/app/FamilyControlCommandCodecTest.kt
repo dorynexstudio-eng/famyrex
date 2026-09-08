@@ -17,19 +17,27 @@ class FamilyControlCommandCodecTest {
             value = "90",
             requiresAdultConfirmation = true
         )
+        assertEquals(command, FamilyControlCommandCodec.decode(FamilyControlCommandCodec.encode(command)))
+    }
 
+    @Test fun escapedPayloadRoundTrips() {
+        val command = FamilyControlCommand("c", "f", "m", "d", FamilyControlAction.BLOCK_APP, 1L, 2L, "com.example.app|\"x\"\n", false)
         assertEquals(command, FamilyControlCommandCodec.decode(FamilyControlCommandCodec.encode(command)))
     }
 
     @Test fun malformedPayloadIsRejected() {
         assertNull(FamilyControlCommandCodec.decode("not-json"))
         assertNull(FamilyControlCommandCodec.decode("{}"))
+        assertNull(FamilyControlCommandCodec.decode("{\"commandId\":null}"))
     }
 
     @Test fun unknownActionIsRejected() {
-        val raw = """
-            {"commandId":"x","familyId":"f","memberId":"m","deviceId":"d","action":"UNKNOWN","issuedAtMs":1,"expiresAtMs":2}
-        """.trimIndent()
+        val raw = """{"commandId":"x","familyId":"f","memberId":"m","deviceId":"d","action":"UNKNOWN","issuedAtMs":1,"expiresAtMs":2,"requiresAdultConfirmation":true}"""
+        assertNull(FamilyControlCommandCodec.decode(raw))
+    }
+
+    @Test fun numericOverflowIsRejected() {
+        val raw = """{"commandId":"x","familyId":"f","memberId":"m","deviceId":"d","action":"BLOCK_APP","issuedAtMs":999999999999999999999999,"expiresAtMs":2,"requiresAdultConfirmation":true}"""
         assertNull(FamilyControlCommandCodec.decode(raw))
     }
 }
