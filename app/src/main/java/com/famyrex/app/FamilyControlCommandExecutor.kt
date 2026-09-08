@@ -9,9 +9,13 @@ import android.content.Context
 class FamilyControlCommandExecutor(context: Context) {
     private val appContext = context.applicationContext
 
-    fun execute(command: FamilyControlCommand, identity: FamyrexDeviceIdentity, nowMs: Long = System.currentTimeMillis()): FamilyControlReceipt {
+    fun execute(
+        command: FamilyControlCommand,
+        identity: FamyrexDeviceIdentity,
+        nowMs: Long = System.currentTimeMillis()
+    ): FamilyControlReceipt {
         val gate = FamilyCommandGate(appContext)
-        val gateResult = gate.accept(command, identity, nowMs)
+        val gateResult = gate.check(command, identity, nowMs)
         if (gateResult.status != CommandGateStatus.ACCEPTED) {
             return FamilyControlReceipt(
                 commandId = command.commandId,
@@ -23,7 +27,7 @@ class FamilyControlCommandExecutor(context: Context) {
             )
         }
 
-        return when (val result = FamilyControlCommandApplier.apply(command, ParentalControlStore(appContext).load())) {
+        val receipt = when (val result = FamilyControlCommandApplier.apply(command, ParentalControlStore(appContext).load())) {
             is CommandApplicationResult.Applied -> {
                 ParentalControlStore(appContext).save(result.config)
                 FamilyControlReceipt(command.commandId, command.action, nowMs, System.currentTimeMillis(), true)
@@ -31,5 +35,10 @@ class FamilyControlCommandExecutor(context: Context) {
             is CommandApplicationResult.Rejected -> FamilyControlReceipt(command.commandId, command.action, nowMs, System.currentTimeMillis(), false, result.reason)
             is CommandApplicationResult.Unsupported -> FamilyControlReceipt(command.commandId, command.action, nowMs, System.currentTimeMillis(), false, result.reason)
         }
+
+        if (receipt.success) {
+            gate.complete(command.commandId, receipt.completedAtMs ?: nowMs)
+        }
+        return receipt
     }
 }
