@@ -2,6 +2,7 @@ package com.famyrex.app
 
 import android.content.Context
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 
@@ -39,23 +40,52 @@ class FamyrexPairingService(context: Context) {
     fun redeemCode(
         code: String,
         childLabel: String,
-        onSuccess: (familyId: String, childUid: String) -> Unit,
+        famyrexMemberId: String,
+        famyrexDeviceId: String,
+        onSuccess: (familyId: String, childUid: String, memberId: String, deviceId: String) -> Unit,
         onError: (String) -> Unit
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) {
             onError("Firebase todavía no está configurado.")
             return
         }
-        functions().getHttpsCallable("redeemPairingCode")
-            .call(hashMapOf("code" to code, "childLabel" to childLabel))
-            .addOnSuccessListener { result ->
-                val data = result.data as? Map<*, *>
-                val familyId = data?.get("familyId") as? String
-                val childUid = data?.get("childUid") as? String
-                if (familyId.isNullOrBlank() || childUid.isNullOrBlank()) {
-                    onError("Firebase devolvió una vinculación incompleta.")
-                } else onSuccess(familyId, childUid)
-            }
+        if (famyrexMemberId.isBlank() || famyrexDeviceId.isBlank()) {
+            onError("La identidad local del dispositivo está incompleta.")
+            return
+        }
+
+        val auth = FirebaseAuth.getInstance()
+        fun redeem() {
+            functions().getHttpsCallable("redeemPairingCode")
+                .call(
+                    hashMapOf(
+                        "code" to code,
+                        "childLabel" to childLabel,
+                        "famyrexMemberId" to famyrexMemberId,
+                        "famyrexDeviceId" to famyrexDeviceId
+                    )
+                )
+                .addOnSuccessListener { result ->
+                    val data = result.data as? Map<*, *>
+                    val familyId = data?.get("familyId") as? String
+                    val childUid = data?.get("childUid") as? String
+                    val memberId = data?.get("famyrexMemberId") as? String
+                    val deviceId = data?.get("famyrexDeviceId") as? String
+                    if (familyId.isNullOrBlank() || childUid.isNullOrBlank() || memberId.isNullOrBlank() || deviceId.isNullOrBlank()) {
+                        onError("Firebase devolvió una vinculación incompleta.")
+                    } else onSuccess(familyId, childUid, memberId, deviceId)
+                }
+                .addOnFailureListener { onError(it.toUserMessage()) }
+        }
+
+        val current = auth.currentUser
+        if (current != null && current.providerData.none { it.providerId == "anonymous" }) {
+            onError("Este dispositivo tiene una sesión de usuario incompatible con el modo infantil.")
+            return
+        }
+        if (current != null) redeem()
+        else auth.signInAnonymously()
+            .addOnSuccessListener { redeem() }
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
@@ -95,20 +125,12 @@ class FamyrexPairingService(context: Context) {
             return
         }
         functions().getHttpsCallable("acceptParentInvite")
-            .call(
-                hashMapOf(
-                    "familyId" to familyId,
-                    "inviteId" to inviteId,
-                    "token" to token,
-                    "displayName" to displayName
-                )
-            )
+            .call(hashMapOf("familyId" to familyId, "inviteId" to inviteId, "token" to token, "displayName" to displayName))
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
                 val resolvedFamilyId = data?.get("familyId") as? String
-                if (resolvedFamilyId.isNullOrBlank()) {
-                    onError("Firebase no confirmó la incorporación a la familia.")
-                } else onSuccess(resolvedFamilyId)
+                if (resolvedFamilyId.isNullOrBlank()) onError("Firebase no confirmó la incorporación a la familia.")
+                else onSuccess(resolvedFamilyId)
             }
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
