@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import java.util.UUID
 
 @Composable
 fun JoinFamilyScreen(
@@ -25,11 +26,13 @@ fun JoinFamilyScreen(
     modifier: Modifier = Modifier,
     onJoined: () -> Unit = {}
 ) {
-    val store = remember { FamilyStore(context) }
+    val appContext = context.applicationContext
+    val store = remember { FamilyStore(appContext) }
     val existingIdentity = remember { store.verifiedFamilyIdentity() }
-    var invitation by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
+    var childLabel by remember { mutableStateOf("Perfil infantil") }
     var message by remember { mutableStateOf("") }
+    var joining by remember { mutableStateOf(false) }
 
     if (existingIdentity != null) {
         val child = store.supervisedChild()
@@ -43,9 +46,8 @@ fun JoinFamilyScreen(
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Familia: ${existingIdentity.familyId.take(12)}…")
                     Text("Perfil infantil: ${child?.displayName ?: "no disponible"}")
-                    Text("Huella: ${existingIdentity.fingerprint}")
-                    Text("Vinculación local conservada tras reiniciar la aplicación.")
-                    Text("No es necesario introducir de nuevo la invitación mientras esta vinculación permanezca guardada en el dispositivo.")
+                    Text("Huella local: ${existingIdentity.fingerprint}")
+                    Text("La vinculación se conserva tras reiniciar la aplicación.")
                 }
             }
             Button(onClick = onJoined, modifier = Modifier.fillMaxWidth()) { Text("Continuar") }
@@ -54,21 +56,47 @@ fun JoinFamilyScreen(
     }
 
     fun join() {
-        val token = OfflinePairingTokenCodec.verify(invitation, code, System.currentTimeMillis())
-        if (token == null) {
-            message = "Invitación incorrecta, manipulada o caducada. Pide una nueva al adulto autorizado."
-            return
-        }
+        if (joining) return
+        joining = true
+        message = "Vinculando dispositivo…"
 
-        val child = store.ensureSupervisedChild(token.childProfileId, token.childDisplayName)
-        val pending = store.devices().firstOrNull { it.linkState == DeviceLinkState.PENDING && it.ownerProfileId == child.id }
-            ?: store.addDevice("Este dispositivo", child.id)
+        val normalizedLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
+        val memberId = "profile-${UUID.randomUUID().toString().replace("-", "").take(16)}"
+        val deviceId = "device-${UUID.randomUUID().toString().replace("-", "").take(16)}"
 
-        store.saveVerifiedFamilyIdentity(token.familyId, token.secret, OfflinePairingTokenCodec.fingerprint(token.secret))
-        store.setDeviceState(pending.id, DeviceLinkState.LINKED)
-        store.setAppMode(FamyrexAppMode.SUPERVISED)
-        message = "Familia ${token.familyId.take(12)}… vinculada al perfil ${child.displayName}."
-        onJoined()
+        FamyrexPairingService(appContext).redeemCode(
+            code = code,
+            childLabel = normalizedLabel,
+            famyrexMemberId = memberId,
+            famyrexDeviceId = deviceId,
+            onSuccess = { familyId, _, resolvedMemberId, resolvedDeviceId ->
+                runCatching {
+                    val child = store.ensureSupervisedChild(resolvedMemberId, normalizedLabel)
+                    val device = store.devices().firstOrNull { it.id == resolvedDeviceId }
+                        ?: store.addDevice("Este dispositivo", child.id).also { created ->
+                            if (created.id != resolvedDeviceId) {
+                                store.removeDevice(created.id)
+                                store.addDeviceWithId(resolvedDeviceId, "Este dispositivo", child.id)
+                            }
+                        }
+                    if (device.id != resolvedDeviceId) error("No se pudo conservar la identidad del dispositivo.")
+                    store.saveVerifiedFamilyIdentity(familyId, UUID.randomUUID().toString().replace("-", "").take(32), resolvedMemberId.take(12))
+                    store.setDeviceState(resolvedDeviceId, DeviceLinkState.LINKED)
+                    store.setAppMode(FamyrexAppMode.SUPERVISED)
+                }.onFailure {
+                    message = "La vinculación remota se completó, pero no se pudo guardar el estado local: ${it.message}"
+                    joining = false
+                    return@redeemCode
+                }
+                message = "Familia vinculada correctamente."
+                joining = false
+                onJoined()
+            },
+            onError = {
+                message = it
+                joining = false
+            }
+        )
     }
 
     Column(
@@ -76,15 +104,15 @@ fun JoinFamilyScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Unirse a una familia", style = MaterialTheme.typography.headlineMedium)
-        Text("El adulto autorizado debe darte la clave de invitación y el código de 6 dígitos. Ambos se verifican localmente, sin enviar datos a ningún servidor.")
+        Text("Introduce el código de vinculación que te proporciona el adulto autorizado. La identidad del dispositivo queda vinculada de forma segura a Famyrex.")
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(invitation, { invitation = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Clave de invitación") }, singleLine = true)
+                OutlinedTextField(childLabel, { childLabel = it.take(40) }, Modifier.fillMaxWidth(), label = { Text("Nombre del perfil") }, singleLine = true)
                 OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.fillMaxWidth(), label = { Text("Código de 6 dígitos") }, singleLine = true)
-                Button(enabled = invitation.isNotBlank() && code.length == 6, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text("Verificar y vincular") }
+                Button(enabled = code.length == 6 && !joining, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text(if (joining) "Vinculando…" else "Verificar y vincular") }
                 if (message.isNotBlank()) Text(message)
             }
         }
-        Text("Privacidad: la invitación se intercambia manualmente y se verifica completamente en este dispositivo. La vinculación queda almacenada localmente.")
+        Text("Privacidad: el dispositivo usa una identidad técnica anónima de Firebase para el transporte. La identidad lógica de Famyrex se mantiene separada y se valida antes de ejecutar comandos.")
     }
 }
