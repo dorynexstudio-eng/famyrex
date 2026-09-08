@@ -30,6 +30,7 @@ fun FamilyCoreScreen(
     context: Context,
     modifier: Modifier = Modifier,
     onOpenParentalControl: () -> Unit = {},
+    onOpenRemoteControl: () -> Unit = {},
     onFamilyChanged: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
@@ -76,16 +77,14 @@ fun FamilyCoreScreen(
         }
     }
 
-    LazyColumn(
-        modifier = modifier.padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    val cloudFamilyId = cloudFamilyRepository.cachedFamilyId()
+
+    LazyColumn(modifier = modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Familia Famyrex", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.padding(2.dp))
             Text("Un grupo puede tener varios adultos autorizados y varios perfiles infantiles. Cada dispositivo supervisado pertenece a un perfil infantil.")
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -93,16 +92,11 @@ fun FamilyCoreScreen(
                     adults.forEach { adult -> Text("👑 ${adult.displayName} · ${if (adult.role == FamilyRole.OWNER) "Administrador" else "Adulto autorizado"}") }
                     OutlinedTextField(adultName, { adultName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del segundo padre/madre") })
                     Button(enabled = adultName.isNotBlank(), onClick = {
-                        store.addAdult(adultName.trim())
-                        adultName = ""
-                        profiles = store.profiles()
-                        message = "Adulto autorizado añadido."
-                        onFamilyChanged()
+                        store.addAdult(adultName.trim()); adultName = ""; profiles = store.profiles(); message = "Adulto autorizado añadido."; onFamilyChanged()
                     }, modifier = Modifier.fillMaxWidth()) { Text("Añadir adulto") }
                 }
             }
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -114,155 +108,88 @@ fun FamilyCoreScreen(
                     }
                     OutlinedTextField(childName, { childName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del hijo/a") })
                     Button(enabled = childName.isNotBlank() && adults.isNotEmpty(), onClick = {
-                        store.addChild(childName.trim(), adults.map { it.id })
-                        childName = ""
-                        profiles = store.profiles()
-                        message = "Perfil infantil creado y vinculado a los adultos autorizados."
-                        onFamilyChanged()
+                        store.addChild(childName.trim(), adults.map { it.id }); childName = ""; profiles = store.profiles(); message = "Perfil infantil creado y vinculado a los adultos autorizados."; onFamilyChanged()
                     }, modifier = Modifier.fillMaxWidth()) { Text("Añadir hijo/a") }
                 }
             }
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Acuerdos familiares digitales", style = MaterialTheme.typography.titleMedium)
                     Text("Cada hijo/a puede tener su propio acuerdo. La familia decide las reglas; Famyrex muestra el cumplimiento y no ejecuta automáticamente una consecuencia.")
-                    if (children.isEmpty()) {
-                        Text("⚪ Crea primero un perfil infantil para establecer un acuerdo.")
-                    } else {
+                    if (children.isEmpty()) Text("⚪ Crea primero un perfil infantil para establecer un acuerdo.") else {
                         Text("Selecciona el perfil")
-                        children.forEach { child ->
-                            OutlinedButton(
-                                onClick = { selectedAgreementChildId = child.id },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text(if (child.id == selectedAgreementChild?.id) "✓ ${child.displayName}" else child.displayName) }
-                        }
+                        children.forEach { child -> OutlinedButton(onClick = { selectedAgreementChildId = child.id }, modifier = Modifier.fillMaxWidth()) { Text(if (child.id == selectedAgreementChild?.id) "✓ ${child.displayName}" else child.displayName) } }
                         Text("Perfil seleccionado: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
                         OutlinedTextField(agreementMinutes, { agreementMinutes = it.filter(Char::isDigit).take(4) }, Modifier.fillMaxWidth(), label = { Text("Minutos diarios acordados") })
                         OutlinedTextField(agreementGoal, { agreementGoal = it }, Modifier.fillMaxWidth(), label = { Text("Objetivo de la familia") })
                         OutlinedTextField(agreementConsequence, { agreementConsequence = it }, Modifier.fillMaxWidth(), label = { Text("Qué hacer si se incumple") })
                         OutlinedTextField(agreementReviewDate, { agreementReviewDate = it }, Modifier.fillMaxWidth(), label = { Text("Fecha de revisión (AAAA-MM-DD)") })
-                        Button(
-                            enabled = selectedAgreementChild != null && agreementMinutes.toIntOrNull()?.let { it in 1..1440 } == true && agreementGoal.isNotBlank() && isValidFamilyAgreementDate(agreementReviewDate),
-                            onClick = {
-                                val child = selectedAgreementChild ?: return@Button
-                                val saved = FamilyAgreement(
-                                    childProfileId = child.id,
-                                    dailyMinutes = agreementMinutes.toInt(),
-                                    goal = agreementGoal.trim(),
-                                    consequence = agreementConsequence.trim(),
-                                    reviewDate = agreementReviewDate.trim()
-                                )
-                                agreementStore.save(saved)
-                                agreement = saved
-                                message = "Acuerdo de ${child.displayName} guardado. Famyrex observará y explicará el cumplimiento."
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text(if (agreement == null) "Crear acuerdo" else "Actualizar acuerdo") }
+                        Button(enabled = selectedAgreementChild != null && agreementMinutes.toIntOrNull()?.let { it in 1..1440 } == true && agreementGoal.isNotBlank() && isValidFamilyAgreementDate(agreementReviewDate), onClick = {
+                            val child = selectedAgreementChild ?: return@Button
+                            val saved = FamilyAgreement(childProfileId = child.id, dailyMinutes = agreementMinutes.toInt(), goal = agreementGoal.trim(), consequence = agreementConsequence.trim(), reviewDate = agreementReviewDate.trim())
+                            agreementStore.save(saved); agreement = saved; message = "Acuerdo de ${child.displayName} guardado. Famyrex observará y explicará el cumplimiento."
+                        }, modifier = Modifier.fillMaxWidth()) { Text(if (agreement == null) "Crear acuerdo" else "Actualizar acuerdo") }
                         if (agreement != null) {
-                            OutlinedButton(onClick = {
-                                val childId = selectedAgreementChild?.id ?: return@OutlinedButton
-                                agreementStore.clear(childId)
-                                agreement = null
-                                message = "Acuerdo de ${selectedAgreementChild?.displayName ?: "este perfil"} eliminado de este dispositivo."
-                            }, modifier = Modifier.fillMaxWidth()) { Text("Eliminar acuerdo") }
+                            OutlinedButton(onClick = { val childId = selectedAgreementChild?.id ?: return@OutlinedButton; agreementStore.clear(childId); agreement = null; message = "Acuerdo eliminado de este dispositivo." }, modifier = Modifier.fillMaxWidth()) { Text("Eliminar acuerdo") }
                             Text("Revisión prevista: ${agreement!!.reviewDate}")
                         }
                     }
                 }
             }
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Vinculación familiar en la nube", style = MaterialTheme.typography.titleMedium)
                     Text("Genera un código temporal desde la cuenta del adulto. El código queda ligado al perfil infantil seleccionado y se consume una sola vez.")
-                    if (children.isEmpty()) {
-                        Text("⚪ Crea primero un perfil infantil para generar una invitación.")
-                    } else {
+                    if (children.isEmpty()) Text("⚪ Crea primero un perfil infantil para generar una invitación.") else {
                         Text("Perfil seleccionado: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
-                        Button(
-                            enabled = selectedAgreementChild != null && !cloudPairingLoading,
-                            onClick = {
-                                val child = selectedAgreementChild ?: return@Button
-                                val familyId = cloudFamilyRepository.cachedFamilyId()
-                                if (familyId.isNullOrBlank()) {
-                                    message = "La familia todavía no tiene una identidad Firebase activa. Completa primero el acceso del adulto."
-                                    return@Button
-                                }
-                                cloudPairingLoading = true
-                                pairingService.createInvite(
-                                    familyId = familyId,
-                                    childLabel = child.displayName,
-                                    famyrexMemberId = child.id,
-                                    onSuccess = { code, token, expiresAtMs ->
-                                        cloudCode = code
-                                        cloudToken = token
-                                        cloudExpiresAtMs = expiresAtMs
-                                        cloudPairingLoading = false
-                                        message = "Código cloud generado para ${child.displayName}."
-                                    },
-                                    onError = { error ->
-                                        cloudPairingLoading = false
-                                        message = error
-                                    }
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text(if (cloudPairingLoading) "Generando código…" else "Generar código de vinculación") }
-
+                        Button(enabled = selectedAgreementChild != null && !cloudPairingLoading, onClick = {
+                            val child = selectedAgreementChild ?: return@Button
+                            val familyId = cloudFamilyRepository.cachedFamilyId()
+                            if (familyId.isNullOrBlank()) { message = "La familia todavía no tiene una identidad Firebase activa. Completa primero el acceso del adulto."; return@Button }
+                            cloudPairingLoading = true
+                            pairingService.createInvite(familyId = familyId, childLabel = child.displayName, famyrexMemberId = child.id,
+                                onSuccess = { code, token, expiresAtMs -> cloudCode = code; cloudToken = token; cloudExpiresAtMs = expiresAtMs; cloudPairingLoading = false; message = "Código cloud generado para ${child.displayName}." },
+                                onError = { error -> cloudPairingLoading = false; message = error })
+                        }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudPairingLoading) "Generando código…" else "Generar código de vinculación") }
                         if (cloudCode.isNotBlank()) {
-                            Text("Código", style = MaterialTheme.typography.labelLarge)
-                            Text(cloudCode, style = MaterialTheme.typography.headlineMedium)
-                            Text("Perfil: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
-                            cloudExpiresAtMs?.let { expiresAt ->
-                                val remainingMinutes = ((expiresAt - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1
-                                Text("Caduca en aproximadamente $remainingMinutes min")
-                            }
+                            Text("Código", style = MaterialTheme.typography.labelLarge); Text(cloudCode, style = MaterialTheme.typography.headlineMedium); Text("Perfil: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
+                            cloudExpiresAtMs?.let { expiresAt -> Text("Caduca en aproximadamente ${((expiresAt - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min") }
                             Text("Entrega este código al dispositivo supervisado. El token técnico no se muestra en pantalla ni se guarda en Firestore en claro.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
         }
-
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Control remoto familiar", style = MaterialTheme.typography.titleMedium)
+                    Text("Administra a distancia los dispositivos infantiles que ya estén vinculados a la familia cloud.")
+                    if (cloudFamilyId.isNullOrBlank()) {
+                        Text("⚪ Conecta primero la cuenta del adulto con Firebase para habilitar el control remoto.")
+                    } else {
+                        Text("🟢 Familia cloud conectada", color = MaterialTheme.colorScheme.primary)
+                        Button(onClick = onOpenRemoteControl, modifier = Modifier.fillMaxWidth()) { Text("Abrir control remoto") }
+                    }
+                }
+            }
+        }
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Vinculación offline segura", style = MaterialTheme.typography.titleMedium)
                     Text("La invitación local sigue disponible como respaldo cuando no se utiliza la familia conectada. Identifica también al perfil infantil seleccionado y caduca.")
                     invitation?.let { token ->
-                        Text("Código de vinculación", style = MaterialTheme.typography.labelLarge)
-                        Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium)
-                        Text("Familia: ${token.familyId.take(12)}…")
-                        Text("Perfil: ${token.childDisplayName}")
-                        Text("Clave de invitación", style = MaterialTheme.typography.labelLarge)
-                        Text(OfflinePairingTokenCodec.encode(token))
-                        Text("Huella: ${OfflinePairingTokenCodec.fingerprint(token.secret)}")
-                        Text("Caduca en ${((token.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
+                        Text("Código de vinculación", style = MaterialTheme.typography.labelLarge); Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium); Text("Familia: ${token.familyId.take(12)}…"); Text("Perfil: ${token.childDisplayName}"); Text("Clave de invitación", style = MaterialTheme.typography.labelLarge); Text(OfflinePairingTokenCodec.encode(token)); Text("Huella: ${OfflinePairingTokenCodec.fingerprint(token.secret)}"); Text("Caduca en ${((token.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
                     }
-                    Button(
-                        enabled = selectedAgreementChild != null,
-                        onClick = {
-                            val child = selectedAgreementChild ?: return@Button
-                            val token = OfflinePairingTokenCodec.create(
-                                familyId = identityStore.identity().familyId,
-                                childProfileId = child.id,
-                                childDisplayName = child.displayName,
-                                now = System.currentTimeMillis()
-                            )
-                            invitation = token
-                            message = "Invitación offline generada para ${child.displayName}."
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Generar invitación offline") }
+                    Button(enabled = selectedAgreementChild != null, onClick = { val child = selectedAgreementChild ?: return@Button; invitation = OfflinePairingTokenCodec.create(familyId = identityStore.identity().familyId, childProfileId = child.id, childDisplayName = child.displayName, now = System.currentTimeMillis()); message = "Invitación offline generada para ${child.displayName}." }, modifier = Modifier.fillMaxWidth()) { Text("Generar invitación offline") }
                 }
             }
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -270,28 +197,16 @@ fun FamilyCoreScreen(
                     if (devices.isEmpty()) Text("⚪ Ningún dispositivo vinculado")
                     devices.forEach { device ->
                         val child = profiles.firstOrNull { it.id == device.ownerProfileId }
-                        val state = when (device.linkState) {
-                            DeviceLinkState.LINKED -> "🟢 VINCULADO"
-                            DeviceLinkState.PENDING -> "🟠 PENDIENTE"
-                            DeviceLinkState.UNLINKED -> "⚪ SIN VINCULAR"
-                        }
+                        val state = when (device.linkState) { DeviceLinkState.LINKED -> "🟢 VINCULADO"; DeviceLinkState.PENDING -> "🟠 PENDIENTE"; DeviceLinkState.UNLINKED -> "⚪ SIN VINCULAR" }
                         Text("📱 ${device.displayName} · ${child?.displayName ?: "perfil no encontrado"} · $state")
                     }
                     if (children.isNotEmpty()) {
                         OutlinedTextField(deviceName, { deviceName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del dispositivo") })
-                        Button(enabled = deviceName.isNotBlank(), onClick = {
-                            val child = selectedAgreementChild ?: children.first()
-                            store.addDevice(deviceName.trim(), child.id)
-                            deviceName = ""
-                            devices = store.devices()
-                            message = "Dispositivo preparado para vincular con ${child.displayName}."
-                            onFamilyChanged()
-                        }, modifier = Modifier.fillMaxWidth()) { Text("Preparar dispositivo") }
+                        Button(enabled = deviceName.isNotBlank(), onClick = { val child = selectedAgreementChild ?: children.first(); store.addDevice(deviceName.trim(), child.id); deviceName = ""; devices = store.devices(); message = "Dispositivo preparado para vincular con ${child.displayName}."; onFamilyChanged() }, modifier = Modifier.fillMaxWidth()) { Text("Preparar dispositivo") }
                     }
                 }
             }
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -301,22 +216,15 @@ fun FamilyCoreScreen(
                 }
             }
         }
-
         item {
-            HorizontalDivider()
-            Text("Modo de esta instalación", style = MaterialTheme.typography.titleMedium)
-            Text("El modo supervisado está pensado para el dispositivo del menor: interfaz mínima y funciones de protección, sin panel de administración.")
+            HorizontalDivider(); Text("Modo de esta instalación", style = MaterialTheme.typography.titleMedium); Text("El modo supervisado está pensado para el dispositivo del menor: interfaz mínima y funciones de protección, sin panel de administración.")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { store.setAppMode(FamyrexAppMode.PARENT); message = "Esta instalación queda marcada como dispositivo de padres." }, modifier = Modifier.weight(1f)) { Text("Padres") }
                 OutlinedButton(onClick = { store.setAppMode(FamyrexAppMode.SUPERVISED); message = "Esta instalación queda marcada como dispositivo supervisado." }, modifier = Modifier.weight(1f)) { Text("Supervisado") }
             }
             Text("Modo actual: ${if (store.appMode() == FamyrexAppMode.PARENT) "PARENT" else "SUPERVISED"}")
         }
-
         if (message.isNotBlank()) item { Text(message) }
-        item {
-            Text("Protección y transparencia", style = MaterialTheme.typography.titleMedium)
-            Text("La vinculación debe hacerse con autorización y permisos visibles. El modo supervisado no es una aplicación espía: no lee chats privados, no graba llamadas y no oculta la supervisión de forma clandestina.")
-        }
+        item { Text("Protección y transparencia", style = MaterialTheme.typography.titleMedium); Text("La vinculación debe hacerse con autorización y permisos visibles. El modo supervisado no es una aplicación espía: no lee chats privados, no graba llamadas y no oculta la supervisión de forma clandestina.") }
     }
 }
