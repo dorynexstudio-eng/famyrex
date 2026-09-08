@@ -34,6 +34,8 @@ fun FamilyCoreScreen(
 ) {
     val store = remember { FamilyStore(context) }
     val identityStore = remember { FamilyIdentityStore(context) }
+    val cloudFamilyRepository = remember { FamyrexCloudFamilyRepository(context) }
+    val pairingService = remember { FamyrexPairingService(context) }
     val agreementStore = remember { FamilyAgreementStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var devices by remember { mutableStateOf(store.devices()) }
@@ -47,6 +49,10 @@ fun FamilyCoreScreen(
     var agreementConsequence by remember { mutableStateOf(agreement?.consequence ?: "Hablarlo juntos y aplicar lo pactado") }
     var agreementReviewDate by remember { mutableStateOf(agreement?.reviewDate ?: LocalDate.now().plusDays(30).toString()) }
     var invitation by remember { mutableStateOf<OfflinePairingToken?>(null) }
+    var cloudCode by remember { mutableStateOf("") }
+    var cloudToken by remember { mutableStateOf("") }
+    var cloudExpiresAtMs by remember { mutableStateOf<Long?>(null) }
+    var cloudPairingLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -172,8 +178,62 @@ fun FamilyCoreScreen(
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Vinculación familiar en la nube", style = MaterialTheme.typography.titleMedium)
+                    Text("Genera un código temporal desde la cuenta del adulto. El código queda ligado al perfil infantil seleccionado y se consume una sola vez.")
+                    if (children.isEmpty()) {
+                        Text("⚪ Crea primero un perfil infantil para generar una invitación.")
+                    } else {
+                        Text("Perfil seleccionado: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
+                        Button(
+                            enabled = selectedAgreementChild != null && !cloudPairingLoading,
+                            onClick = {
+                                val child = selectedAgreementChild ?: return@Button
+                                val familyId = cloudFamilyRepository.cachedFamilyId()
+                                if (familyId.isNullOrBlank()) {
+                                    message = "La familia todavía no tiene una identidad Firebase activa. Completa primero el acceso del adulto."
+                                    return@Button
+                                }
+                                cloudPairingLoading = true
+                                pairingService.createInvite(
+                                    familyId = familyId,
+                                    childLabel = child.displayName,
+                                    famyrexMemberId = child.id,
+                                    onSuccess = { code, token, expiresAtMs ->
+                                        cloudCode = code
+                                        cloudToken = token
+                                        cloudExpiresAtMs = expiresAtMs
+                                        cloudPairingLoading = false
+                                        message = "Código cloud generado para ${child.displayName}."
+                                    },
+                                    onError = { error ->
+                                        cloudPairingLoading = false
+                                        message = error
+                                    }
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (cloudPairingLoading) "Generando código…" else "Generar código de vinculación") }
+
+                        if (cloudCode.isNotBlank()) {
+                            Text("Código", style = MaterialTheme.typography.labelLarge)
+                            Text(cloudCode, style = MaterialTheme.typography.headlineMedium)
+                            Text("Perfil: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
+                            cloudExpiresAtMs?.let { expiresAt ->
+                                val remainingMinutes = ((expiresAt - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1
+                                Text("Caduca en aproximadamente $remainingMinutes min")
+                            }
+                            Text("Entrega este código al dispositivo supervisado. El token técnico no se muestra en pantalla ni se guarda en Firestore en claro.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Vinculación offline segura", style = MaterialTheme.typography.titleMedium)
-                    Text("La invitación identifica también al perfil infantil seleccionado. El código de 6 dígitos se deriva con HMAC y caduca.")
+                    Text("La invitación local sigue disponible como respaldo cuando no se utiliza la familia conectada. Identifica también al perfil infantil seleccionado y caduca.")
                     invitation?.let { token ->
                         Text("Código de vinculación", style = MaterialTheme.typography.labelLarge)
                         Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium)
@@ -195,11 +255,10 @@ fun FamilyCoreScreen(
                                 now = System.currentTimeMillis()
                             )
                             invitation = token
-                            message = "Invitación generada para ${child.displayName}. Transfiere la clave y el código al dispositivo supervisado de ese hijo/a."
+                            message = "Invitación offline generada para ${child.displayName}."
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Generar invitación para ${selectedAgreementChild?.displayName ?: "hijo/a"}") }
-                    Text("Sin servidor: el dispositivo supervisado verifica localmente que el código corresponde a la familia, al perfil seleccionado, a la clave y a la caducidad mostradas aquí.")
+                    ) { Text("Generar invitación offline") }
                 }
             }
         }
