@@ -20,6 +20,15 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val targetPackage = event?.packageName?.toString() ?: return
         val launcherPackage = resolveLauncherPackage()
+
+        // A remote emergency lock is an explicit parent command and takes
+        // precedence over per-app policy. It is still enforced through the
+        // user-enabled accessibility guard rather than covert device control.
+        if (DeviceEmergencyLockStore(this).isLocked()) {
+            showBlockingOverlay(targetPackage, listOf("El dispositivo está bloqueado temporalmente por un adulto autorizado."))
+            return
+        }
+
         if (!ProtectionSurfacePolicy.shouldEvaluate(targetPackage, packageName, launcherPackage)) {
             removeBlockingOverlay()
             return
