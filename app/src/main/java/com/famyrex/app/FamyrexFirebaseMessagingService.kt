@@ -1,5 +1,6 @@
 package com.famyrex.app
 
+import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -14,7 +15,9 @@ class FamyrexFirebaseMessagingService : FirebaseMessagingService() {
             command.deviceId != identity.deviceId
         ) return
 
-        FamilyRemoteCommandExecutor(this).execute(command, identity)
+        val receipt = FamilyRemoteCommandExecutor(this).execute(command, identity)
+        RemoteCommandReceiptStore(this).save(receipt)
+        if (!receipt.success) Log.w(TAG, "Remote command rejected: ${receipt.reason}")
     }
 
     override fun onNewToken(token: String) {
@@ -25,5 +28,6 @@ class FamyrexFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val KEY_COMMAND = "famyrex_command"
+        private const val TAG = "FamyrexFCM"
     }
 }
