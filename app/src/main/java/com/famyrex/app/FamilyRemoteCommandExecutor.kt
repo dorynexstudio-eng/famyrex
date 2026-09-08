@@ -11,6 +11,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
     private val gate = FamilyCommandGate(appContext)
     private val policyStore = ParentalControlStore(appContext)
     private val emergencyLockStore = DeviceEmergencyLockStore(appContext)
+    private val extraTimeStore = ExtraTimeAllowanceStore(appContext)
 
     fun execute(
         command: FamilyControlCommand,
@@ -30,6 +31,16 @@ class FamilyRemoteCommandExecutor(context: Context) {
             FamilyControlAction.UNLOCK_DEVICE -> {
                 emergencyLockStore.setLocked(false)
                 receiptSuccess(command, nowMs)
+            }
+            FamilyControlAction.GRANT_EXTRA_TIME -> {
+                val minutes = command.value?.trim()?.toIntOrNull()
+                if (minutes == null || minutes !in 1..1440) {
+                    receipt(command, nowMs, "El tiempo extra debe estar entre 1 y 1440 minutos.")
+                } else if (extraTimeStore.grantMinutes(minutes)) {
+                    receiptSuccess(command, nowMs)
+                } else {
+                    receipt(command, nowMs, "No se pudo guardar el tiempo extra.")
+                }
             }
             FamilyControlAction.SYNC_POLICY -> {
                 val snapshot = DevicePolicySnapshotCodec.decode(command.value.orEmpty())
@@ -77,8 +88,6 @@ class FamilyRemoteCommandExecutor(context: Context) {
         )
 
     companion object {
-        // check + execution + complete must be atomic within this process;
-        // otherwise two FCM callbacks could both pass the replay check.
         private val EXECUTION_LOCK = Any()
     }
 }
