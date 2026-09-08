@@ -4,9 +4,16 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class RemoteCommandAuditStoreTest {
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("famyrex_remote_command_audit", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
     @Test
     fun recordsSuccessfulAndFailedReceiptsWithoutPayload() {
         val context = ApplicationProvider.getApplicationContext<Context>()
