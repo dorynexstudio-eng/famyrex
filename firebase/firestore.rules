@@ -33,7 +33,11 @@ service cloud.firestore {
 
     match /families/{familyId}/devices/{deviceUid} {
       allow read: if memberExists(familyId) && (isParent(familyId) || request.auth.uid == deviceUid);
-      allow create, update: if isChild(familyId) && deviceUid == request.auth.uid && request.resource.data.uid == request.auth.uid && request.resource.data.memberUid == request.auth.uid;
+      allow create: if isChild(familyId) && deviceUid == request.auth.uid && request.resource.data.uid == request.auth.uid && request.resource.data.memberUid == request.auth.uid;
+      allow update: if isChild(familyId) && deviceUid == request.auth.uid &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.memberUid == resource.data.memberUid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appInventory', 'appInventoryUpdatedAtMs', 'appInventoryUpdatedAt']);
       allow delete: if isParent(familyId);
     }
 
