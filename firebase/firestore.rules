@@ -40,6 +40,21 @@ service cloud.firestore {
     match /families/{familyId}/commands/{commandId} {
       allow read: if isParent(familyId) || (isChild(familyId) && resource.data.targetDeviceUid == request.auth.uid);
       allow create, update, delete: if false;
+
+      match /receipts/{deviceId} {
+        allow read: if isParent(familyId);
+        allow create: if isChild(familyId) && deviceId == request.auth.uid &&
+          exists(/databases/$(database)/documents/families/$(familyId)/commands/$(commandId)) &&
+          get(/databases/$(database)/documents/families/$(familyId)/commands/$(commandId)).data.targetDeviceUid == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['deviceId', 'memberId', 'action', 'acceptedAtMs', 'completedAtMs', 'success', 'reason']) &&
+          request.resource.data.deviceId == deviceId &&
+          request.resource.data.memberId is string &&
+          request.resource.data.action is string &&
+          request.resource.data.acceptedAtMs is int &&
+          request.resource.data.completedAtMs is int &&
+          request.resource.data.success is bool;
+        allow update, delete: if false;
+      }
     }
   }
 }
