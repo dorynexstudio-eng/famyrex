@@ -8,7 +8,7 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.UUID
 
-/** Adult-side gateway for discovering supervised devices and issuing trusted commands. */
+/** Adult-side gateway for discovering supervised devices, issuing commands and reading execution status. */
 class FamilyCloudControlRepository(context: Context) {
     private val appContext = context.applicationContext
 
@@ -82,6 +82,51 @@ class FamilyCloudControlRepository(context: Context) {
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
+    fun loadCommandReceipt(
+        familyId: String,
+        commandId: String,
+        deviceId: String,
+        onSuccess: (CloudCommandReceipt?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (familyId.isBlank() || commandId.isBlank() || deviceId.isBlank()) {
+            onError("No se puede consultar el recibo sin una identidad completa.")
+            return
+        }
+        if (!isAdultConfigured()) {
+            onError("La cuenta de adulto todavía no está conectada a Firebase.")
+            return
+        }
+        FirebaseFirestore.getInstance()
+            .collection("families").document(familyId)
+            .collection("commands").document(commandId)
+            .collection("receipts").document(deviceId)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                if (!snapshot.exists()) {
+                    onSuccess(null)
+                    return@addOnSuccessListener
+                }
+                val action = runCatching { FamilyControlAction.valueOf(snapshot.getString("action").orEmpty()) }.getOrNull()
+                if (action == null) {
+                    onError("El recibo remoto tiene una acción no reconocida.")
+                    return@addOnSuccessListener
+                }
+                onSuccess(
+                    CloudCommandReceipt(
+                        commandId = commandId,
+                        deviceId = snapshot.getString("deviceId").orEmpty(),
+                        action = action,
+                        success = snapshot.getBoolean("success") == true,
+                        acceptedAtMs = snapshot.getLong("acceptedAtMs") ?: 0L,
+                        completedAtMs = snapshot.getLong("completedAtMs"),
+                        reason = snapshot.getString("reason")
+                    )
+                )
+            }
+            .addOnFailureListener { onError(it.message ?: "No se pudo consultar el estado de la orden.") }
+    }
+
     private fun isAdultConfigured(): Boolean =
         FirebaseApp.getApps(appContext).isNotEmpty() &&
             FirebaseAuth.getInstance().currentUser?.isAnonymous == false
@@ -99,4 +144,14 @@ data class CloudChildDevice(
     val memberId: String,
     val displayName: String,
     val deviceId: String
+)
+
+data class CloudCommandReceipt(
+    val commandId: String,
+    val deviceId: String,
+    val action: FamilyControlAction,
+    val success: Boolean,
+    val acceptedAtMs: Long,
+    val completedAtMs: Long?,
+    val reason: String?
 )
