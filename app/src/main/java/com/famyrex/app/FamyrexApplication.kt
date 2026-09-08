@@ -16,5 +16,7 @@ class FamyrexApplication : Application() {
         // Re-register on every process start so backend delivery remains recoverable
         // even when FCM did not issue a new token callback.
         FamilyDeviceTokenRegistrar.register(this)
+        // FCM is the fast path; WorkManager periodically recovers commands missed while offline.
+        FamyrexWorkScheduler.scheduleProtectionHealth(this)
     }
 }
