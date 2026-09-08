@@ -1,7 +1,9 @@
 package com.famyrex.app
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -12,6 +14,7 @@ object FamyrexWorkScheduler {
     private const val HOURLY_USAGE_WORK = "famyrex_hourly_usage"
     private const val REPORT_WORK = "famyrex_reports"
     private const val AI_ANALYSIS_WORK = "famyrex_ai_analysis_daily"
+    private const val REMOTE_COMMAND_WORK = "famyrex_remote_command_recovery"
 
     fun scheduleProtectionHealth(context: Context) {
         val appContext = context.applicationContext
@@ -33,5 +36,13 @@ object FamyrexWorkScheduler {
 
         val aiRequest = PeriodicWorkRequestBuilder<AiAnalysisWorker>(24, TimeUnit.HOURS).build()
         workManager.enqueueUniquePeriodicWork(AI_ANALYSIS_WORK, ExistingPeriodicWorkPolicy.KEEP, aiRequest)
+
+        val remoteConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val remoteRequest = PeriodicWorkRequestBuilder<RemoteCommandQueueWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(remoteConstraints)
+            .build()
+        workManager.enqueueUniquePeriodicWork(REMOTE_COMMAND_WORK, ExistingPeriodicWorkPolicy.KEEP, remoteRequest)
     }
 }
