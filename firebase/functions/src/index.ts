@@ -9,11 +9,7 @@ initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
-setGlobalOptions({
-  region: "europe-west1",
-  enforceAppCheck: true,
-  maxInstances: 10,
-});
+setGlobalOptions({ region: "europe-west1", enforceAppCheck: true, maxInstances: 10 });
 
 const INVITE_TTL_MS = 15 * 60 * 1000;
 const PARENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -27,29 +23,25 @@ const ALLOWED_COMMAND_ACTIONS = new Set([
   "APPLY_WEB_POLICY", "SYNC_POLICY",
 ]);
 
-function sha256(value: string): string {
-  return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
+function sha256(value: string): string { return createHash("sha256").update(value, "utf8").digest("hex"); }
 function normalizeCode(value: unknown): string {
   const code = String(value ?? "").replace(/\D/g, "");
   if (!/^\d{6}$/.test(code)) throw new HttpsError("invalid-argument", "El código debe tener 6 dígitos.");
   return code;
 }
-
+function normalizeDeviceId(value: unknown): string {
+  const id = String(value ?? "").trim();
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(id)) throw new HttpsError("invalid-argument", "El identificador del dispositivo no es válido.");
+  return id;
+}
 function requireParent(request: any): string {
   if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
-  if (request.auth.token.firebase?.sign_in_provider !== "google.com") {
-    throw new HttpsError("permission-denied", "Solo un adulto autenticado con Google puede realizar esta operación.");
-  }
+  if (request.auth.token.firebase?.sign_in_provider !== "google.com") throw new HttpsError("permission-denied", "Solo un adulto autenticado con Google puede realizar esta operación.");
   return request.auth.uid;
 }
-
 function requireAnonymousDevice(request: any): string {
   if (!request.auth) throw new HttpsError("unauthenticated", "El dispositivo todavía no tiene una identidad temporal.");
-  if (request.auth.token.firebase?.sign_in_provider !== "anonymous") {
-    throw new HttpsError("permission-denied", "Esta operación está reservada al dispositivo infantil.");
-  }
+  if (request.auth.token.firebase?.sign_in_provider !== "anonymous") throw new HttpsError("permission-denied", "Esta operación está reservada al dispositivo infantil.");
   if (!request.app) throw new HttpsError("failed-precondition", "No se pudo verificar que la solicitud procede de Famyrex.");
   return request.auth.uid;
 }
@@ -68,8 +60,7 @@ export const createPairingInvite = onCall(async (request) => {
   const expiresAt = Timestamp.fromMillis(now + INVITE_TTL_MS);
   const inviteId = randomBytes(16).toString("hex");
   const token = randomBytes(32).toString("base64url");
-  let code = "";
-  let codeHash = "";
+  let code = ""; let codeHash = "";
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const candidate = randomInt(0, 1_000_000).toString().padStart(6, "0");
     const candidateHash = sha256(candidate);
@@ -85,39 +76,34 @@ export const redeemPairingCode = onCall(async (request) => {
   const deviceUid = requireAnonymousDevice(request);
   const code = normalizeCode(request.data?.code);
   const childLabel = String(request.data?.childLabel ?? "Perfil infantil").trim().slice(0, 40) || "Perfil infantil";
+  const famyrexDeviceId = normalizeDeviceId(request.data?.famyrexDeviceId);
   const now = Date.now();
   const rateRef = db.doc(`pairingRateLimits/${deviceUid}`);
   await db.runTransaction(async (tx) => {
-    const rateSnap = await tx.get(rateRef);
-    const rate = rateSnap.exists ? rateSnap.data() ?? {} : {};
-    const windowStartedAt = Number(rate.windowStartedAtMs ?? 0);
-    const attempts = Number(rate.attempts ?? 0);
-    const inWindow = now - windowStartedAt < RATE_WINDOW_MS;
+    const rateSnap = await tx.get(rateRef); const rate = rateSnap.exists ? rateSnap.data() ?? {} : {};
+    const windowStartedAt = Number(rate.windowStartedAtMs ?? 0); const attempts = Number(rate.attempts ?? 0); const inWindow = now - windowStartedAt < RATE_WINDOW_MS;
     if (inWindow && attempts >= MAX_ATTEMPTS) throw new HttpsError("resource-exhausted", "Demasiados intentos. Espera unos minutos antes de volver a probar.");
     tx.set(rateRef, { windowStartedAtMs: inWindow ? windowStartedAt : now, attempts: inWindow ? attempts + 1 : 1, updatedAt: Timestamp.fromMillis(now) });
   });
   const matches = await db.collectionGroup("invites").where("codeHash", "==", sha256(code)).where("status", "==", "active").limit(1).get();
   if (matches.empty) throw new HttpsError("not-found", "Código no válido o caducado.");
-  const inviteDoc = matches.docs[0];
-  const inviteData = inviteDoc.data();
-  const familyRef = inviteDoc.ref.parent.parent;
+  const inviteDoc = matches.docs[0]; const inviteData = inviteDoc.data(); const familyRef = inviteDoc.ref.parent.parent;
   if (!familyRef) throw new HttpsError("internal", "Invitación de familia inválida.");
   const expiresAt = inviteData.expiresAt as Timestamp | undefined;
   if (!expiresAt || expiresAt.toMillis() <= now) { await inviteDoc.ref.update({ status: "expired" }); throw new HttpsError("deadline-exceeded", "El código de vinculación ha caducado."); }
-  const familyId = familyRef.id;
-  const memberRef = familyRef.collection("members").doc(deviceUid);
+  const familyId = familyRef.id; const memberRef = familyRef.collection("members").doc(deviceUid); const deviceRef = familyRef.collection("devices").doc(deviceUid);
   await db.runTransaction(async (tx) => {
-    const freshInvite = await tx.get(inviteDoc.ref);
-    if (!freshInvite.exists || freshInvite.data()?.status !== "active") throw new HttpsError("already-exists", "Esta invitación ya ha sido utilizada.");
+    const freshInvite = await tx.get(inviteDoc.ref); if (!freshInvite.exists || freshInvite.data()?.status !== "active") throw new HttpsError("already-exists", "Esta invitación ya ha sido utilizada.");
     const freshMember = await tx.get(memberRef);
     if (freshMember.exists) {
-      if (freshMember.data()?.role === "child") { tx.update(inviteDoc.ref, { status: "used", usedAt: Timestamp.fromMillis(now), usedByUid: deviceUid }); return; }
+      if (freshMember.data()?.role === "child" && freshMember.data()?.famyrexDeviceId === famyrexDeviceId) { tx.update(inviteDoc.ref, { status: "used", usedAt: Timestamp.fromMillis(now), usedByUid: deviceUid }); return; }
       throw new HttpsError("already-exists", "Este dispositivo ya pertenece a una familia.");
     }
-    tx.set(memberRef, { uid: deviceUid, role: "child", displayName: childLabel || inviteData.childLabel || "Perfil infantil", createdAt: Timestamp.fromMillis(now), status: "active", deviceUid });
+    tx.set(memberRef, { uid: deviceUid, role: "child", displayName: childLabel || inviteData.childLabel || "Perfil infantil", createdAt: Timestamp.fromMillis(now), status: "active", deviceUid, famyrexDeviceId });
+    tx.set(deviceRef, { uid: deviceUid, memberUid: deviceUid, role: "child", famyrexDeviceId, createdAt: Timestamp.fromMillis(now), linkedAt: Timestamp.fromMillis(now) }, { merge: true });
     tx.update(inviteDoc.ref, { status: "used", usedAt: Timestamp.fromMillis(now), usedByUid: deviceUid });
   });
-  return { familyId, childUid: deviceUid, linkedAtMs: now };
+  return { familyId, childUid: deviceUid, famyrexDeviceId, linkedAtMs: now };
 });
 
 export const registerDeviceToken = onCall(async (request) => {
@@ -125,41 +111,33 @@ export const registerDeviceToken = onCall(async (request) => {
   const familyId = String(request.data?.familyId ?? "").trim();
   const token = String(request.data?.token ?? "").trim();
   if (!familyId || !token || token.length > 4096) throw new HttpsError("invalid-argument", "Datos de dispositivo incompletos.");
-  const memberRef = db.doc(`families/${familyId}/members/${deviceUid}`);
-  const member = await memberRef.get();
-  if (!member.exists || member.data()?.role !== "child" || member.data()?.deviceUid !== deviceUid) throw new HttpsError("permission-denied", "El dispositivo no pertenece a esta familia.");
-  await db.doc(`families/${familyId}/devices/${deviceUid}`).set({ uid: deviceUid, memberUid: deviceUid, role: "child", fcmToken: token, updatedAt: Timestamp.now() }, { merge: true });
-  return { registered: true };
+  const memberRef = db.doc(`families/${familyId}/members/${deviceUid}`); const member = await memberRef.get();
+  if (!member.exists || member.data()?.role !== "child" || member.data()?.deviceUid !== deviceUid || typeof member.data()?.famyrexDeviceId !== "string") throw new HttpsError("permission-denied", "El dispositivo no pertenece a esta familia.");
+  const famyrexDeviceId = normalizeDeviceId(member.data()?.famyrexDeviceId);
+  await db.doc(`families/${familyId}/devices/${deviceUid}`).set({ uid: deviceUid, memberUid: deviceUid, role: "child", famyrexDeviceId, fcmToken: token, updatedAt: Timestamp.now() }, { merge: true });
+  return { registered: true, famyrexDeviceId };
 });
 
 export const issueFamilyCommand = onCall(async (request) => {
   const parentUid = requireParent(request);
-  const familyId = String(request.data?.familyId ?? "").trim();
-  const targetDeviceUid = String(request.data?.targetDeviceUid ?? "").trim();
-  const memberId = String(request.data?.memberId ?? "").trim();
-  const commandId = String(request.data?.commandId ?? randomBytes(16).toString("hex")).trim();
-  const action = String(request.data?.action ?? "").trim();
-  const value = request.data?.value == null ? null : String(request.data.value);
+  const familyId = String(request.data?.familyId ?? "").trim(); const targetDeviceUid = String(request.data?.targetDeviceUid ?? "").trim(); const memberId = String(request.data?.memberId ?? "").trim();
+  const commandId = String(request.data?.commandId ?? randomBytes(16).toString("hex")).trim(); const action = String(request.data?.action ?? "").trim(); const value = request.data?.value == null ? null : String(request.data.value);
   if (!familyId || !targetDeviceUid || !memberId || !commandId || !ALLOWED_COMMAND_ACTIONS.has(action)) throw new HttpsError("invalid-argument", "Comando incompleto o acción no permitida.");
   if (value !== null && value.length > MAX_COMMAND_VALUE_LENGTH) throw new HttpsError("invalid-argument", "El contenido del comando es demasiado grande.");
-  const memberRef = db.doc(`families/${familyId}/members/${parentUid}`);
-  const targetRef = db.doc(`families/${familyId}/members/${targetDeviceUid}`);
-  const targetDeviceRef = db.doc(`families/${familyId}/devices/${targetDeviceUid}`);
+  const memberRef = db.doc(`families/${familyId}/members/${parentUid}`); const targetRef = db.doc(`families/${familyId}/members/${targetDeviceUid}`); const targetDeviceRef = db.doc(`families/${familyId}/devices/${targetDeviceUid}`);
   const [parent, target, device] = await Promise.all([memberRef.get(), targetRef.get(), targetDeviceRef.get()]);
   if (!parent.exists || parent.data()?.role !== "parent") throw new HttpsError("permission-denied", "No perteneces a esta familia como adulto.");
   if (!target.exists || target.data()?.role !== "child" || target.data()?.uid !== targetDeviceUid) throw new HttpsError("permission-denied", "El dispositivo destino no es un perfil infantil válido.");
   if (target.data()?.memberId && target.data()?.memberId !== memberId) throw new HttpsError("permission-denied", "El miembro destino no coincide.");
   if (!device.exists || device.data()?.uid !== targetDeviceUid || typeof device.data()?.fcmToken !== "string") throw new HttpsError("failed-precondition", "El dispositivo infantil no tiene un token de entrega registrado.");
-  const issuedAtMs = Date.now();
-  const expiresAtMs = issuedAtMs + COMMAND_TTL_MS;
-  const command = { commandId, familyId, memberId, deviceId: targetDeviceUid, action, issuedAtMs, expiresAtMs, value, requiresAdultConfirmation: true };
-  const commandRef = db.doc(`families/${familyId}/commands/${commandId}`);
-  const existing = await commandRef.get();
+  const famyrexDeviceId = normalizeDeviceId(device.data()?.famyrexDeviceId ?? target.data()?.famyrexDeviceId);
+  const issuedAtMs = Date.now(); const expiresAtMs = issuedAtMs + COMMAND_TTL_MS;
+  const command = { commandId, familyId, memberId, deviceId: famyrexDeviceId, action, issuedAtMs, expiresAtMs, value, requiresAdultConfirmation: true };
+  const commandRef = db.doc(`families/${familyId}/commands/${commandId}`); const existing = await commandRef.get();
   if (existing.exists) throw new HttpsError("already-exists", "El identificador de comando ya existe.");
-  await commandRef.create({ ...command, createdByUid: parentUid, status: "sent", createdAt: Timestamp.fromMillis(issuedAtMs) });
-  const payload = JSON.stringify(command);
+  await commandRef.create({ ...command, targetDeviceUid, createdByUid: parentUid, status: "sent", createdAt: Timestamp.fromMillis(issuedAtMs) });
   try {
-    await messaging.send({ token: device.data()!.fcmToken, data: { famyrex_command: payload } });
+    await messaging.send({ token: device.data()!.fcmToken, data: { famyrex_command: JSON.stringify(command) } });
   } catch (error: any) {
     await commandRef.update({ status: "delivery_failed", deliveryError: String(error?.code ?? "unknown").slice(0, 120) });
     throw new HttpsError("unavailable", "No se pudo entregar el comando al dispositivo.");
@@ -168,43 +146,27 @@ export const issueFamilyCommand = onCall(async (request) => {
 });
 
 export const createParentInvite = onCall(async (request) => {
-  const parentUid = requireParent(request);
-  const familyId = String(request.data?.familyId ?? "").trim();
+  const parentUid = requireParent(request); const familyId = String(request.data?.familyId ?? "").trim();
   if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
-  const member = await db.doc(`families/${familyId}/members/${parentUid}`).get();
-  if (!member.exists || member.data()?.role !== "parent") throw new HttpsError("permission-denied", "No perteneces a esta familia como adulto.");
-  const inviteId = randomBytes(16).toString("hex");
-  const token = randomBytes(32).toString("base64url");
-  const expiresAt = Timestamp.fromMillis(Date.now() + PARENT_INVITE_TTL_MS);
+  const member = await db.doc(`families/${familyId}/members/${parentUid}`).get(); if (!member.exists || member.data()?.role !== "parent") throw new HttpsError("permission-denied", "No perteneces a esta familia como adulto.");
+  const inviteId = randomBytes(16).toString("hex"); const token = randomBytes(32).toString("base64url"); const expiresAt = Timestamp.fromMillis(Date.now() + PARENT_INVITE_TTL_MS);
   await db.doc(`families/${familyId}/parentInvites/${inviteId}`).set({ tokenHash: sha256(token), createdByUid: parentUid, createdAt: Timestamp.now(), expiresAt, status: "active" });
   return { inviteId, token, expiresAtMs: expiresAt.toMillis() };
 });
 
 export const acceptParentInvite = onCall(async (request) => {
-  const newParentUid = requireParent(request);
-  const familyId = String(request.data?.familyId ?? "").trim();
-  const inviteId = String(request.data?.inviteId ?? "").trim();
-  const token = String(request.data?.token ?? "").trim();
-  const displayName = String(request.data?.displayName ?? "Adulto autorizado").trim().slice(0, 60) || "Adulto autorizado";
+  const newParentUid = requireParent(request); const familyId = String(request.data?.familyId ?? "").trim(); const inviteId = String(request.data?.inviteId ?? "").trim(); const token = String(request.data?.token ?? "").trim(); const displayName = String(request.data?.displayName ?? "Adulto autorizado").trim().slice(0, 60) || "Adulto autorizado";
   if (!familyId || !inviteId || !token) throw new HttpsError("invalid-argument", "La invitación de adulto está incompleta.");
-  const inviteRef = db.doc(`families/${familyId}/parentInvites/${inviteId}`);
-  const invite = await inviteRef.get();
+  const inviteRef = db.doc(`families/${familyId}/parentInvites/${inviteId}`); const invite = await inviteRef.get();
   if (!invite.exists || invite.data()?.status !== "active") throw new HttpsError("not-found", "La invitación de adulto no es válida.");
-  const data = invite.data()!;
-  const expiresAt = data.expiresAt as Timestamp | undefined;
+  const data = invite.data()!; const expiresAt = data.expiresAt as Timestamp | undefined;
   if (!expiresAt || expiresAt.toMillis() <= Date.now()) { await inviteRef.update({ status: "expired" }); throw new HttpsError("deadline-exceeded", "La invitación de adulto ha caducado."); }
   if (data.tokenHash !== sha256(token)) throw new HttpsError("permission-denied", "La invitación de adulto no coincide.");
-  const family = await db.doc(`families/${familyId}`).get();
-  if (!family.exists) throw new HttpsError("not-found", "La familia no existe.");
-  const memberRef = db.doc(`families/${familyId}/members/${newParentUid}`);
-  const existing = await memberRef.get();
-  if (existing.exists) {
-    if (existing.data()?.role === "parent") return { familyId, uid: newParentUid, alreadyMember: true };
-    throw new HttpsError("already-exists", "Esta cuenta ya está vinculada a otro perfil de la familia.");
-  }
+  const family = await db.doc(`families/${familyId}`).get(); if (!family.exists) throw new HttpsError("not-found", "La familia no existe.");
+  const memberRef = db.doc(`families/${familyId}/members/${newParentUid}`); const existing = await memberRef.get();
+  if (existing.exists) { if (existing.data()?.role === "parent") return { familyId, uid: newParentUid, alreadyMember: true }; throw new HttpsError("already-exists", "Esta cuenta ya está vinculada a otro perfil de la familia."); }
   await db.runTransaction(async (tx) => {
-    const freshInvite = await tx.get(inviteRef);
-    if (!freshInvite.exists || freshInvite.data()?.status !== "active") throw new HttpsError("already-exists", "La invitación ya ha sido utilizada.");
+    const freshInvite = await tx.get(inviteRef); if (!freshInvite.exists || freshInvite.data()?.status !== "active") throw new HttpsError("already-exists", "La invitación ya ha sido utilizada.");
     tx.set(memberRef, { uid: newParentUid, role: "parent", displayName, status: "active", createdAt: Timestamp.now() });
     tx.update(inviteRef, { status: "used", usedAt: Timestamp.now(), usedByUid: newParentUid });
   });
