@@ -59,7 +59,6 @@ fun JoinFamilyScreen(
         if (joining) return
         joining = true
         message = "Vinculando dispositivo…"
-
         val normalizedLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
         val memberId = "profile-${UUID.randomUUID().toString().replace("-", "").take(16)}"
         val deviceId = "device-${UUID.randomUUID().toString().replace("-", "").take(16)}"
@@ -72,15 +71,10 @@ fun JoinFamilyScreen(
             onSuccess = { familyId, _, resolvedMemberId, resolvedDeviceId ->
                 runCatching {
                     val child = store.ensureSupervisedChild(resolvedMemberId, normalizedLabel)
-                    val device = store.devices().firstOrNull { it.id == resolvedDeviceId }
-                        ?: store.addDevice("Este dispositivo", child.id).also { created ->
-                            if (created.id != resolvedDeviceId) {
-                                store.removeDevice(created.id)
-                                store.addDeviceWithId(resolvedDeviceId, "Este dispositivo", child.id)
-                            }
-                        }
-                    if (device.id != resolvedDeviceId) error("No se pudo conservar la identidad del dispositivo.")
-                    store.saveVerifiedFamilyIdentity(familyId, UUID.randomUUID().toString().replace("-", "").take(32), resolvedMemberId.take(12))
+                    val device = store.addDeviceWithId(resolvedDeviceId, "Este dispositivo", child.id)
+                    require(device.id == resolvedDeviceId)
+                    val secret = UUID.randomUUID().toString().replace("-", "").take(32)
+                    store.saveVerifiedFamilyIdentity(familyId, secret, OfflinePairingTokenCodec.fingerprint(secret))
                     store.setDeviceState(resolvedDeviceId, DeviceLinkState.LINKED)
                     store.setAppMode(FamyrexAppMode.SUPERVISED)
                 }.onFailure {
