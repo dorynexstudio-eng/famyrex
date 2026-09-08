@@ -2,6 +2,13 @@ package com.famyrex.app
 
 import java.util.Calendar
 
+enum class ApplicationDecision {
+    ALLOW,
+    BLOCK,
+    APPROVAL_REQUIRED,
+    UNMANAGED
+}
+
 /**
  * Pure local policy evaluation. It deliberately does not assume intent or guilt:
  * it only answers whether a package is currently allowed by the configured policy.
@@ -14,13 +21,23 @@ object ApplicationPolicyEngine {
     ): ApplicationDecision {
         if (policy == null) return ApplicationDecision.UNMANAGED
         if (policy.blocked) return ApplicationDecision.BLOCK
-        if (!policy.installAllowed && policy.source != AppInstallSource.UNKNOWN) {
-            return ApplicationDecision.BLOCK
-        }
         if (policy.dailyLimitMinutes != null && usedMinutesToday >= policy.dailyLimitMinutes) {
             return ApplicationDecision.BLOCK
         }
         if (policy.approvalRequired) return ApplicationDecision.APPROVAL_REQUIRED
+        return ApplicationDecision.ALLOW
+    }
+
+    /** Evaluates installation policy separately from runtime-use policy. */
+    fun installDecision(
+        policy: AppPolicy?,
+        source: AppInstallSource
+    ): ApplicationDecision {
+        if (policy == null) return ApplicationDecision.UNMANAGED
+        if (!policy.installAllowed) return ApplicationDecision.BLOCK
+        if (policy.approvalRequired && source != AppInstallSource.GOOGLE_PLAY) {
+            return ApplicationDecision.APPROVAL_REQUIRED
+        }
         return ApplicationDecision.ALLOW
     }
 
