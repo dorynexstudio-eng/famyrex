@@ -25,6 +25,22 @@ class ApplicationPolicyEngineTest {
         assertEquals(ApplicationDecision.APPROVAL_REQUIRED, ApplicationPolicyEngine.decision(policy, 0))
     }
 
+    @Test fun installPolicyCanBlockSideloadedSource() {
+        val policy = AppPolicy("com.example", "Example", installAllowed = false)
+        assertEquals(
+            ApplicationDecision.BLOCK,
+            ApplicationPolicyEngine.installDecision(policy, AppInstallSource.APK)
+        )
+    }
+
+    @Test fun installApprovalCanBeRequiredForNonPlaySource() {
+        val policy = AppPolicy("com.example", "Example", approvalRequired = true)
+        assertEquals(
+            ApplicationDecision.APPROVAL_REQUIRED,
+            ApplicationPolicyEngine.installDecision(policy, AppInstallSource.APK)
+        )
+    }
+
     @Test fun limitValidationRejectsInvalidValues() {
         assertTrue(ApplicationPolicyEngine.validateLimit(null))
         assertTrue(ApplicationPolicyEngine.validateLimit(1))
