@@ -5,7 +5,14 @@ enum class ParentalStatus(val icon: String, val label: String) {
     GREEN("🟢", "En orden"),
     ORANGE("🟠", "Revisar"),
     RED("🔴", "Acción necesaria"),
-    WHITE("⚪", "Sin datos suficientes")
+    WHITE("⚪", "Sin datos suficientes");
+
+    /** Compatibilidad semántica con la primera capa visual de Famyrex. */
+    companion object {
+        val HEALTHY: ParentalStatus = GREEN
+        val ATTENTION: ParentalStatus = ORANGE
+        val RISK: ParentalStatus = RED
+    }
 }
 
 /**
