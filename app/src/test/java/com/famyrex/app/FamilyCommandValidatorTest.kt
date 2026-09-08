@@ -52,7 +52,7 @@ class FamilyCommandValidatorTest {
     @Test fun rejectsFutureIssuedCommand() {
         assertEquals(
             "El comando tiene una fecha futura no válida.",
-            FamilyCommandValidator.validate(command(issuedAtMs = 10_000L, expiresAtMs = 60_000L), identity, nowMs = 1_000L)
+            FamilyCommandValidator.validate(command(issuedAtMs = 400_000L, expiresAtMs = 460_000L), identity, nowMs = 1_000L)
         )
     }
 
