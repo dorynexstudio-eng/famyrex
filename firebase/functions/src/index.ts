@@ -19,8 +19,7 @@ const MAX_ATTEMPTS = 8;
 const MAX_COMMAND_VALUE_LENGTH = 64 * 1024;
 const ALLOWED_COMMAND_ACTIONS = new Set([
   "LOCK_DEVICE", "UNLOCK_DEVICE", "GRANT_EXTRA_TIME", "SET_DAILY_LIMIT", "SET_SCHEDULE",
-  "BLOCK_APP", "ALLOW_APP", "SET_APP_LIMIT", "REQUEST_APP_APPROVAL", "REFRESH_LOCATION",
-  "APPLY_WEB_POLICY", "SYNC_POLICY",
+  "BLOCK_APP", "ALLOW_APP", "SET_APP_LIMIT", "SYNC_POLICY",
 ]);
 
 function sha256(value: string): string { return createHash("sha256").update(value, "utf8").digest("hex"); }
