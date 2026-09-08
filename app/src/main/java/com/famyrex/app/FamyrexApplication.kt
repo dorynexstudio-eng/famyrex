@@ -12,5 +12,9 @@ class FamyrexApplication : Application() {
         val firebaseApp = FirebaseApp.initializeApp(this) ?: return
         FirebaseAppCheck.getInstance(firebaseApp)
             .installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
+
+        // Re-register on every process start so backend delivery remains recoverable
+        // even when FCM did not issue a new token callback.
+        FamilyDeviceTokenRegistrar.register(this)
     }
 }
