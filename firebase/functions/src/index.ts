@@ -7,9 +7,6 @@ import { setGlobalOptions } from "firebase-functions/v2/options";
 initializeApp();
 const db = getFirestore();
 
-// Pairing is intentionally short-lived and protected by App Check. The
-// callable also rate-limits each anonymous device UID so the six-digit code
-// is never treated as a standalone bearer credential.
 setGlobalOptions({
   region: "europe-west1",
   enforceAppCheck: true,
@@ -32,7 +29,7 @@ function normalizeCode(value: unknown): string {
   return code;
 }
 
-function requireParent(request: Parameters<typeof onCall>[0] extends never ? never : any): string {
+function requireParent(request: any): string {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
   }
@@ -114,14 +111,7 @@ export const createPairingInvite = onCall(async (request) => {
     usedByUid: null,
   });
 
-  // The raw token is returned only to the authenticated parent device. It is
-  // never stored in Firestore and can later back a QR/deep-link flow.
-  return {
-    inviteId,
-    code,
-    token,
-    expiresAtMs: expiresAt.toMillis(),
-  };
+  return { inviteId, code, token, expiresAtMs: expiresAt.toMillis() };
 });
 
 export const redeemPairingCode = onCall(async (request) => {
@@ -213,9 +203,5 @@ export const redeemPairingCode = onCall(async (request) => {
     });
   });
 
-  return {
-    familyId,
-    childUid: deviceUid,
-    linkedAtMs: now,
-  };
+  return { familyId, childUid: deviceUid, linkedAtMs: now };
 });
