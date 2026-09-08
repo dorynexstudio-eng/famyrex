@@ -33,7 +33,8 @@ function normalizeDeviceId(value: unknown): string {
   const id = String(value ?? "").trim();
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(id)) throw new HttpsError("invalid-argument", "El identificador del dispositivo no es válido.");
   return id;
-}\nfunction normalizeMemberId(value: unknown): string {
+}
+function normalizeMemberId(value: unknown): string {
   const id = String(value ?? "").trim();
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(id)) throw new HttpsError("invalid-argument", "El identificador del perfil no es válido.");
   return id;
