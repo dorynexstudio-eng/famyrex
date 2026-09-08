@@ -14,6 +14,7 @@
     </queries>
 
     <application
+        android:name=".FamyrexApplication"
         android:theme="@style/Theme.Famyrex"
         android:label="Famyrex"
         android:icon="@drawable/ic_famyrex_logo"
