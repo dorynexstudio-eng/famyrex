@@ -1,12 +1,11 @@
 package com.famyrex.app
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,15 +38,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,10 +53,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import java.util.Calendar
 
 private const val PREMIUM_PREFS = "famyrex_prefs"
@@ -112,16 +109,28 @@ fun FamyrexPremiumApp(context: Context) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(12.dp), color = FamyrexNavy) {
-                            Icon(Icons.Default.Shield, null, tint = FamyrexCyan, modifier = Modifier.padding(7.dp).size(28.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = FamyrexNavy,
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_famyrex_logo),
+                                contentDescription = "Famyrex",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.padding(4.dp).fillMaxSize()
+                            )
                         }
                         Spacer(Modifier.width(10.dp))
-                        Text("Famyrex", fontWeight = FontWeight.ExtraBold, color = FamyrexText, fontSize = 24.sp)
+                        Column {
+                            Text("Famyrex", fontWeight = FontWeight.ExtraBold, color = FamyrexText, fontSize = 23.sp)
+                            Text("Seguridad familiar inteligente", color = Color(0xFF64748B), fontSize = 11.sp)
+                        }
                     }
                 },
                 actions = {
                     IconButton(onClick = { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) }) {
-                        Icon(Icons.Default.Settings, "Privacidad", tint = FamyrexText)
+                        Icon(Icons.Default.Settings, "Configuración", tint = FamyrexText)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = FamyrexSurface)
@@ -159,7 +168,10 @@ fun FamyrexPremiumApp(context: Context) {
 @Composable
 private fun FamyrexNavigationBar(selected: Int, onSelect: (Int) -> Unit) {
     Surface(color = Color.White, shadowElevation = 8.dp, modifier = Modifier.navigationBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
             PremiumNavItem(0, selected, "Inicio", Icons.Default.Shield, onSelect)
             PremiumNavItem(1, selected, "Alertas", Icons.Default.Notifications, onSelect)
             PremiumNavItem(2, selected, "Familia", Icons.Default.FamilyRestroom, onSelect)
@@ -171,7 +183,13 @@ private fun FamyrexNavigationBar(selected: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onSelect: (Int) -> Unit) {
+private fun PremiumNavItem(
+    index: Int,
+    selected: Int,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onSelect: (Int) -> Unit
+) {
     val active = index == selected
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 3.dp)) {
         IconButton(onClick = { onSelect(index) }, modifier = Modifier.size(42.dp)) {
@@ -179,7 +197,12 @@ private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: andro
                 Icon(icon, label, tint = if (active) Color.White else Color(0xFF64748B), modifier = Modifier.padding(9.dp))
             }
         }
-        Text(label, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal, color = if (active) FamyrexBlue else Color(0xFF64748B))
+        Text(
+            label,
+            fontSize = 10.sp,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+            color = if (active) FamyrexBlue else Color(0xFF64748B)
+        )
     }
 }
 
@@ -220,7 +243,11 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
         item {
             Spacer(Modifier.height(4.dp))
             Text("Centro de seguridad familiar", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = FamyrexText)
-            Text(if (configured) "Protección de ${family.child}" else "Configura tu familia para comenzar", color = Color(0xFF64748B), fontSize = 14.sp)
+            Text(
+                if (configured) "Protección de ${family.child}" else "Configura tu familia para comenzar",
+                color = Color(0xFF64748B),
+                fontSize = 14.sp
+            )
         }
         item {
             Card(
@@ -231,7 +258,11 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
                 Column(Modifier.padding(22.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = CircleShape, color = FamyrexGreen.copy(alpha = .18f)) {
-                            Icon(Icons.Default.Shield, null, tint = FamyrexGreen, modifier = Modifier.padding(10.dp).size(34.dp))
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_famyrex_logo),
+                                contentDescription = null,
+                                modifier = Modifier.padding(7.dp).size(40.dp)
+                            )
                         }
                         Spacer(Modifier.width(14.dp))
                         Column {
@@ -251,9 +282,7 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
                 }
             }
         }
-        item {
-            Text("Tu familia", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = FamyrexText)
-        }
+        item { Text("Tu familia", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = FamyrexText) }
         item {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -263,7 +292,11 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(if (family.parent.isBlank()) "Adulto responsable" else family.parent, fontWeight = FontWeight.Bold, color = FamyrexText)
-                        Text(if (family.child.isBlank()) "Ningún dispositivo vinculado todavía" else "Supervisando a ${family.child}", color = Color(0xFF64748B), fontSize = 13.sp)
+                        Text(
+                            if (family.child.isBlank()) "Ningún dispositivo vinculado todavía" else "Supervisando a ${family.child}",
+                            color = Color(0xFF64748B),
+                            fontSize = 13.sp
+                        )
                     }
                     Text(if (configured) "●" else "○", color = if (configured) FamyrexGreen else Color(0xFF94A3B8), fontSize = 22.sp)
                 }
@@ -300,7 +333,11 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
 
 @Composable
 private fun StatusPill(value: String, label: String, tint: Color) {
-    Surface(color = Color.White.copy(alpha = .10f), shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) {
+    Surface(
+        color = Color.White.copy(alpha = .10f),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth().weight(1f)
+    ) {
         Column(Modifier.padding(12.dp)) {
             Text(value, color = tint, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
             Text(label, color = Color.White.copy(alpha = .72f), fontSize = 12.sp)
@@ -309,7 +346,13 @@ private fun StatusPill(value: String, label: String, tint: Color) {
 }
 
 @Composable
-private fun PremiumFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier) {
+private fun PremiumFeatureCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    modifier: Modifier
+) {
     Card(modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.padding(16.dp)) {
             Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = .12f)) {
