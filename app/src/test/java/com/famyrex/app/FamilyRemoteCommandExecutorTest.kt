@@ -34,22 +34,39 @@ class FamilyRemoteCommandExecutorTest {
     }
 
     @Test
-    fun `unsupported command is not consumed and can be retried`() {
+    fun `remote lock is applied and unlock clears it`() {
         clearState()
-        val identity = FamyrexDeviceIdentity("device-2", "member-2", "family-2")
-        val command = FamilyControlCommand(
-            commandId = "cmd-unsupported", familyId = "family-2", memberId = "member-2", deviceId = "device-2",
+        val identity = FamyrexDeviceIdentity("device-lock", "member-lock", "family-lock")
+        val executor = FamilyRemoteCommandExecutor(context)
+
+        val lock = FamilyControlCommand(
+            commandId = "cmd-lock", familyId = "family-lock", memberId = "member-lock", deviceId = "device-lock",
             action = FamilyControlAction.LOCK_DEVICE, issuedAtMs = 1_000L, expiresAtMs = 10_000L
         )
+        val unlock = lock.copy(commandId = "cmd-unlock", action = FamilyControlAction.UNLOCK_DEVICE)
 
+        assertTrue(executor.execute(lock, identity, nowMs = 2_000L).success)
+        assertTrue(DeviceEmergencyLockStore(context).isLocked())
+        assertTrue(executor.execute(unlock, identity, nowMs = 3_000L).success)
+        assertFalse(DeviceEmergencyLockStore(context).isLocked())
+    }
+
+    @Test
+    fun `replayed lock command is rejected without changing state twice`() {
+        clearState()
+        val identity = FamyrexDeviceIdentity("device-replay", "member-replay", "family-replay")
+        val command = FamilyControlCommand(
+            commandId = "cmd-lock-replay", familyId = "family-replay", memberId = "member-replay", deviceId = "device-replay",
+            action = FamilyControlAction.LOCK_DEVICE, issuedAtMs = 1_000L, expiresAtMs = 10_000L
+        )
         val executor = FamilyRemoteCommandExecutor(context)
+
         val first = executor.execute(command, identity, nowMs = 2_000L)
         val second = executor.execute(command, identity, nowMs = 3_000L)
 
-        assertFalse(first.success)
+        assertTrue(first.success)
         assertFalse(second.success)
-        assertEquals(first.reason, second.reason)
-        assertTrue(second.reason.orEmpty().contains("ejecución local segura"))
+        assertTrue(DeviceEmergencyLockStore(context).isLocked())
     }
 
     @Test
@@ -102,5 +119,6 @@ class FamilyRemoteCommandExecutorTest {
     private fun clearState() {
         context.getSharedPreferences("famyrex_parental_controls", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("famyrex_emergency_lock", Context.MODE_PRIVATE).edit().clear().commit()
     }
 }
