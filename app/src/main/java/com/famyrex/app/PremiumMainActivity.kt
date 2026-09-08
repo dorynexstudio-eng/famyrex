@@ -23,15 +23,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.FamilyRestroom
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -109,11 +108,7 @@ fun FamyrexPremiumApp(context: Context) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = FamyrexNavy,
-                            modifier = Modifier.size(42.dp)
-                        ) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = FamyrexNavy, modifier = Modifier.size(42.dp)) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_famyrex_logo),
                                 contentDescription = "Famyrex",
@@ -168,16 +163,13 @@ fun FamyrexPremiumApp(context: Context) {
 @Composable
 private fun FamyrexNavigationBar(selected: Int, onSelect: (Int) -> Unit) {
     Surface(color = Color.White, shadowElevation = 8.dp, modifier = Modifier.navigationBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            PremiumNavItem(0, selected, "Inicio", Icons.Default.Shield, onSelect)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            PremiumNavItem(0, selected, "Inicio", Icons.Default.Home, onSelect)
             PremiumNavItem(1, selected, "Alertas", Icons.Default.Notifications, onSelect)
-            PremiumNavItem(2, selected, "Familia", Icons.Default.FamilyRestroom, onSelect)
+            PremiumNavItem(2, selected, "Familia", Icons.Default.Person, onSelect)
             PremiumNavItem(3, selected, "Zonas", Icons.Default.LocationOn, onSelect)
-            PremiumNavItem(4, selected, "IA", Icons.Default.Psychology, onSelect)
-            PremiumNavItem(5, selected, "Informe", Icons.Default.Assessment, onSelect)
+            PremiumNavItem(4, selected, "IA", Icons.Default.Info, onSelect)
+            PremiumNavItem(5, selected, "Informe", Icons.Default.CheckCircle, onSelect)
         }
     }
 }
@@ -197,12 +189,7 @@ private fun PremiumNavItem(
                 Icon(icon, label, tint = if (active) Color.White else Color(0xFF64748B), modifier = Modifier.padding(9.dp))
             }
         }
-        Text(
-            label,
-            fontSize = 10.sp,
-            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-            color = if (active) FamyrexBlue else Color(0xFF64748B)
-        )
+        Text(label, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal, color = if (active) FamyrexBlue else Color(0xFF64748B))
     }
 }
 
@@ -243,26 +230,14 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
         item {
             Spacer(Modifier.height(4.dp))
             Text("Centro de seguridad familiar", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = FamyrexText)
-            Text(
-                if (configured) "Protección de ${family.child}" else "Configura tu familia para comenzar",
-                color = Color(0xFF64748B),
-                fontSize = 14.sp
-            )
+            Text(if (configured) "Protección de ${family.child}" else "Configura tu familia para comenzar", color = Color(0xFF64748B), fontSize = 14.sp)
         }
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = FamyrexNavy)
-            ) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = FamyrexNavy)) {
                 Column(Modifier.padding(22.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = CircleShape, color = FamyrexGreen.copy(alpha = .18f)) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_famyrex_logo),
-                                contentDescription = null,
-                                modifier = Modifier.padding(7.dp).size(40.dp)
-                            )
+                            Image(painterResource(R.drawable.ic_famyrex_logo), null, modifier = Modifier.padding(7.dp).size(40.dp))
                         }
                         Spacer(Modifier.width(14.dp))
                         Column {
@@ -287,16 +262,12 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Surface(shape = CircleShape, color = Color(0xFFE7F4FF)) {
-                        Icon(Icons.Default.FamilyRestroom, null, tint = FamyrexBlue, modifier = Modifier.padding(11.dp).size(28.dp))
+                        Icon(Icons.Default.Person, null, tint = FamyrexBlue, modifier = Modifier.padding(11.dp).size(28.dp))
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(if (family.parent.isBlank()) "Adulto responsable" else family.parent, fontWeight = FontWeight.Bold, color = FamyrexText)
-                        Text(
-                            if (family.child.isBlank()) "Ningún dispositivo vinculado todavía" else "Supervisando a ${family.child}",
-                            color = Color(0xFF64748B),
-                            fontSize = 13.sp
-                        )
+                        Text(if (family.child.isBlank()) "Ningún dispositivo vinculado todavía" else "Supervisando a ${family.child}", color = Color(0xFF64748B), fontSize = 13.sp)
                     }
                     Text(if (configured) "●" else "○", color = if (configured) FamyrexGreen else Color(0xFF94A3B8), fontSize = 22.sp)
                 }
@@ -305,20 +276,20 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
         item { Text("Protecciones", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = FamyrexText) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PremiumFeatureCard("Uso digital", "Apps y tiempo", Icons.Default.Apps, FamyrexBlue, Modifier.weight(1f))
-                PremiumFeatureCard("Alertas", "Señales de riesgo", Icons.Default.Notifications, Color(0xFF0D8A83), Modifier.weight(1f))
+                PremiumFeatureCard("Uso digital", "Apps y tiempo", Icons.Default.Info, FamyrexBlue, Modifier.weight(1f))
+                PremiumFeatureCard("Alertas", "Señales de riesgo", Icons.Default.Warning, Color(0xFF0D8A83), Modifier.weight(1f))
             }
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PremiumFeatureCard("Zonas seguras", "Casa y colegio", Icons.Default.LocationOn, Color(0xFF118AB2), Modifier.weight(1f))
-                PremiumFeatureCard("Inteligencia", "Recomendaciones", Icons.Default.Psychology, Color(0xFF5B46C5), Modifier.weight(1f))
+                PremiumFeatureCard("Inteligencia", "Recomendaciones", Icons.Default.CheckCircle, Color(0xFF5B46C5), Modifier.weight(1f))
             }
         }
         item {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Security, null, tint = FamyrexBlue, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.CheckCircle, null, tint = FamyrexGreen, modifier = Modifier.size(28.dp))
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text("Privacidad por diseño", fontWeight = FontWeight.Bold, color = FamyrexText)
@@ -333,11 +304,7 @@ private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
 
 @Composable
 private fun StatusPill(value: String, label: String, tint: Color) {
-    Surface(
-        color = Color.White.copy(alpha = .10f),
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth().weight(1f)
-    ) {
+    Surface(color = Color.White.copy(alpha = .10f), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
         Column(Modifier.padding(12.dp)) {
             Text(value, color = tint, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
             Text(label, color = Color.White.copy(alpha = .72f), fontSize = 12.sp)
@@ -346,13 +313,7 @@ private fun StatusPill(value: String, label: String, tint: Color) {
 }
 
 @Composable
-private fun PremiumFeatureCard(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    modifier: Modifier
-) {
+private fun PremiumFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier) {
     Card(modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.padding(16.dp)) {
             Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = .12f)) {
