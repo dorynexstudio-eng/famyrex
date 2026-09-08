@@ -57,7 +57,18 @@ class FamilyStore(context: Context) {
     fun supervisedChild(): FamilyProfile? = supervisedChildProfileId()?.let { id -> profiles().firstOrNull { it.id == id && it.role == FamilyRole.CHILD } }
 
     fun addDevice(displayName: String, ownerProfileId: String): FamilyDevice {
-        val device = FamilyDevice("device-${UUIDHolder.next()}", displayName.ifBlank { "Dispositivo familiar" }, ownerProfileId, DeviceLinkState.PENDING)
+        return addDeviceWithId("device-${UUIDHolder.next()}", displayName, ownerProfileId)
+    }
+
+    fun addDeviceWithId(deviceId: String, displayName: String, ownerProfileId: String): FamilyDevice {
+        require(deviceId.isNotBlank())
+        require(ownerProfileId.isNotBlank())
+        val existing = devices().firstOrNull { it.id == deviceId }
+        if (existing != null) {
+            require(existing.ownerProfileId == ownerProfileId)
+            return existing
+        }
+        val device = FamilyDevice(deviceId, displayName.ifBlank { "Dispositivo familiar" }, ownerProfileId, DeviceLinkState.PENDING)
         saveDevices(devices() + device)
         return device
     }
