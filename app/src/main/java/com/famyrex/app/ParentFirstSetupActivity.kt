@@ -84,8 +84,7 @@ class ParentFirstSetupActivity : ComponentActivity() {
         store.setOwnerDisplayName(owner.displayName)
         getSharedPreferences("famyrex_family", MODE_PRIVATE)
             .edit().putBoolean("parent_setup_completed", true).apply()
-        startActivity(Intent(this, PremiumMainActivity::class.java))
-        finish()
+        openPremium()
     }
 
     private fun finishParentSetup(uid: String, displayName: String?, email: String?) {
@@ -94,11 +93,29 @@ class ParentFirstSetupActivity : ComponentActivity() {
         val resolvedName = displayName?.trim().orEmpty()
             .ifBlank { email?.substringBefore('@').orEmpty().ifBlank { owner.displayName } }
         store.setOwnerDisplayName(resolvedName)
+
         getSharedPreferences("famyrex_family", MODE_PRIVATE).edit()
             .putBoolean("parent_setup_completed", true)
             .putString("google_parent_uid", uid)
             .putString("google_parent_email", email.orEmpty())
             .apply()
+
+        // Once Firebase is connected, the Google identity becomes the owner
+        // identity of the same Famyrex family used by Firestore.
+        FamyrexCloudFamilyRepository(applicationContext).ensureFamily(
+            displayName = resolvedName,
+            onSuccess = { familyId ->
+                getSharedPreferences("famyrex_family", MODE_PRIVATE)
+                    .edit().putString("cloud_family_id", familyId).apply()
+                runOnUiThread { openPremium() }
+            },
+            onError = { message ->
+                runOnUiThread { render(googleAuth.isConfigured(), errorMessage = message) }
+            }
+        )
+    }
+
+    private fun openPremium() {
         startActivity(Intent(this, PremiumMainActivity::class.java))
         finish()
     }
