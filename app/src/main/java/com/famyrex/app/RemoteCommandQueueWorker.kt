@@ -27,11 +27,13 @@ class RemoteCommandQueueWorker(
 
         val familyId = identity.familyId ?: return Result.success()
 
-        // Filter status locally to avoid requiring a composite Firestore index.
+        // Query only pending commands so an old history cannot crowd out a live command.
+        // The composite index is checked in firebase/firestore.indexes.json.
         val snapshot = Tasks.await(
             FirebaseFirestore.getInstance()
                 .collection("families").document(familyId).collection("commands")
                 .whereEqualTo("targetDeviceUid", firebaseUid)
+                .whereEqualTo("status", "sent")
                 .limit(50)
                 .get()
         )
@@ -40,7 +42,6 @@ class RemoteCommandQueueWorker(
         val now = System.currentTimeMillis()
         snapshot.documents
             .asSequence()
-            .filter { it.getString("status") == "sent" }
             .sortedBy { it.getLong("issuedAtMs") ?: Long.MAX_VALUE }
             .forEach { document ->
                 val command = document.toRemoteCommand() ?: return@forEach
