@@ -39,6 +39,7 @@ class RemoteCommandQueueWorker(
         )
 
         val executor = FamilyRemoteCommandExecutor(context)
+        val receiptStore = RemoteCommandReceiptStore(context)
         val now = System.currentTimeMillis()
         snapshot.documents
             .asSequence()
@@ -49,8 +50,13 @@ class RemoteCommandQueueWorker(
                     command.memberId != identity.famyrexMemberId ||
                     command.deviceId != identity.deviceId
                 ) return@forEach
-                if (command.expiresAtMs <= now) return@forEach
-                executor.execute(command, identity, now)
+
+                // Let the canonical executor decide whether the command is expired or
+                // otherwise invalid, so recovery produces the same receipt and audit
+                // trail as FCM instead of silently leaving stale commands in "sent".
+                val receipt = executor.execute(command, identity, now)
+                receiptStore.save(receipt)
+                RemoteCommandReceiptReporter.report(context, receipt)
             }
         Result.success()
     }.getOrElse { Result.retry() }
