@@ -90,14 +90,13 @@ fun FamyrexPremiumApp(context: Context) {
     var family by remember { mutableStateOf(loadPremiumFamily(prefs)) }
     var zones by remember { mutableStateOf(loadPremiumZones(prefs)) }
     var parentalControlOpen by remember { mutableStateOf(false) }
+    var remoteControlOpen by remember { mutableStateOf(false) }
 
     fun refreshFamily() {
         val profiles = familyStore.profiles()
         val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
         val child = profiles.firstOrNull { it.role == FamilyRole.CHILD }
-        family = if (owner != null || child != null) {
-            PremiumFamilyState(owner?.displayName.orEmpty(), child?.displayName.orEmpty())
-        } else loadPremiumFamily(prefs)
+        family = if (owner != null || child != null) PremiumFamilyState(owner?.displayName.orEmpty(), child?.displayName.orEmpty()) else loadPremiumFamily(prefs)
     }
 
     LaunchedEffect(Unit) { refreshFamily() }
@@ -109,12 +108,7 @@ fun FamyrexPremiumApp(context: Context) {
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = RoundedCornerShape(12.dp), color = FamyrexNavy, modifier = Modifier.size(42.dp)) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_famyrex_logo),
-                                contentDescription = "Famyrex",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.padding(4.dp).fillMaxSize()
-                            )
+                            Image(painter = painterResource(id = R.drawable.ic_famyrex_logo), contentDescription = "Famyrex", contentScale = ContentScale.Crop, modifier = Modifier.padding(4.dp).fillMaxSize())
                         }
                         Spacer(Modifier.width(10.dp))
                         Column {
@@ -123,11 +117,7 @@ fun FamyrexPremiumApp(context: Context) {
                         }
                     }
                 },
-                actions = {
-                    IconButton(onClick = { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) }) {
-                        Icon(Icons.Default.Settings, "Configuración", tint = FamyrexText)
-                    }
-                },
+                actions = { IconButton(onClick = { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) }) { Icon(Icons.Default.Settings, "Configuración", tint = FamyrexText) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = FamyrexSurface)
             )
         },
@@ -135,6 +125,7 @@ fun FamyrexPremiumApp(context: Context) {
             FamyrexNavigationBar(tab) { selected ->
                 tab = selected
                 parentalControlOpen = false
+                remoteControlOpen = false
             }
         }
     ) { padding ->
@@ -142,12 +133,17 @@ fun FamyrexPremiumApp(context: Context) {
             when (tab) {
                 0 -> PremiumDashboard(context, family)
                 1 -> RealAlertsScreen(context, Modifier.fillMaxSize())
-                2 -> if (parentalControlOpen) {
-                    ParentalControlScreen(Modifier.fillMaxSize())
-                } else {
-                    FamilyCoreScreen(
+                2 -> when {
+                    remoteControlOpen -> FamilyRemoteControlScreen(
+                        context = context,
+                        familyId = FamyrexCloudFamilyRepository(context).cachedFamilyId(),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    parentalControlOpen -> ParentalControlScreen(Modifier.fillMaxSize())
+                    else -> FamilyCoreScreen(
                         context = context,
                         onOpenParentalControl = { parentalControlOpen = true },
+                        onOpenRemoteControl = { remoteControlOpen = true },
                         onFamilyChanged = { refreshFamily() },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -175,19 +171,11 @@ private fun FamyrexNavigationBar(selected: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun PremiumNavItem(
-    index: Int,
-    selected: Int,
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onSelect: (Int) -> Unit
-) {
+private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onSelect: (Int) -> Unit) {
     val active = index == selected
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 3.dp)) {
         IconButton(onClick = { onSelect(index) }, modifier = Modifier.size(42.dp)) {
-            Surface(shape = CircleShape, color = if (active) FamyrexBlue else Color.Transparent) {
-                Icon(icon, label, tint = if (active) Color.White else Color(0xFF64748B), modifier = Modifier.padding(9.dp))
-            }
+            Surface(shape = CircleShape, color = if (active) FamyrexBlue else Color.Transparent) { Icon(icon, label, tint = if (active) Color.White else Color(0xFF64748B), modifier = Modifier.padding(9.dp)) }
         }
         Text(label, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal, color = if (active) FamyrexBlue else Color(0xFF64748B))
     }
@@ -197,157 +185,37 @@ private fun PremiumNavItem(
 private fun PremiumDashboard(context: Context, family: PremiumFamilyState) {
     var components by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
     var status by remember { mutableStateOf("Sin datos suficientes") }
-
     fun refresh() {
         components = ProtectionComponentChecker.check(context)
-        val usage = ParentalUsageMonitor(context)
-        val access = usage.hasUsageAccess()
-        val accessibility = isPremiumAccessibilityEnabled(context)
-        val start = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        val usage = ParentalUsageMonitor(context); val access = usage.hasUsageAccess(); val accessibility = isPremiumAccessibilityEnabled(context)
+        val start = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
         val minutes = if (access) usage.queryUsage(start, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L else null
-        val limit = ParentalControlStore(context).load().screenTimeLimit
-        val evaluated = ParentalStatusEvaluator.overall(access, accessibility, minutes, limit)
-        status = when (evaluated) {
-            ParentalStatus.HEALTHY -> "Todo en orden"
-            ParentalStatus.ATTENTION -> "Hay algo que revisar"
-            ParentalStatus.RISK -> "Atención recomendada"
-            else -> "Sin datos suficientes"
-        }
+        val evaluated = ParentalStatusEvaluator.overall(access, accessibility, minutes, ParentalControlStore(context).load().screenTimeLimit)
+        status = when (evaluated) { ParentalStatus.HEALTHY -> "Todo en orden"; ParentalStatus.ATTENTION -> "Hay algo que revisar"; ParentalStatus.RISK -> "Atención recomendada"; else -> "Sin datos suficientes" }
     }
-
     LaunchedEffect(Unit) { refresh() }
-
-    val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }
-    val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }
-    val configured = family.child.isNotBlank()
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(FamyrexSurface).padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Spacer(Modifier.height(4.dp))
-            Text("Centro de seguridad familiar", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = FamyrexText)
-            Text(if (configured) "Protección de ${family.child}" else "Configura tu familia para comenzar", color = Color(0xFF64748B), fontSize = 14.sp)
-        }
-        item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = FamyrexNavy)) {
-                Column(Modifier.padding(22.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = CircleShape, color = FamyrexGreen.copy(alpha = .18f)) {
-                            Image(painterResource(R.drawable.ic_famyrex_logo), null, modifier = Modifier.padding(7.dp).size(40.dp))
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column {
-                            Text("Estado de protección", color = Color.White.copy(alpha = .72f), fontSize = 13.sp)
-                            Text(status, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatusPill("$active", "activas", FamyrexGreen)
-                        StatusPill("$degraded", "a revisar", Color(0xFFFFB74D))
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = { refresh() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                        Text("Actualizar protección", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
+    val active = components.count { it.status == ProtectionComponentStatus.ACTIVE }; val degraded = components.count { it.status == ProtectionComponentStatus.DEGRADED }; val configured = family.child.isNotBlank()
+    LazyColumn(modifier = Modifier.fillMaxSize().background(FamyrexSurface).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item { Spacer(Modifier.height(4.dp)); Text("Centro de seguridad familiar", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = FamyrexText); Text(if (configured) "Protección de ${family.child}" else "Configura tu familia para comenzar", color = Color(0xFF64748B), fontSize = 14.sp) }
+        item { Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = FamyrexNavy)) { Column(Modifier.padding(22.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Surface(shape = CircleShape, color = FamyrexGreen.copy(alpha = .18f)) { Image(painterResource(R.drawable.ic_famyrex_logo), null, modifier = Modifier.padding(7.dp).size(40.dp)) }; Spacer(Modifier.width(14.dp)); Column { Text("Estado de protección", color = Color.White.copy(alpha = .72f), fontSize = 13.sp); Text(status, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold) } }; Spacer(Modifier.height(16.dp)); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { StatusPill("$active", "activas", FamyrexGreen); StatusPill("$degraded", "a revisar", Color(0xFFFFB74D)) }; Spacer(Modifier.height(16.dp)); Button(onClick = { refresh() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Actualizar protección", fontWeight = FontWeight.Bold) } } } }
         item { Text("Tu familia", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = FamyrexText) }
-        item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = CircleShape, color = Color(0xFFE7F4FF)) {
-                        Icon(Icons.Default.Person, null, tint = FamyrexBlue, modifier = Modifier.padding(11.dp).size(28.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(if (family.parent.isBlank()) "Adulto responsable" else family.parent, fontWeight = FontWeight.Bold, color = FamyrexText)
-                        Text(if (family.child.isBlank()) "Ningún dispositivo vinculado todavía" else "Supervisando a ${family.child}", color = Color(0xFF64748B), fontSize = 13.sp)
-                    }
-                    Text(if (configured) "●" else "○", color = if (configured) FamyrexGreen else Color(0xFF94A3B8), fontSize = 22.sp)
-                }
-            }
-        }
+        item { Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) { Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) { Surface(shape = CircleShape, color = Color(0xFFE7F4FF)) { Icon(Icons.Default.Person, null, tint = FamyrexBlue, modifier = Modifier.padding(11.dp).size(28.dp)) }; Spacer(Modifier.width(14.dp)); Column(Modifier.weight(1f)) { Text(if (family.parent.isBlank()) "Adulto responsable" else family.parent, fontWeight = FontWeight.Bold, color = FamyrexText); Text(if (family.child.isBlank()) "Ningún dispositivo vinculado todavía" else "Supervisando a ${family.child}", color = Color(0xFF64748B), fontSize = 13.sp) }; Text(if (configured) "●" else "○", color = if (configured) FamyrexGreen else Color(0xFF94A3B8), fontSize = 22.sp) } } }
         item { Text("Protecciones", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = FamyrexText) }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PremiumFeatureCard("Uso digital", "Apps y tiempo", Icons.Default.Info, FamyrexBlue, Modifier.weight(1f))
-                PremiumFeatureCard("Alertas", "Señales de riesgo", Icons.Default.Warning, Color(0xFF0D8A83), Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PremiumFeatureCard("Zonas seguras", "Casa y colegio", Icons.Default.LocationOn, Color(0xFF118AB2), Modifier.weight(1f))
-                PremiumFeatureCard("Inteligencia", "Recomendaciones", Icons.Default.CheckCircle, Color(0xFF5B46C5), Modifier.weight(1f))
-            }
-        }
-        item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, null, tint = FamyrexGreen, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Privacidad por diseño", fontWeight = FontWeight.Bold, color = FamyrexText)
-                        Text("El procesamiento funcional se realiza en el dispositivo.", color = Color(0xFF64748B), fontSize = 13.sp)
-                    }
-                }
-            }
-        }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { PremiumFeatureCard("Uso digital", "Apps y tiempo", Icons.Default.Info, FamyrexBlue, Modifier.weight(1f)); PremiumFeatureCard("Alertas", "Señales de riesgo", Icons.Default.Warning, Color(0xFF0D8A83), Modifier.weight(1f)) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { PremiumFeatureCard("Zonas seguras", "Casa y colegio", Icons.Default.LocationOn, Color(0xFF118AB2), Modifier.weight(1f)); PremiumFeatureCard("Inteligencia", "Recomendaciones", Icons.Default.CheckCircle, Color(0xFF5B46C5), Modifier.weight(1f)) } }
+        item { Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) { Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CheckCircle, null, tint = FamyrexGreen, modifier = Modifier.size(28.dp)); Spacer(Modifier.width(12.dp)); Column { Text("Privacidad por diseño", fontWeight = FontWeight.Bold, color = FamyrexText); Text("El procesamiento funcional se realiza en el dispositivo.", color = Color(0xFF64748B), fontSize = 13.sp) } } } }
         item { Spacer(Modifier.height(10.dp)) }
     }
 }
 
 @Composable
-private fun StatusPill(value: String, label: String, tint: Color) {
-    Surface(color = Color.White.copy(alpha = .10f), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(value, color = tint, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            Text(label, color = Color.White.copy(alpha = .72f), fontSize = 12.sp)
-        }
-    }
-}
+private fun StatusPill(value: String, label: String, tint: Color) { Surface(color = Color.White.copy(alpha = .10f), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().weight(1f)) { Column(Modifier.padding(12.dp)) { Text(value, color = tint, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold); Text(label, color = Color.White.copy(alpha = .72f), fontSize = 12.sp) } } }
 
 @Composable
-private fun PremiumFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier) {
-    Card(modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Column(Modifier.padding(16.dp)) {
-            Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = .12f)) {
-                Icon(icon, null, tint = tint, modifier = Modifier.padding(9.dp).size(24.dp))
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(title, fontWeight = FontWeight.Bold, color = FamyrexText)
-            Text(subtitle, color = Color(0xFF64748B), fontSize = 12.sp)
-        }
-    }
-}
+private fun PremiumFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier) { Card(modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(16.dp)) { Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = .12f)) { Icon(icon, null, tint = tint, modifier = Modifier.padding(9.dp).size(24.dp)) }; Spacer(Modifier.height(12.dp)); Text(title, fontWeight = FontWeight.Bold, color = FamyrexText); Text(subtitle, color = Color(0xFF64748B), fontSize = 12.sp) } } }
 
 private data class PremiumFamilyState(val parent: String, val child: String)
-
-private fun loadPremiumFamily(prefs: android.content.SharedPreferences): PremiumFamilyState = PremiumFamilyState(
-    prefs.getString(PREMIUM_PARENT, "") ?: "",
-    prefs.getString(PREMIUM_CHILD, "") ?: ""
-)
-
-private fun loadPremiumZones(prefs: android.content.SharedPreferences): List<GeoZone> {
-    val raw = prefs.getString("geo_zones", "") ?: return emptyList()
-    if (raw.isBlank()) return emptyList()
-    return raw.split(";").mapNotNull { row ->
-        val parts = row.split("|")
-        if (parts.size == 4) runCatching { GeoZone(parts[0], parts[1].toDouble(), parts[2].toDouble(), parts[3].toFloat()) }.getOrNull() else null
-    }
-}
-
-private fun savePremiumZones(prefs: android.content.SharedPreferences, zones: List<GeoZone>) {
-    prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply()
-}
-
-private fun isPremiumAccessibilityEnabled(context: Context): Boolean {
-    val expected = "${context.packageName}/${FamyrexParentalAccessibilityService::class.java.name}"
-    val enabled = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
-    return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
-}
+private fun loadPremiumFamily(prefs: android.content.SharedPreferences): PremiumFamilyState = PremiumFamilyState(prefs.getString(PREMIUM_PARENT, "") ?: "", prefs.getString(PREMIUM_CHILD, "") ?: "")
+private fun loadPremiumZones(prefs: android.content.SharedPreferences): List<GeoZone> { val raw = prefs.getString("geo_zones", "") ?: return emptyList(); if (raw.isBlank()) return emptyList(); return raw.split(";").mapNotNull { row -> val parts = row.split("|"); if (parts.size == 4) runCatching { GeoZone(parts[0], parts[1].toDouble(), parts[2].toDouble(), parts[3].toFloat()) }.getOrNull() else null } }
+private fun savePremiumZones(prefs: android.content.SharedPreferences, zones: List<GeoZone>) { prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply() }
+private fun isPremiumAccessibilityEnabled(context: Context): Boolean { val expected = "${context.packageName}/${FamyrexParentalAccessibilityService::class.java.name}"; val enabled = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false; return enabled.split(':').any { it.equals(expected, ignoreCase = true) } }
