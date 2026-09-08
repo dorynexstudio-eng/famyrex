@@ -24,6 +24,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: firebase/functions/package.json
+
+      - name: Validate Firebase Functions
+        working-directory: firebase/functions
+        run: |
+          npm install --ignore-scripts
+          npm run lint
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
