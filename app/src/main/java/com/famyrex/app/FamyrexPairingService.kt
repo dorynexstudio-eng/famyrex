@@ -16,6 +16,7 @@ class FamyrexPairingService(context: Context) {
     fun createInvite(
         familyId: String,
         childLabel: String,
+        famyrexMemberId: String,
         onSuccess: (code: String, token: String, expiresAtMs: Long) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -23,8 +24,18 @@ class FamyrexPairingService(context: Context) {
             onError("Firebase todavía no está configurado.")
             return
         }
+        if (familyId.isBlank() || famyrexMemberId.isBlank()) {
+            onError("La identidad de la familia o del perfil infantil está incompleta.")
+            return
+        }
         functions().getHttpsCallable("createPairingInvite")
-            .call(hashMapOf("familyId" to familyId, "childLabel" to childLabel))
+            .call(
+                hashMapOf(
+                    "familyId" to familyId,
+                    "childLabel" to childLabel,
+                    "famyrexMemberId" to famyrexMemberId
+                )
+            )
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
                 val code = data?.get("code") as? String
