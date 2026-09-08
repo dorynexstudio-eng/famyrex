@@ -49,4 +49,18 @@ class FamilyControlPolicySyncTest {
         assertFalse(receipt.success)
         assertTrue(config.screenTimeLimit?.dailyMinutes == 90)
     }
+
+    @Test
+    fun `older revision is rejected without replacing newer policy`() {
+        ParentalControlStore(context).clear()
+        val newer = DevicePolicySnapshot("device-sync", dailyLimitMinutes = 180, revision = 8L)
+        val older = DevicePolicySnapshot("device-sync", dailyLimitMinutes = 30, revision = 7L)
+
+        assertTrue(FamilyControlPolicySync.apply(context, newer).success)
+        val receipt = FamilyControlPolicySync.apply(context, older)
+        val config = ParentalControlStore(context).load()
+
+        assertFalse(receipt.success)
+        assertTrue(config.screenTimeLimit?.dailyMinutes == 180)
+    }
 }
