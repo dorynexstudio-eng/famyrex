@@ -22,8 +22,7 @@ class FamyrexPairingService(context: Context) {
             onError("Firebase todavía no está configurado.")
             return
         }
-        functions()
-            .getHttpsCallable("createPairingInvite")
+        functions().getHttpsCallable("createPairingInvite")
             .call(hashMapOf("familyId" to familyId, "childLabel" to childLabel))
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
@@ -32,11 +31,9 @@ class FamyrexPairingService(context: Context) {
                 val expiresAtMs = (data?.get("expiresAtMs") as? Number)?.toLong()
                 if (code.isNullOrBlank() || token.isNullOrBlank() || expiresAtMs == null) {
                     onError("Firebase devolvió una invitación incompleta.")
-                } else {
-                    onSuccess(code, token, expiresAtMs)
-                }
+                } else onSuccess(code, token, expiresAtMs)
             }
-            .addOnFailureListener { error -> onError(error.toUserMessage()) }
+            .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
     fun redeemCode(
@@ -49,8 +46,7 @@ class FamyrexPairingService(context: Context) {
             onError("Firebase todavía no está configurado.")
             return
         }
-        functions()
-            .getHttpsCallable("redeemPairingCode")
+        functions().getHttpsCallable("redeemPairingCode")
             .call(hashMapOf("code" to code, "childLabel" to childLabel))
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
@@ -58,17 +54,69 @@ class FamyrexPairingService(context: Context) {
                 val childUid = data?.get("childUid") as? String
                 if (familyId.isNullOrBlank() || childUid.isNullOrBlank()) {
                     onError("Firebase devolvió una vinculación incompleta.")
-                } else {
-                    onSuccess(familyId, childUid)
-                }
+                } else onSuccess(familyId, childUid)
             }
-            .addOnFailureListener { error -> onError(error.toUserMessage()) }
+            .addOnFailureListener { onError(it.toUserMessage()) }
+    }
+
+    fun createParentInvite(
+        familyId: String,
+        onSuccess: (inviteId: String, token: String, expiresAtMs: Long) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (FirebaseApp.getApps(appContext).isEmpty()) {
+            onError("Firebase todavía no está configurado.")
+            return
+        }
+        functions().getHttpsCallable("createParentInvite")
+            .call(hashMapOf("familyId" to familyId))
+            .addOnSuccessListener { result ->
+                val data = result.data as? Map<*, *>
+                val inviteId = data?.get("inviteId") as? String
+                val token = data?.get("token") as? String
+                val expiresAtMs = (data?.get("expiresAtMs") as? Number)?.toLong()
+                if (inviteId.isNullOrBlank() || token.isNullOrBlank() || expiresAtMs == null) {
+                    onError("Firebase devolvió una invitación de adulto incompleta.")
+                } else onSuccess(inviteId, token, expiresAtMs)
+            }
+            .addOnFailureListener { onError(it.toUserMessage()) }
+    }
+
+    fun acceptParentInvite(
+        familyId: String,
+        inviteId: String,
+        token: String,
+        displayName: String,
+        onSuccess: (familyId: String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (FirebaseApp.getApps(appContext).isEmpty()) {
+            onError("Firebase todavía no está configurado.")
+            return
+        }
+        functions().getHttpsCallable("acceptParentInvite")
+            .call(
+                hashMapOf(
+                    "familyId" to familyId,
+                    "inviteId" to inviteId,
+                    "token" to token,
+                    "displayName" to displayName
+                )
+            )
+            .addOnSuccessListener { result ->
+                val data = result.data as? Map<*, *>
+                val resolvedFamilyId = data?.get("familyId") as? String
+                if (resolvedFamilyId.isNullOrBlank()) {
+                    onError("Firebase no confirmó la incorporación a la familia.")
+                } else onSuccess(resolvedFamilyId)
+            }
+            .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
     private fun Throwable.toUserMessage(): String {
         val firebase = this as? FirebaseFunctionsException
         return firebase?.message?.takeIf { it.isNotBlank() }
             ?: message?.takeIf { it.isNotBlank() }
-            ?: "No se pudo completar la vinculación."
+            ?: "No se pudo completar la operación familiar."
     }
 }
