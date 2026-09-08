@@ -38,7 +38,7 @@ service cloud.firestore {
     }
 
     match /families/{familyId}/commands/{commandId} {
-      allow read: if isParent(familyId) || (isChild(familyId) && resource.data.deviceId == request.auth.uid);
+      allow read: if isParent(familyId) || (isChild(familyId) && resource.data.targetDeviceUid == request.auth.uid);
       allow create, update, delete: if false;
     }
   }
