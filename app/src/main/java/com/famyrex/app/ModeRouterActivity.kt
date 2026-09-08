@@ -16,7 +16,7 @@ class ModeRouterActivity : ComponentActivity() {
                 Intent(this, SupervisedOnboardingActivity::class.java)
             }
         } else {
-            Intent(this, MainActivity::class.java)
+            Intent(this, PremiumMainActivity::class.java)
         }
         startActivity(target)
         finish()
