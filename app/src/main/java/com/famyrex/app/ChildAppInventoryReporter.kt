@@ -6,7 +6,6 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import java.util.concurrent.TimeUnit
 
 /** Publishes a bounded, non-sensitive inventory of launchable child-device apps for adult-side controls. */
 object ChildAppInventoryReporter {
@@ -33,6 +32,7 @@ object ChildAppInventoryReporter {
         val recentlyPublished = now - prefs.getLong(KEY_LAST_PUBLISHED_MS, 0L) < REFRESH_INTERVAL_MS
         if (unchanged && recentlyPublished) return
 
+        val familyId = identity.familyId ?: return
         val payload = mapOf(
             "uid" to user.uid,
             "memberUid" to user.uid,
@@ -42,7 +42,7 @@ object ChildAppInventoryReporter {
         )
 
         FirebaseFirestore.getInstance()
-            .collection("families").document(identity.familyId!!)
+            .collection("families").document(familyId)
             .collection("devices").document(user.uid)
             .set(payload, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener {
