@@ -4,7 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.lifecycleScope
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -100,8 +100,6 @@ class ParentFirstSetupActivity : ComponentActivity() {
             .putString("google_parent_email", email.orEmpty())
             .apply()
 
-        // Once Firebase is connected, the Google identity becomes the owner
-        // identity of the same Famyrex family used by Firestore.
         FamyrexCloudFamilyRepository(applicationContext).ensureFamily(
             displayName = resolvedName,
             onSuccess = { familyId ->
