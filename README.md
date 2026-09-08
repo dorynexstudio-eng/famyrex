@@ -67,12 +67,24 @@ Aplicación Android de protección y bienestar familiar, orientada a ayudar a la
 - Checklist de publicación y Data safety en `docs/PLAY_STORE_CHECKLIST.md`.
 - Revisión final de permisos, UX, rendimiento, compatibilidad y publicación pendiente antes del lanzamiento.
 
+### 2.1 — Arquitectura online en preparación
+
+- Google Sign-In para adultos mediante Firebase Authentication.
+- Más de un adulto por familia, cada uno con su propia cuenta Google.
+- Dispositivos infantiles sin cuenta Google; identidad Firebase anónima invisible para las reglas de seguridad.
+- Firestore preparado para familias, miembros, dispositivos, invitaciones y alertas cifradas.
+- Cloud Functions 2nd gen para emparejamiento seguro.
+- App Check / Play Integrity preparado para reducir abuso de los endpoints de emparejamiento.
+- FCM preparado para avisos sin transportar contenido sensible.
+
+La conexión al proyecto Firebase real y el `google-services.json` todavía son el punto externo pendiente de activar esta arquitectura.
+
 ## Privacidad
 
-Famyrex no dispone de un backend propio en esta versión y no utiliza publicidad personalizada. El funcionamiento principal es local. Las funciones de navegación web pueden comunicarse con Internet y Safe Browsing; la ubicación puede utilizar Android/Google Play Services para las funciones de geofencing.
+La aplicación mantiene el análisis y la generación de señales en el dispositivo siempre que sea posible. La arquitectura online en preparación solo transportará los datos funcionales estrictamente necesarios para sincronizar la familia y entregar alertas estructuradas; las alertas sensibles deberán cifrarse antes de salir del dispositivo infantil.
 
 La política completa está en `docs/PRIVACY_POLICY.md`.
 
 ## Desarrollo y validación
 
-El CI ejecuta tests unitarios y compilación del APK debug. La versión de producción no se considera terminada hasta completar la revisión final y las pruebas en dispositivo físico.
+El CI ejecuta tests unitarios, validación de Cloud Functions y compilación del APK debug/release. La versión de producción no se considera terminada hasta completar la revisión final y las pruebas en dispositivo físico.
