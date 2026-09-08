@@ -16,10 +16,10 @@ class FamilyRemoteCommandExecutor(context: Context) {
         command: FamilyControlCommand,
         identity: FamyrexDeviceIdentity,
         nowMs: Long = System.currentTimeMillis()
-    ): FamilyControlReceipt {
+    ): FamilyControlReceipt = synchronized(EXECUTION_LOCK) {
         val gateResult = gate.check(command, identity, nowMs)
         if (gateResult.status != CommandGateStatus.ACCEPTED) {
-            return receipt(command, nowMs, gateResult.reason)
+            return@synchronized receipt(command, nowMs, gateResult.reason)
         }
 
         val receipt = when (command.action) {
@@ -54,7 +54,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
         }
 
         if (receipt.success) gate.complete(command.commandId, receipt.completedAtMs ?: nowMs)
-        return receipt
+        receipt
     }
 
     private fun receiptSuccess(command: FamilyControlCommand, nowMs: Long): FamilyControlReceipt =
@@ -66,7 +66,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
             success = true
         )
 
-    private fun receipt(command: FamilyControlCommand, nowMs: Long, reason: String): FamilyControlReceipt =
+    private fun receipt(command: FamilyControlCommand, nowMs: Long, reason: String?): FamilyControlReceipt =
         FamilyControlReceipt(
             commandId = command.commandId,
             action = command.action,
@@ -75,4 +75,10 @@ class FamilyRemoteCommandExecutor(context: Context) {
             success = false,
             reason = reason
         )
+
+    companion object {
+        // check + execution + complete must be atomic within this process;
+        // otherwise two FCM callbacks could both pass the replay check.
+        private val EXECUTION_LOCK = Any()
+    }
 }
