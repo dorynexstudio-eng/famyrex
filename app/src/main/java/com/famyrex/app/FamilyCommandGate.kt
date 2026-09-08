@@ -5,13 +5,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Local safety gate for commands that may arrive from the future online layer.
- * Validation is kept pure; this class adds persistent replay protection.
+ * Local safety gate for commands that may arrive from the online layer.
+ * Validation is performed before a command can be consumed. A command is
+ * recorded only after its local execution succeeds, so malformed or
+ * unsupported commands can never poison the replay ledger.
  */
 class FamilyCommandGate(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun accept(
+    fun check(
         command: FamilyControlCommand,
         identity: FamyrexDeviceIdentity,
         nowMs: Long = System.currentTimeMillis()
@@ -22,18 +24,17 @@ class FamilyCommandGate(context: Context) {
         if (isConsumed(command.commandId)) {
             return CommandGateResult.REPLAY("El comando ya fue procesado.")
         }
-
-        markConsumed(command.commandId, nowMs)
         return CommandGateResult.ACCEPTED
     }
 
-    private fun isConsumed(commandId: String): Boolean = consumedCommands().any { it.first == commandId }
-
-    private fun markConsumed(commandId: String, acceptedAtMs: Long) {
+    /** Marks a successfully executed command as consumed. */
+    fun complete(commandId: String, completedAtMs: Long = System.currentTimeMillis()) {
+        require(commandId.isNotBlank())
+        if (isConsumed(commandId)) return
         val items = consumedCommands()
-            .filter { acceptedAtMs - it.second <= RECEIPT_RETENTION_MS }
+            .filter { completedAtMs - it.second <= RECEIPT_RETENTION_MS }
             .toMutableList()
-        items += commandId to acceptedAtMs
+        items += commandId to completedAtMs
 
         val json = JSONArray()
         items.takeLast(MAX_RECEIPTS).forEach { (id, timestamp) ->
@@ -44,6 +45,17 @@ class FamilyCommandGate(context: Context) {
         }
         prefs.edit().putString(KEY_CONSUMED, json.toString()).apply()
     }
+
+    /** Backwards-compatible acceptance API; callers should prefer check + complete. */
+    fun accept(
+        command: FamilyControlCommand,
+        identity: FamyrexDeviceIdentity,
+        nowMs: Long = System.currentTimeMillis()
+    ): CommandGateResult = check(command, identity, nowMs).also {
+        if (it.status == CommandGateStatus.ACCEPTED) complete(command.commandId, nowMs)
+    }
+
+    private fun isConsumed(commandId: String): Boolean = consumedCommands().any { it.first == commandId }
 
     private fun consumedCommands(): List<Pair<String, Long>> = runCatching {
         val array = JSONArray(prefs.getString(KEY_CONSUMED, "[]"))
