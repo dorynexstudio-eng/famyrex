@@ -9,6 +9,9 @@ import com.google.firebase.functions.FirebaseFunctionsException
 class FamyrexPairingService(context: Context) {
     private val appContext = context.applicationContext
 
+    private fun functions(): FirebaseFunctions =
+        FirebaseFunctions.getInstance(FirebaseApp.getInstance(), "europe-west1")
+
     fun createInvite(
         familyId: String,
         childLabel: String,
@@ -19,7 +22,7 @@ class FamyrexPairingService(context: Context) {
             onError("Firebase todavía no está configurado.")
             return
         }
-        FirebaseFunctions.getInstance()
+        functions()
             .getHttpsCallable("createPairingInvite")
             .call(hashMapOf("familyId" to familyId, "childLabel" to childLabel))
             .addOnSuccessListener { result ->
@@ -46,7 +49,7 @@ class FamyrexPairingService(context: Context) {
             onError("Firebase todavía no está configurado.")
             return
         }
-        FirebaseFunctions.getInstance()
+        functions()
             .getHttpsCallable("redeemPairingCode")
             .call(hashMapOf("code" to code, "childLabel" to childLabel))
             .addOnSuccessListener { result ->
