@@ -33,7 +33,6 @@ fun FamilyCoreScreen(
     onFamilyChanged: () -> Unit = {}
 ) {
     val store = remember { FamilyStore(context) }
-    val identityStore = remember { FamilyIdentityStore(context) }
     val agreementStore = remember { FamilyAgreementStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var devices by remember { mutableStateOf(store.devices()) }
@@ -46,7 +45,9 @@ fun FamilyCoreScreen(
     var agreementGoal by remember { mutableStateOf(agreement?.goal ?: "Mantener un uso equilibrado") }
     var agreementConsequence by remember { mutableStateOf(agreement?.consequence ?: "Hablarlo juntos y aplicar lo pactado") }
     var agreementReviewDate by remember { mutableStateOf(agreement?.reviewDate ?: LocalDate.now().plusDays(30).toString()) }
-    var invitation by remember { mutableStateOf<OfflinePairingToken?>(null) }
+    val cloudFamilyId = remember { FamyrexCloudFamilyRepository(context).cachedFamilyId() }
+    var invitation by remember { mutableStateOf<CloudPairingInvitation?>(null) }
+    var creatingInvitation by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -172,34 +173,42 @@ fun FamilyCoreScreen(
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Vinculación offline segura", style = MaterialTheme.typography.titleMedium)
-                    Text("La invitación identifica también al perfil infantil seleccionado. El código de 6 dígitos se deriva con HMAC y caduca.")
-                    invitation?.let { token ->
-                        Text("Código de vinculación", style = MaterialTheme.typography.labelLarge)
-                        Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium)
-                        Text("Familia: ${token.familyId.take(12)}…")
-                        Text("Perfil: ${token.childDisplayName}")
-                        Text("Clave de invitación", style = MaterialTheme.typography.labelLarge)
-                        Text(OfflinePairingTokenCodec.encode(token))
-                        Text("Huella: ${OfflinePairingTokenCodec.fingerprint(token.secret)}")
-                        Text("Caduca en ${((token.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
+                    Text("Vinculación segura online", style = MaterialTheme.typography.titleMedium)
+                    Text("La invitación queda asociada al perfil infantil seleccionado, caduca en 15 minutos y solo puede utilizarse una vez.")
+                    if (cloudFamilyId == null) {
+                        Text("⚪ Inicia sesión con Google y termina la configuración de Firebase para generar invitaciones online.")
+                    } else {
+                        invitation?.let { invite ->
+                            Text("Código de vinculación", style = MaterialTheme.typography.labelLarge)
+                            Text(invite.code, style = MaterialTheme.typography.headlineMedium)
+                            Text("Perfil: ${invite.childDisplayName}")
+                            Text("Caduca en ${((invite.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
+                        }
+                        Button(
+                            enabled = selectedAgreementChild != null && !creatingInvitation,
+                            onClick = {
+                                val child = selectedAgreementChild ?: return@Button
+                                creatingInvitation = true
+                                message = "Generando invitación segura…"
+                                FamyrexPairingService(context).createInvite(
+                                    familyId = cloudFamilyId,
+                                    childLabel = child.displayName,
+                                    famyrexMemberId = child.id,
+                                    onSuccess = { code, _, expiresAtMs ->
+                                        invitation = CloudPairingInvitation(code, child.displayName, expiresAtMs)
+                                        creatingInvitation = false
+                                        message = "Invitación generada para ${child.displayName}. Introduce este código en su dispositivo supervisado."
+                                    },
+                                    onError = {
+                                        creatingInvitation = false
+                                        message = it
+                                    }
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (creatingInvitation) "Generando…" else "Generar invitación para ${selectedAgreementChild?.displayName ?: "hijo/a"}") }
                     }
-                    Button(
-                        enabled = selectedAgreementChild != null,
-                        onClick = {
-                            val child = selectedAgreementChild ?: return@Button
-                            val token = OfflinePairingTokenCodec.create(
-                                familyId = identityStore.identity().familyId,
-                                childProfileId = child.id,
-                                childDisplayName = child.displayName,
-                                now = System.currentTimeMillis()
-                            )
-                            invitation = token
-                            message = "Invitación generada para ${child.displayName}. Transfiere la clave y el código al dispositivo supervisado de ese hijo/a."
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Generar invitación para ${selectedAgreementChild?.displayName ?: "hijo/a"}") }
-                    Text("Sin servidor: el dispositivo supervisado verifica localmente que el código corresponde a la familia, al perfil seleccionado, a la clave y a la caducidad mostradas aquí.")
+                    Text("El código se valida en Firebase con identidad de adulto, App Check, expiración, uso único y limitación de intentos.")
                 }
             }
         }
@@ -261,3 +270,10 @@ fun FamilyCoreScreen(
         }
     }
 }
+
+
+private data class CloudPairingInvitation(
+    val code: String,
+    val childDisplayName: String,
+    val expiresAtMs: Long
+)

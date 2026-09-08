@@ -10,7 +10,14 @@ service cloud.firestore {
 
     match /families/{familyId} {
       allow create: if signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com' && request.resource.data.keys().hasOnly(['ownerUid', 'name', 'createdAt']) && request.resource.data.ownerUid == request.auth.uid;
-      allow read: if memberExists(familyId);
+      // A Google-authenticated owner may recover only their own family before
+      // their parent-member document has been restored on a new installation.
+      // Firestore validates the ownerUid query constraint before returning data.
+      allow read: if memberExists(familyId) || (
+        signedIn() &&
+        request.auth.token.firebase.sign_in_provider == 'google.com' &&
+        resource.data.ownerUid == request.auth.uid
+      );
       allow update: if isParent(familyId) && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if isParent(familyId) && resource.data.ownerUid == request.auth.uid;
     }
