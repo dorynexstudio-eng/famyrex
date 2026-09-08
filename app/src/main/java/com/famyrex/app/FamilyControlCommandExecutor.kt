@@ -27,6 +27,17 @@ class FamilyControlCommandExecutor(context: Context) {
             )
         }
 
+        if (!RemoteControlActionPolicy.isSupported(command.action)) {
+            return FamilyControlReceipt(
+                commandId = command.commandId,
+                action = command.action,
+                acceptedAtMs = nowMs,
+                completedAtMs = nowMs,
+                success = false,
+                reason = "La acción ${command.action.name} todavía no está soportada en este dispositivo."
+            )
+        }
+
         val receipt = when (val result = FamilyControlCommandApplier.apply(command, ParentalControlStore(appContext).load())) {
             is CommandApplicationResult.Applied -> {
                 ParentalControlStore(appContext).save(result.config)
