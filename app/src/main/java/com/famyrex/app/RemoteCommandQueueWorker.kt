@@ -20,15 +20,11 @@ class RemoteCommandQueueWorker(
 
         val currentUser = FirebaseAuth.getInstance().currentUser
             ?: return Result.success()
-        // Recovery is only valid for the anonymous child transport identity.
         if (!currentUser.isAnonymous) return Result.success()
         val firebaseUid = identity.firebaseUid ?: currentUser.uid
         if (firebaseUid != currentUser.uid) return Result.success()
 
         val familyId = identity.familyId ?: return Result.success()
-
-        // Query only pending commands so an old history cannot crowd out a live command.
-        // The composite index is checked in firebase/firestore.indexes.json.
         val snapshot = Tasks.await(
             FirebaseFirestore.getInstance()
                 .collection("families").document(familyId).collection("commands")
@@ -51,12 +47,15 @@ class RemoteCommandQueueWorker(
                     command.deviceId != identity.deviceId
                 ) return@forEach
 
-                // Let the canonical executor decide whether the command is expired or
-                // otherwise invalid, so recovery produces the same receipt and audit
-                // trail as FCM instead of silently leaving stale commands in "sent".
+                // The canonical executor handles expiry, validation and replay protection.
                 val receipt = executor.execute(command, identity, now)
                 receiptStore.save(receipt)
-                RemoteCommandReceiptReporter.report(context, receipt)
+
+                // Recovery must not report success locally and then silently lose the
+                // cloud receipt. If Firestore is temporarily unavailable, retry the worker.
+                RemoteCommandReceiptReporter.report(context, receipt)?.let { task ->
+                    Tasks.await(task)
+                }
             }
         Result.success()
     }.getOrElse { Result.retry() }
