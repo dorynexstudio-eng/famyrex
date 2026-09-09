@@ -2,7 +2,7 @@ package com.famyrex.app
 
 /**
  * Bridges the canonical local parental configuration and the transport-oriented
- * DevicePolicySnapshot used by the future family sync layer.
+ * DevicePolicySnapshot used by the family sync layer.
  */
 object DevicePolicySnapshotAdapter {
     fun fromLocalConfig(
@@ -20,34 +20,26 @@ object DevicePolicySnapshotAdapter {
                 packageName = restriction.packageName,
                 displayName = restriction.packageName,
                 blocked = restriction.blocked,
-                dailyLimitMinutes = restriction.dailyMinutes
+                dailyLimitMinutes = restriction.dailyMinutes,
+                approvalRequired = restriction.approvalRequired
             )
         },
         webPolicyVersion = webPolicyVersion,
         revision = revision
     )
 
-    /**
-     * Applies only the policy fields currently representable by the local store.
-     * Transport-only metadata and unsupported web controls are intentionally ignored.
-     */
+    /** Applies all policy fields currently representable by the local store. */
     fun toLocalConfig(snapshot: DevicePolicySnapshot): ParentalControlConfig = ParentalControlConfig(
         screenTimeLimit = snapshot.dailyLimitMinutes?.let { ScreenTimeLimit(it) },
         pauseSchedules = if (snapshot.bedtimeStartMinutes != null && snapshot.bedtimeEndMinutes != null) {
-            listOf(
-                PauseSchedule(
-                    startMinuteOfDay = snapshot.bedtimeStartMinutes,
-                    endMinuteOfDay = snapshot.bedtimeEndMinutes
-                )
-            )
-        } else {
-            emptyList()
-        },
+            listOf(PauseSchedule(snapshot.bedtimeStartMinutes, snapshot.bedtimeEndMinutes))
+        } else emptyList(),
         appRestrictions = snapshot.apps.map { app ->
             AppRestriction(
                 packageName = app.packageName,
                 dailyMinutes = app.dailyLimitMinutes,
-                blocked = app.blocked
+                blocked = app.blocked,
+                approvalRequired = app.approvalRequired
             )
         }
     )
