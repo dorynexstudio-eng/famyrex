@@ -22,6 +22,7 @@ class ProtectionHealthWorker(
         val previousHealth = healthStore.load()
         val health = ProtectionHealthChecker.check(context)
         healthStore.save(health)
+        ChildDeviceStatusReporter.report(context, health)
 
         val incidentStore = ProtectionIncidentStore(context)
         val previousComponents = incidentStore.loadComponents()
