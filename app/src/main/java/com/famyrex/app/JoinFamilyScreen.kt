@@ -30,6 +30,7 @@ fun JoinFamilyScreen(
     val store = remember { FamilyStore(appContext) }
     val existingIdentity = remember { store.verifiedFamilyIdentity() }
     var code by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
     var childLabel by remember { mutableStateOf("Perfil infantil") }
     var message by remember { mutableStateOf("") }
     var joining by remember { mutableStateOf(false) }
@@ -60,11 +61,13 @@ fun JoinFamilyScreen(
         joining = true
         message = "Vinculando dispositivo…"
         val normalizedLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
+        val normalizedToken = token.trim()
         val memberId = "profile-${UUID.randomUUID().toString().replace("-", "").take(16)}"
         val deviceId = "device-${UUID.randomUUID().toString().replace("-", "").take(16)}"
 
         FamyrexPairingService(appContext).redeemCode(
             code = code,
+            token = normalizedToken,
             childLabel = normalizedLabel,
             famyrexMemberId = memberId,
             famyrexDeviceId = deviceId,
@@ -98,12 +101,13 @@ fun JoinFamilyScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Unirse a una familia", style = MaterialTheme.typography.headlineMedium)
-        Text("Introduce el código de vinculación que te proporciona el adulto autorizado. La identidad del dispositivo queda vinculada de forma segura a Famyrex.")
+        Text("Introduce el código y la clave de vinculación que te proporciona el adulto autorizado. Ambos son necesarios para completar la vinculación segura.")
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(childLabel, { childLabel = it.take(40) }, Modifier.fillMaxWidth(), label = { Text("Nombre del perfil") }, singleLine = true)
                 OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.fillMaxWidth(), label = { Text("Código de 6 dígitos") }, singleLine = true)
-                Button(enabled = code.length == 6 && !joining, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text(if (joining) "Vinculando…" else "Verificar y vincular") }
+                OutlinedTextField(token, { token = it.filterNot(Char::isWhitespace) }, Modifier.fillMaxWidth(), label = { Text("Clave de vinculación") }, singleLine = true)
+                Button(enabled = code.length == 6 && token.isNotBlank() && !joining, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text(if (joining) "Vinculando…" else "Verificar y vincular") }
                 if (message.isNotBlank()) Text(message)
             }
         }
