@@ -63,7 +63,7 @@ private fun loadPremiumZones(prefs: SharedPreferences): List<GeoZone> {
     }
 }
 
-private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone) {
+private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone>) {
     prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply()
 }
 
