@@ -8,9 +8,9 @@
 </head>
 <body>
 <h1>Política de privacidad de Famyrex</h1>
-<p><strong>Última actualización: 7 de septiembre de 2026</strong></p>
+<p><strong>Última actualización: 10 de septiembre de 2026</strong></p>
 <p>Famyrex es una aplicación Android de seguridad y bienestar familiar diseñada para ayudar a las familias a comprender y gestionar el uso digital de sus dispositivos de forma segura, transparente y responsable.</p>
-<div class="note"><strong>Principio de privacidad:</strong> Famyrex prioriza el procesamiento local. No mantiene un backend propio ni un historial familiar remoto.</div>
+<div class="note"><strong>Principio de privacidad:</strong> Famyrex prioriza el procesamiento local. Para las funciones de familia conectada utiliza Firebase/Firestore únicamente para el estado necesario entre dispositivos autorizados.</div>
 
 <h2>Qué puede procesar Famyrex</h2>
 <ul>
@@ -22,39 +22,33 @@
 <li>Navegación realizada dentro del navegador web integrado de Famyrex.</li>
 </ul>
 
+<h2>Ubicación familiar conectada</h2>
+<p>Cuando un dispositivo infantil está vinculado y la función está activa, Famyrex puede enviar a Firebase/Firestore la última ubicación conocida del dispositivo infantil: latitud, longitud, precisión aproximada y momento de captura. El adulto autorizado puede consultar ese punto y abrirlo directamente en Google Maps para ver la ubicación o iniciar una ruta.</p>
+<p>Famyrex conserva únicamente el último punto sincronizado y no crea un historial remoto de recorridos. El dispositivo infantil puede escribir su propio punto y el adulto autorizado puede leerlo mediante las reglas de seguridad de la familia.</p>
+
 <h2>Qué no hace</h2>
 <ul>
 <li>No lee contraseñas.</li>
 <li>No realiza lectura encubierta de chats o mensajes.</li>
 <li>No utiliza micrófono ni cámara para vigilancia.</li>
 <li>No vende datos personales ni utiliza publicidad personalizada.</li>
-<li>No mantiene una cuenta remota de Famyrex en la versión actual.</li>
+<li>No utiliza la ubicación familiar para publicidad.</li>
 </ul>
 
-<h2>Ubicación</h2>
-<p>Las funciones de ubicación y geozonas requieren permisos de Android. La aplicación puede utilizar las APIs de ubicación del dispositivo y servicios de Google Play relacionados cuando están disponibles. La información se utiliza para las funciones locales de protección y no se envía a un servidor propio de Famyrex.</p>
+<h2>Dónde se procesan los datos</h2>
+<p>El funcionamiento principal de Famyrex es local. Firebase/Firestore se utiliza como infraestructura para determinadas funciones de vinculación y supervisión familiar. Los datos de ubicación conectada se limitan al último punto necesario para prestar esta función.</p>
 
 <h2>Seguridad web</h2>
 <p>El navegador web integrado puede comunicarse con Internet. Famyrex puede utilizar Safe Browsing de WebView cuando está disponible. Las listas locales de dominios se procesan en el dispositivo. Famyrex no intercepta el navegador externo ni los mensajes de otras aplicaciones.</p>
 
-<h2>Conservación de datos</h2>
-<p>Los datos funcionales se conservan localmente mientras sean necesarios para las funciones configuradas. Famyrex no mantiene actualmente una cuenta remota ni una base de datos propia en servidores. Por ello, no existe un periodo de conservación remoto aplicable a estos datos.</p>
+<h2>Conservación y eliminación de datos</h2>
+<p>Los datos funcionales se conservan localmente mientras sean necesarios para las funciones configuradas. El último punto de ubicación sincronizado se sustituye cuando el dispositivo infantil publica una nueva ubicación y deja de estar disponible cuando se elimina el documento remoto correspondiente.</p>
+<p>Los datos de infraestructura de Firebase pueden estar sujetos a sus propias políticas y retenciones técnicas.</p>
+<p>Para eliminar los datos locales: <strong>Ajustes de Android → Aplicaciones → Famyrex → Almacenamiento → Borrar datos</strong> (la denominación puede variar según el fabricante), o desinstala Famyrex.</p>
+<p>También puede solicitar asistencia relacionada con la eliminación de datos utilizando el canal de contacto indicado en la ficha de Google Play del desarrollador.</p>
 
-<h2>Cómo solicitar la eliminación de datos</h2>
-<p>Los datos de Famyrex se almacenan localmente en el dispositivo. El usuario puede eliminarlos en cualquier momento siguiendo estos pasos:</p>
-<ol>
-<li>Abrir los <strong>Ajustes de Android</strong> del dispositivo.</li>
-<li>Entrar en <strong>Aplicaciones → Famyrex → Almacenamiento</strong> (la denominación puede variar según el fabricante).</li>
-<li>Seleccionar <strong>Borrar datos</strong> o <strong>Borrar almacenamiento</strong> y confirmar.</li>
-</ol>
-<p>Como alternativa, el usuario puede <strong>desinstalar Famyrex</strong>, lo que elimina los datos locales asociados a la aplicación según el comportamiento de Android.</p>
-<p>También puede solicitar asistencia relacionada con la eliminación de datos utilizando el canal de contacto indicado en la ficha de Google Play del desarrollador. Como Famyrex no mantiene actualmente una cuenta remota ni un historial familiar en sus propios servidores, no hay datos personales de Famyrex que deban conservarse remotamente después del borrado local.</p>
-<p><strong>Datos eliminados:</strong> configuración local de la aplicación, datos de vinculación almacenados localmente, eventos, alertas, estadísticas, tendencias, configuraciones y demás datos funcionales guardados por Famyrex en el dispositivo.</p>
-<p><strong>Datos que pueden permanecer:</strong> Android o servicios de terceros pueden conservar datos sujetos a sus propias políticas y mecanismos de almacenamiento. Famyrex no controla esos datos externos.</p>
-<p><strong>Periodo adicional de conservación por Famyrex:</strong> ninguno en servidores propios, ya que Famyrex no mantiene actualmente almacenamiento remoto de datos de usuario.</p>
-
-<h2>Seguridad técnica</h2>
-<p>Los secretos de vinculación se protegen mediante Android Keystore. Famyrex evita almacenar claves familiares sensibles en texto plano cuando utiliza el almacén seguro disponible.</p>
+<h2>Permisos y seguridad</h2>
+<p>Famyrex solicita permisos solo para funciones que los necesitan y el usuario puede revocarlos desde Android. Los secretos de vinculación se protegen mediante Android Keystore y el acceso a la ubicación sincronizada está restringido mediante reglas de seguridad de Firestore.</p>
 
 <h2>Interpretación responsable</h2>
 <p>Famyrex utiliza estados 🟢 normal, 🟠 atención, 🔴 riesgo y ⚪ datos insuficientes. El estado de datos insuficientes no equivale a que todo esté bien. Las alertas son señales para revisar el contexto y no diagnósticos ni acusaciones.</p>
