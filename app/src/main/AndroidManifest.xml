@@ -18,8 +18,8 @@
         android:name=".FamyrexApplication"
         android:theme="@style/Theme.Famyrex"
         android:label="Famyrex"
-        android:icon="@drawable/ic_famyrex_logo"
-        android:roundIcon="@drawable/ic_famyrex_logo">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity android:name=".ModeRouterActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
