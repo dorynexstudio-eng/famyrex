@@ -125,6 +125,8 @@ export const createPairingInvite = onCall(async (request) => {
 export const redeemPairingCode = onCall(async (request) => {
   const deviceUid = requireAnonymousDevice(request);
   const code = normalizeCode(request.data?.code);
+  const token = String(request.data?.token ?? "").trim();
+  if (!token) throw new HttpsError("invalid-argument", "Falta el token de vinculación.");
   const childLabel = String(request.data?.childLabel ?? "Perfil infantil").trim().slice(0, 40) || "Perfil infantil";
   const requestedMemberId = request.data?.famyrexMemberId == null ? null : normalizeMemberId(request.data?.famyrexMemberId);
   const famyrexDeviceId = normalizeDeviceId(request.data?.famyrexDeviceId);
@@ -140,6 +142,9 @@ export const redeemPairingCode = onCall(async (request) => {
   if (matches.empty) throw new HttpsError("not-found", "Código no válido o caducado.");
   const inviteDoc = matches.docs[0]; const inviteData = inviteDoc.data(); const familyRef = inviteDoc.ref.parent.parent;
   if (!familyRef) throw new HttpsError("internal", "Invitación de familia inválida.");
+  if (typeof inviteData.tokenHash !== "string" || inviteData.tokenHash !== sha256(token)) {
+    throw new HttpsError("permission-denied", "El token de vinculación no coincide.");
+  }
   const expiresAt = inviteData.expiresAt as Timestamp | undefined;
   if (!expiresAt || expiresAt.toMillis() <= now) { await inviteDoc.ref.update({ status: "expired" }); throw new HttpsError("deadline-exceeded", "El código de vinculación ha caducado."); }
   const invitedMemberId = normalizeMemberId(inviteData.famyrexMemberId);
