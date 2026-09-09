@@ -1,6 +1,7 @@
 package com.famyrex.app
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,8 +35,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import android.content.SharedPreferences
-import androidx.compose.ui.unit.dp
 
 class PremiumMainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +63,7 @@ private fun loadPremiumZones(prefs: SharedPreferences): List<GeoZone> {
     }
 }
 
-private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone>) {
+private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone) {
     prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply()
 }
 
@@ -134,7 +133,7 @@ fun FamyrexPremiumApp(context: Context) {
                     onOpenParentalControl = { tab = 2; parentalControlOpen = true },
                     onOpenSettings = { settingsOpen = true }
                 )
-                1 -> FamyrexAlertsScreen(context, Modifier.fillMaxSize())
+                1 -> RealAlertsScreen(context, Modifier.fillMaxSize())
                 2 -> when {
                     remoteControlOpen -> FamilyRemoteControlScreen(context, FamyrexCloudFamilyRepository(context).cachedFamilyId(), Modifier.fillMaxSize())
                     parentalControlOpen -> ParentalControlScreen(Modifier.fillMaxSize())
