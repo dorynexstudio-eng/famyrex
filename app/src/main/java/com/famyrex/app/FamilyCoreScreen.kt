@@ -143,7 +143,7 @@ fun FamilyCoreScreen(
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Vinculación familiar en la nube", style = MaterialTheme.typography.titleMedium)
-                    Text("Genera un código temporal desde la cuenta del adulto. El código queda ligado al perfil infantil seleccionado y se consume una sola vez.")
+                    Text("Genera un código temporal desde la cuenta del adulto. El código queda ligado al perfil infantil seleccionado y se consume una sola vez. Para completar la vinculación segura también debes entregar la clave de vinculación al dispositivo supervisado.")
                     if (children.isEmpty()) Text("⚪ Crea primero un perfil infantil para generar una invitación.") else {
                         Text("Perfil seleccionado: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
                         Button(enabled = selectedAgreementChild != null && !cloudPairingLoading, onClick = {
@@ -152,13 +152,14 @@ fun FamilyCoreScreen(
                             if (familyId.isNullOrBlank()) { message = "La familia todavía no tiene una identidad Firebase activa. Completa primero el acceso del adulto."; return@Button }
                             cloudPairingLoading = true
                             pairingService.createInvite(familyId = familyId, childLabel = child.displayName, famyrexMemberId = child.id,
-                                onSuccess = { code, token, expiresAtMs -> cloudCode = code; cloudToken = token; cloudExpiresAtMs = expiresAtMs; cloudPairingLoading = false; message = "Código cloud generado para ${child.displayName}." },
+                                onSuccess = { code, token, expiresAtMs -> cloudCode = code; cloudToken = token; cloudExpiresAtMs = expiresAtMs; cloudPairingLoading = false; message = "Código y clave de vinculación generados para ${child.displayName}." },
                                 onError = { error -> cloudPairingLoading = false; message = error })
                         }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudPairingLoading) "Generando código…" else "Generar código de vinculación") }
                         if (cloudCode.isNotBlank()) {
                             Text("Código", style = MaterialTheme.typography.labelLarge); Text(cloudCode, style = MaterialTheme.typography.headlineMedium); Text("Perfil: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
+                            Text("Clave de vinculación", style = MaterialTheme.typography.labelLarge); Text(cloudToken, style = MaterialTheme.typography.bodyMedium)
+                            Text("Entrega al dispositivo supervisado el código y esta clave. La clave solo se muestra al adulto que acaba de crear la invitación y no se guarda en Firestore en claro.", style = MaterialTheme.typography.bodySmall)
                             cloudExpiresAtMs?.let { expiresAt -> Text("Caduca en aproximadamente ${((expiresAt - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min") }
-                            Text("Entrega este código al dispositivo supervisado. El token técnico no se muestra en pantalla ni se guarda en Firestore en claro.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
