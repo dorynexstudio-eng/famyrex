@@ -8,7 +8,7 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.UUID
 
-/** Adult-side gateway for discovering supervised devices, app inventory, issuing commands and reading execution status. */
+/** Adult-side gateway for discovering supervised devices, app inventory, device status, issuing commands and reading execution status. */
 class FamilyCloudControlRepository(context: Context) {
     private val appContext = context.applicationContext
 
@@ -74,6 +74,45 @@ class FamilyCloudControlRepository(context: Context) {
                 onSuccess(ChildAppInventoryState(apps, updatedAtMs))
             }
             .addOnFailureListener { onError(it.message ?: "No se pudo consultar el inventario de aplicaciones.") }
+    }
+
+    fun loadChildDeviceStatus(
+        familyId: String,
+        child: CloudChildDevice,
+        onSuccess: (ChildDeviceStatus) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (familyId.isBlank() || child.uid.isBlank() || child.deviceId.isBlank()) {
+            onError("No se puede consultar el estado sin una identidad infantil completa.")
+            return
+        }
+        if (!isAdultConfigured()) {
+            onError("La cuenta de adulto todavía no está conectada a Firebase.")
+            return
+        }
+        FirebaseFirestore.getInstance()
+            .collection("families").document(familyId)
+            .collection("devices").document(child.uid)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                val updatedAtMs = snapshot.getLong("deviceStatusUpdatedAtMs") ?: 0L
+                val protectionCheckedAtMs = snapshot.getLong("protectionCheckedAtMs") ?: 0L
+                val protectionReasons = (snapshot.get("protectionReasons") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?.map { it.trim().take(200) }
+                    ?.filter { it.isNotBlank() }
+                    ?.take(8)
+                    ?: emptyList()
+                onSuccess(
+                    ChildDeviceStatus(
+                        updatedAtMs = updatedAtMs,
+                        protectionActive = snapshot.getBoolean("protectionActive"),
+                        protectionCheckedAtMs = protectionCheckedAtMs,
+                        protectionReasons = protectionReasons
+                    )
+                )
+            }
+            .addOnFailureListener { onError(it.message ?: "No se pudo consultar el estado del dispositivo infantil.") }
     }
 
     fun issueCommand(
@@ -200,6 +239,27 @@ data class ChildAppInventoryState(
     val apps: List<ChildAppInventoryItem>,
     val updatedAtMs: Long
 )
+
+data class ChildDeviceStatus(
+    val updatedAtMs: Long,
+    val protectionActive: Boolean?,
+    val protectionCheckedAtMs: Long,
+    val protectionReasons: List<String>
+) {
+    fun liveness(nowMs: Long = System.currentTimeMillis()): ChildDeviceLiveness = when {
+        updatedAtMs <= 0L -> ChildDeviceLiveness.UNKNOWN
+        nowMs - updatedAtMs <= ONLINE_WINDOW_MS -> ChildDeviceLiveness.ONLINE
+        nowMs - updatedAtMs <= UNKNOWN_WINDOW_MS -> ChildDeviceLiveness.OFFLINE
+        else -> ChildDeviceLiveness.UNKNOWN
+    }
+
+    companion object {
+        private const val ONLINE_WINDOW_MS = 45L * 60L * 1000L
+        private const val UNKNOWN_WINDOW_MS = 24L * 60L * 60L * 1000L
+    }
+}
+
+enum class ChildDeviceLiveness { ONLINE, OFFLINE, UNKNOWN }
 
 data class CloudCommandReceipt(
     val commandId: String,
