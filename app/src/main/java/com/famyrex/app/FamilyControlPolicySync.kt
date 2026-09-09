@@ -23,10 +23,27 @@ object FamilyControlPolicySync {
             )
         }
 
-        // Commit the policy before advancing the revision. If the process dies between these
-        // two commits, the same revision is safely replayed on the next delivery.
-        ParentalControlStore(appContext).save(DevicePolicySnapshotAdapter.toLocalConfig(snapshot))
-        state.edit().putLong(revisionKey(snapshot.deviceId), snapshot.revision).commit()
+        // Persist the complete policy synchronously before advancing the revision. This prevents
+        // the revision marker from becoming durable while the actual policy is still only queued
+        // in SharedPreferences.apply(). If the process dies afterwards, replaying the same
+        // revision remains safe and idempotent.
+        val persisted = runCatching {
+            ParentalControlStore(appContext)
+                .saveBlocking(DevicePolicySnapshotAdapter.toLocalConfig(snapshot))
+        }.getOrDefault(false)
+        if (!persisted) {
+            return failure(snapshot, now, "No se pudo guardar la política localmente")
+        }
+
+        val revisionPersisted = state.edit()
+            .putLong(revisionKey(snapshot.deviceId), snapshot.revision)
+            .commit()
+        if (!revisionPersisted) {
+            // The policy is already durable but the revision marker is not. A later delivery may
+            // replay this revision; because applying a complete snapshot is idempotent, that is
+            // preferable to reporting a successful revision that was never durably recorded.
+            return failure(snapshot, now, "No se pudo guardar la revisión de la política")
+        }
 
         return FamilyControlReceipt(
             commandId = "policy-${snapshot.deviceId}-${snapshot.revision}",
