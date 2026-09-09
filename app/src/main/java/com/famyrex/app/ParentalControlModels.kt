@@ -27,7 +27,8 @@ data class PauseSchedule(
 data class AppRestriction(
     val packageName: String,
     val dailyMinutes: Int? = null,
-    val blocked: Boolean = false
+    val blocked: Boolean = false,
+    val approvalRequired: Boolean = false
 ) {
     init {
         require(packageName.isNotBlank()) { "packageName must not be blank" }
