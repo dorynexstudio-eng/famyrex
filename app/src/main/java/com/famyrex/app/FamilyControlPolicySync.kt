@@ -4,6 +4,7 @@ import android.content.Context
 
 /** Applies a complete device policy snapshot through the existing local policy store. */
 object FamilyControlPolicySync {
+    @Synchronized
     fun apply(context: Context, snapshot: DevicePolicySnapshot): FamilyControlReceipt {
         val now = System.currentTimeMillis()
         val validationError = validate(snapshot)
@@ -22,8 +23,10 @@ object FamilyControlPolicySync {
             )
         }
 
+        // Commit the policy before advancing the revision. If the process dies between these
+        // two commits, the same revision is safely replayed on the next delivery.
         ParentalControlStore(appContext).save(DevicePolicySnapshotAdapter.toLocalConfig(snapshot))
-        state.edit().putLong(revisionKey(snapshot.deviceId), snapshot.revision).apply()
+        state.edit().putLong(revisionKey(snapshot.deviceId), snapshot.revision).commit()
 
         return FamilyControlReceipt(
             commandId = "policy-${snapshot.deviceId}-${snapshot.revision}",
@@ -48,7 +51,9 @@ object FamilyControlPolicySync {
 
     private fun validate(snapshot: DevicePolicySnapshot): String? {
         if (snapshot.deviceId.isBlank()) return "El deviceId de la política está vacío"
+        if (snapshot.deviceId.length > MAX_DEVICE_ID_LENGTH) return "El deviceId de la política es demasiado largo"
         if (snapshot.revision < 0L) return "La revisión de la política no puede ser negativa"
+        if (snapshot.webPolicyVersion < 0L) return "La versión de política web no puede ser negativa"
         if (snapshot.dailyLimitMinutes != null && snapshot.dailyLimitMinutes !in 1..1440) {
             return "El límite diario no es válido"
         }
@@ -57,8 +62,12 @@ object FamilyControlPolicySync {
         if ((start == null) != (end == null)) return "El horario requiere inicio y fin"
         if (start != null && start !in 0..1439) return "La hora de inicio no es válida"
         if (end != null && end !in 0..1439) return "La hora de fin no es válida"
+        if (snapshot.apps.size > MAX_APPS) return "La política contiene demasiadas aplicaciones"
+        val seenPackages = HashSet<String>(snapshot.apps.size)
         snapshot.apps.forEach { policy ->
-            if (policy.packageName.isBlank()) return "Una aplicación de la política no tiene packageName"
+            if (!PACKAGE_NAME_REGEX.matches(policy.packageName)) return "El packageName de una aplicación no es válido"
+            if (!seenPackages.add(policy.packageName)) return "La política contiene aplicaciones duplicadas"
+            if (policy.displayName.length > MAX_DISPLAY_NAME_LENGTH) return "El nombre de una aplicación es demasiado largo"
             if (policy.dailyLimitMinutes != null && policy.dailyLimitMinutes !in 1..1440) {
                 return "El límite de una aplicación no es válido"
             }
@@ -67,4 +76,8 @@ object FamilyControlPolicySync {
     }
 
     private const val PREFS_NAME = "famyrex_policy_sync"
+    private const val MAX_APPS = 100
+    private const val MAX_DEVICE_ID_LENGTH = 128
+    private const val MAX_DISPLAY_NAME_LENGTH = 100
+    private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
 }
