@@ -14,6 +14,15 @@ class ParentalControlStore(context: Context) {
     }
 
     fun save(config: ParentalControlConfig) {
+        persist(config, waitForDisk = false)
+    }
+
+    /** Persists the complete policy before returning, for revisioned sync transactions. */
+    fun saveBlocking(config: ParentalControlConfig): Boolean {
+        return persist(config, waitForDisk = true)
+    }
+
+    private fun persist(config: ParentalControlConfig, waitForDisk: Boolean): Boolean {
         val root = JSONObject().apply {
             config.screenTimeLimit?.let { limit ->
                 put("screenTime", JSONObject().apply {
@@ -40,7 +49,11 @@ class ParentalControlStore(context: Context) {
                 }
             })
         }
-        prefs.edit().putString(KEY_CONFIG, root.toString()).apply()
+        val editor = prefs.edit().putString(KEY_CONFIG, root.toString())
+        return if (waitForDisk) editor.commit() else {
+            editor.apply()
+            true
+        }
     }
 
     fun clear() {
