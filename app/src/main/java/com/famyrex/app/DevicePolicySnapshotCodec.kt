@@ -28,13 +28,20 @@ object DevicePolicySnapshotCodec {
     }.toString()
 
     fun decode(raw: String): DevicePolicySnapshot? = runCatching {
+        if (raw.length > MAX_PAYLOAD_LENGTH) error("Policy snapshot is too large")
         val root = JSONObject(raw)
+        val deviceId = root.getString("deviceId")
+        if (deviceId.isBlank() || deviceId.length > MAX_DEVICE_ID_LENGTH) error("Invalid deviceId")
+
         val appsJson = root.optJSONArray("apps") ?: JSONArray()
-        val apps = buildList {
+        if (appsJson.length() > MAX_APPS) error("Too many app policies")
+        val apps = buildList(appsJson.length()) {
             for (i in 0 until appsJson.length()) {
                 val item = appsJson.optJSONObject(i) ?: error("Invalid app policy")
                 val packageName = item.getString("packageName")
                 val displayName = item.getString("displayName")
+                if (!PACKAGE_NAME_REGEX.matches(packageName)) error("Invalid packageName")
+                if (displayName.length > MAX_DISPLAY_NAME_LENGTH) error("Display name is too long")
                 val source = AppInstallSource.valueOf(item.optString("source", AppInstallSource.UNKNOWN.name))
                 add(AppPolicy(
                     packageName = packageName,
@@ -48,7 +55,7 @@ object DevicePolicySnapshotCodec {
             }
         }
         DevicePolicySnapshot(
-            deviceId = root.getString("deviceId"),
+            deviceId = deviceId,
             dailyLimitMinutes = root.optNullableInt("dailyLimitMinutes"),
             bedtimeStartMinutes = root.optNullableInt("bedtimeStartMinutes"),
             bedtimeEndMinutes = root.optNullableInt("bedtimeEndMinutes"),
@@ -74,4 +81,10 @@ object DevicePolicySnapshotCodec {
             else -> error("Expected integer")
         }
     }
+
+    private const val MAX_PAYLOAD_LENGTH = 64 * 1024
+    private const val MAX_APPS = 100
+    private const val MAX_DEVICE_ID_LENGTH = 128
+    private const val MAX_DISPLAY_NAME_LENGTH = 100
+    private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")
 }
