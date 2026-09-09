@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,9 +54,7 @@ fun FamyrexSettingsScreen(context: Context, onBack: () -> Unit, modifier: Modifi
         item { SettingsSection(Icons.Default.Info, "Privacidad y ayuda", "Consulta qué observa Famyrex y cómo se utilizan los datos.") {
             SettingsAction("Política de privacidad", "Abrir política de privacidad", { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) })
         } }
-        item {
-            Text("Famyrex 2.0.0", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
-        }
+        item { Text("Famyrex 2.0.0", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) }
     }
 }
 
