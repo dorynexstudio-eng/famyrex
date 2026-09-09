@@ -50,6 +50,7 @@ class FamyrexPairingService(context: Context) {
 
     fun redeemCode(
         code: String,
+        token: String,
         childLabel: String,
         famyrexMemberId: String,
         famyrexDeviceId: String,
@@ -58,6 +59,10 @@ class FamyrexPairingService(context: Context) {
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) {
             onError("Firebase todavía no está configurado.")
+            return
+        }
+        if (token.isBlank()) {
+            onError("Falta la clave de vinculación.")
             return
         }
         if (famyrexMemberId.isBlank() || famyrexDeviceId.isBlank()) {
@@ -71,6 +76,7 @@ class FamyrexPairingService(context: Context) {
                 .call(
                     hashMapOf(
                         "code" to code,
+                        "token" to token,
                         "childLabel" to childLabel,
                         "famyrexMemberId" to famyrexMemberId,
                         "famyrexDeviceId" to famyrexDeviceId
