@@ -1,15 +1,15 @@
 package com.famyrex.app
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.Tasks
 
 class FamilyLocationWorker(
-    appContext: Context,
+    appContext: android.content.Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
@@ -23,22 +23,17 @@ class FamilyLocationWorker(
         return runCatching {
             val client = LocationServices.getFusedLocationProviderClient(applicationContext)
             val location = Tasks.await(client.lastLocation)
-                ?: Tasks.await(client.getCurrentLocation(
-                    com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-                    null
-                ))
+                ?: Tasks.await(client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null))
                 ?: return Result.retry()
 
-            Tasks.await(
-                com.google.android.gms.tasks.Tasks.forResult(
-                    FamilyLocationRepository(applicationContext).publishChildLocation(
-                        latitude = location.latitude,
-                        longitude = location.longitude,
-                        accuracyMeters = location.accuracy,
-                        capturedAtMs = location.time
-                    )
-                )
-            )
+            val task = FamilyLocationRepository(applicationContext).publishChildLocationTask(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                accuracyMeters = location.accuracy,
+                capturedAtMs = location.time
+            ) ?: return Result.success()
+
+            Tasks.await(task)
             Result.success()
         }.getOrElse { Result.retry() }
     }
