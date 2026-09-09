@@ -37,8 +37,10 @@ fun FamilyRemoteControlScreen(
     var children by remember { mutableStateOf(emptyList<CloudChildDevice>()) }
     var selectedUid by remember { mutableStateOf<String?>(null) }
     var inventory by remember { mutableStateOf<ChildAppInventoryState?>(null) }
+    var deviceStatus by remember { mutableStateOf<ChildDeviceStatus?>(null) }
     var loading by remember { mutableStateOf(false) }
     var inventoryLoading by remember { mutableStateOf(false) }
+    var statusLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var extraMinutes by remember { mutableStateOf("30") }
     var dailyLimit by remember { mutableStateOf("120") }
@@ -54,6 +56,7 @@ fun FamilyRemoteControlScreen(
         val id = familyId?.takeIf { it.isNotBlank() } ?: run {
             children = emptyList()
             inventory = null
+            deviceStatus = null
             message = "La familia cloud todavía no está disponible en esta instalación."
             return
         }
@@ -88,9 +91,34 @@ fun FamilyRemoteControlScreen(
         })
     }
 
+    fun refreshStatus(child: CloudChildDevice?) {
+        val id = familyId?.takeIf { it.isNotBlank() } ?: return
+        if (child == null) {
+            deviceStatus = null
+            return
+        }
+        statusLoading = true
+        repository.loadChildDeviceStatus(id, child, { status ->
+            deviceStatus = status
+            statusLoading = false
+        }, { error ->
+            statusLoading = false
+            message = error
+        })
+    }
+
     LaunchedEffect(familyId) { refreshChildren() }
     LaunchedEffect(selectedUid, children) {
-        refreshInventory(children.firstOrNull { it.uid == selectedUid })
+        val child = children.firstOrNull { it.uid == selectedUid }
+        refreshInventory(child)
+        refreshStatus(child)
+    }
+    LaunchedEffect(selectedUid, familyId) {
+        if (selectedUid == null || familyId.isNullOrBlank()) return@LaunchedEffect
+        while (true) {
+            refreshStatus(children.firstOrNull { it.uid == selectedUid })
+            delay(60_000L)
+        }
     }
     LaunchedEffect(lastCommandId, selectedUid, familyId) {
         val commandId = lastCommandId ?: return@LaunchedEffect
@@ -170,6 +198,43 @@ fun FamilyRemoteControlScreen(
                             Text("Device ID: ${it.deviceId}")
                         }
                         OutlinedButton(onClick = { refreshChildren() }, modifier = Modifier.fillMaxWidth()) { Text("Actualizar dispositivos") }
+                    }
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Estado del dispositivo", style = MaterialTheme.typography.titleMedium)
+                    when {
+                        selected == null -> Text("⚪ Selecciona un dispositivo infantil.")
+                        statusLoading && deviceStatus == null -> Text("🟠 Consultando estado…")
+                        deviceStatus == null -> Text("⚪ El dispositivo todavía no ha comunicado su estado.")
+                        else -> {
+                            val status = deviceStatus!!
+                            when (status.liveness()) {
+                                ChildDeviceLiveness.ONLINE -> Text("🟢 Conectado recientemente")
+                                ChildDeviceLiveness.OFFLINE -> Text("🟠 Sin comunicación reciente")
+                                ChildDeviceLiveness.UNKNOWN -> Text("⚪ Estado de conexión desconocido")
+                            }
+                            Text("Última comunicación: ${formatDeviceAge(status.updatedAtMs)}")
+                            when (status.protectionActive) {
+                                true -> Text("🟢 Protección local activa")
+                                false -> Text("🔴 Protección local degradada")
+                                null -> Text("⚪ Salud de protección no disponible")
+                            }
+                            if (status.protectionReasons.isNotEmpty()) {
+                                status.protectionReasons.forEach { reason -> Text("• $reason") }
+                            }
+                            if (status.protectionCheckedAtMs > 0L) {
+                                Text("Última comprobación de protección: ${formatDeviceAge(status.protectionCheckedAtMs)}")
+                            }
+                            OutlinedButton(enabled = !statusLoading, onClick = { refreshStatus(selected) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Actualizar estado")
+                            }
+                            Text("El estado de conexión es una señal de comunicación, no una garantía de disponibilidad continua.", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
@@ -290,4 +355,16 @@ private fun formatInventoryAge(ageMs: Long?): String {
     if (ageMs == null) return "desconocida"
     val hours = ageMs / (60L * 60L * 1000L)
     return if (hours < 1) "hace menos de 1 h" else "hace ${hours} h"
+}
+
+private fun formatDeviceAge(timestampMs: Long): String {
+    if (timestampMs <= 0L) return "desconocida"
+    val ageMs = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0L)
+    val minutes = ageMs / 60_000L
+    return when {
+        minutes < 1 -> "hace menos de 1 min"
+        minutes < 60 -> "hace $minutes min"
+        minutes < 1440 -> "hace ${minutes / 60} h"
+        else -> "hace ${minutes / 1440} d"
+    }
 }
