@@ -1,6 +1,7 @@
 package com.famyrex.app
 
 import android.content.Context
+import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -16,20 +17,25 @@ class FamilyLocationRepository(context: Context) {
         capturedAtMs: Long,
         onComplete: (Boolean) -> Unit = {}
     ) {
-        val identity = FamilyStore(appContext).verifiedFamilyIdentity() ?: run {
+        val task = publishChildLocationTask(latitude, longitude, accuracyMeters, capturedAtMs)
+        if (task == null) {
             onComplete(false)
             return
         }
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
-            onComplete(false)
-            return
-        }
-        if (!user.isAnonymous) {
-            onComplete(false)
-            return
-        }
+        task.addOnCompleteListener { onComplete(it.isSuccessful) }
+    }
 
-        db.document("families/${identity.familyId}/members/${user.uid}/location/latest")
+    fun publishChildLocationTask(
+        latitude: Double,
+        longitude: Double,
+        accuracyMeters: Float,
+        capturedAtMs: Long
+    ): Task<Void>? {
+        val identity = FamilyStore(appContext).verifiedFamilyIdentity() ?: return null
+        val user = FirebaseAuth.getInstance().currentUser ?: return null
+        if (!user.isAnonymous) return null
+
+        return db.document("families/${identity.familyId}/members/${user.uid}/location/latest")
             .set(
                 mapOf(
                     "latitude" to latitude,
@@ -38,7 +44,6 @@ class FamilyLocationRepository(context: Context) {
                     "capturedAtMs" to capturedAtMs
                 )
             )
-            .addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
     fun loadChildLocation(
