@@ -17,11 +17,11 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun FamilyAssistantScreen(context: Context, modifier: Modifier = Modifier) {
     var question by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf("Soy el asistente local de Famyrex. Pregúntame por el uso, alertas, tendencias o bienestar.") }
+    var answer by remember { mutableStateOf("Soy el asistente local de Famyrex. Pregúntame por las funciones de la app o por los datos familiares disponibles.") }
 
     LazyColumn(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Asistente familiar", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall) }
-        item { Text("Consulta únicamente la información que Famyrex ha registrado de forma autorizada.") }
+        item { Text("Puedo explicar qué hace Famyrex y consultar únicamente la información que la app haya registrado de forma autorizada.") }
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -36,16 +36,21 @@ fun FamilyAssistantScreen(context: Context, modifier: Modifier = Modifier) {
                 onValueChange = { question = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Pregunta") },
-                placeholder = { Text("¿Cuánto se ha usado hoy?") }
+                placeholder = { Text("¿Qué funciones tiene Famyrex?") }
             )
         }
         item {
             Button(
-                onClick = { answer = FamilyAssistantEngine.answer(context, question) },
+                onClick = {
+                    answer = FamilyAssistantEngine.answer(context, question)
+                    question = ""
+                },
                 enabled = question.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Preguntar") }
         }
-        item { Text("Privacidad: el asistente no lee chats privados ni intenta deducir emociones o diagnósticos.") }
+        item {
+            Text("Privacidad: el asistente no lee automáticamente el contenido privado de WhatsApp, Instagram, Telegram, correo u otras aplicaciones. Distingue entre señales de riesgo y conclusiones.")
+        }
     }
 }
