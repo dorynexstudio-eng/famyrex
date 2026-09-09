@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Main shield: deliberately large so Android launcher masks do not make it tiny. -->
+    <path
+        android:fillColor="#20D8F2"
+        android:pathData="M54,7L91,24L87,55C84,76 72,92 54,101C36,92 24,76 21,55L17,24Z" />
+    <path
+        android:fillColor="#0A2B63"
+        android:pathData="M54,15L82,28L79,54C76,71 67,83 54,92C41,83 32,71 29,54L26,28Z" />
+
+    <!-- Family figures -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M41,35A8.5,8.5 0,1 0,41 52A8.5,8.5 0,1 0,41 35M67,35A8.5,8.5 0,1 0,67 52A8.5,8.5 0,1 0,67 35M54,45A7,7 0,1 0,54 59A7,7 0,1 0,54 45" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M29,70C30,58 35,52 42,52C49,52 53,59 54,70L54,78L29,78ZM54,70C55,59 59,52 66,52C73,52 78,58 79,70L79,78L54,78Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,65C47,64 51,67 54,73C57,67 61,64 66,65L66,83L42,83Z" />
+
+    <!-- Heart / family care -->
+    <path
+        android:fillColor="#2BE39A"
+        android:pathData="M54,94C51,91 36,81 36,72C36,66 40,63 45,63C49,63 52,65 54,68C56,65 59,63 63,63C68,63 72,66 72,72C72,81 57,91 54,94Z" />
+</vector>
