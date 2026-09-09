@@ -20,6 +20,18 @@ service cloud.firestore {
       allow create: if signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com' && memberUid == request.auth.uid && request.resource.data.uid == memberUid && request.resource.data.role == 'parent' && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid;
       allow update: if isParent(familyId) && request.resource.data.uid == resource.data.uid && request.resource.data.role == resource.data.role;
       allow delete: if isParent(familyId) && memberUid != resource.data.uid;
+
+      match /location/{locationId} {
+        allow read: if isParent(familyId);
+        allow create, update: if isChild(familyId) && memberUid == request.auth.uid && locationId == 'latest' &&
+          request.resource.data.keys().hasOnly(['latitude', 'longitude', 'accuracyMeters', 'capturedAtMs']) &&
+          request.resource.data.latitude is number && request.resource.data.longitude is number &&
+          request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90 &&
+          request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180 &&
+          request.resource.data.accuracyMeters is number && request.resource.data.accuracyMeters >= 0 &&
+          request.resource.data.capturedAtMs is int && request.resource.data.capturedAtMs >= 0;
+        allow delete: if false;
+      }
     }
 
     match /families/{familyId}/invites/{inviteId} { allow read, create, update, delete: if false; }
