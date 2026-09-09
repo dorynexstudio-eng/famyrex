@@ -68,6 +68,8 @@ class FamilyPolicySyncService(context: Context) {
         return next
     }
 
+    private fun revisionKey(deviceId: String): String = "revision_$deviceId"
+
     private fun isAdultConfigured(): Boolean =
         FirebaseApp.getApps(appContext).isNotEmpty() &&
             FirebaseAuth.getInstance().currentUser?.isAnonymous == false
