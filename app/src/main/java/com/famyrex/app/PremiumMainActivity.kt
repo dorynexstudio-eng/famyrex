@@ -4,17 +4,11 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
@@ -23,6 +17,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +26,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,8 +33,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.SharedPreferences
 import androidx.compose.ui.unit.dp
 
 class PremiumMainActivity : ComponentActivity() {
@@ -56,12 +50,12 @@ class PremiumMainActivity : ComponentActivity() {
 
 private data class PremiumFamilyState(val parent: String, val child: String)
 
-private fun loadPremiumFamily(prefs: android.content.SharedPreferences): PremiumFamilyState = PremiumFamilyState(
+private fun loadPremiumFamily(prefs: SharedPreferences): PremiumFamilyState = PremiumFamilyState(
     prefs.getString("parent_name", "") ?: "",
     prefs.getString("child_name", "") ?: ""
 )
 
-private fun loadPremiumZones(prefs: android.content.SharedPreferences): List<GeoZone> {
+private fun loadPremiumZones(prefs: SharedPreferences): List<GeoZone> {
     val raw = prefs.getString("geo_zones", "") ?: return emptyList()
     if (raw.isBlank()) return emptyList()
     return raw.split(";").mapNotNull { row ->
@@ -70,10 +64,11 @@ private fun loadPremiumZones(prefs: android.content.SharedPreferences): List<Geo
     }
 }
 
-private fun savePremiumZones(prefs: android.content.SharedPreferences, zones: List<GeoZone>) {
+private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone>) {
     prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply()
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FamyrexPremiumApp(context: Context) {
     val prefs = remember { context.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE) }
@@ -119,11 +114,11 @@ fun FamyrexPremiumApp(context: Context) {
         bottomBar = {
             NavigationBar(modifier = Modifier.navigationBarsPadding()) {
                 PremiumNavItem(0, tab, "Inicio", Icons.Default.Home) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(1, tab, "Alertas", Icons.Default.Notifications) { tab = it; familyManagementOpen = false }
+                PremiumNavItem(1, tab, "Alertas", Icons.Default.Notifications) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
                 PremiumNavItem(2, tab, "Familia", Icons.Default.Person) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(3, tab, "Mapa", Icons.Default.LocationOn) { tab = it; familyManagementOpen = false }
-                PremiumNavItem(4, tab, "Asistente", Icons.Default.Info) { tab = it; familyManagementOpen = false }
-                PremiumNavItem(5, tab, "Informe", Icons.Default.CheckCircle) { tab = it; familyManagementOpen = false }
+                PremiumNavItem(3, tab, "Mapa", Icons.Default.LocationOn) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
+                PremiumNavItem(4, tab, "Asistente", Icons.Default.Info) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
+                PremiumNavItem(5, tab, "Informe", Icons.Default.CheckCircle) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
             }
         }
     ) { padding ->
@@ -139,7 +134,7 @@ fun FamyrexPremiumApp(context: Context) {
                     onOpenParentalControl = { tab = 2; parentalControlOpen = true },
                     onOpenSettings = { settingsOpen = true }
                 )
-                1 -> RealAlertsScreen(context, Modifier.fillMaxSize())
+                1 -> FamyrexAlertsScreen(context, Modifier.fillMaxSize())
                 2 -> when {
                     remoteControlOpen -> FamilyRemoteControlScreen(context, FamyrexCloudFamilyRepository(context).cachedFamilyId(), Modifier.fillMaxSize())
                     parentalControlOpen -> ParentalControlScreen(Modifier.fillMaxSize())
