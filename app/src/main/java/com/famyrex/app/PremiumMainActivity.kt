@@ -79,14 +79,13 @@ fun FamyrexPremiumApp(context: Context) {
     var remoteControlOpen by remember { mutableStateOf(false) }
     var familyManagementOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var usageReportOpen by remember { mutableStateOf(false) }
 
     fun refreshFamily() {
         val profiles = familyStore.profiles()
         val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
         val child = profiles.firstOrNull { it.role == FamilyRole.CHILD }
-        family = if (owner != null || child != null) {
-            PremiumFamilyState(owner?.displayName.orEmpty(), child?.displayName.orEmpty())
-        } else loadPremiumFamily(prefs)
+        family = if (owner != null || child != null) PremiumFamilyState(owner?.displayName.orEmpty(), child?.displayName.orEmpty()) else loadPremiumFamily(prefs)
     }
 
     LaunchedEffect(Unit) { refreshFamily() }
@@ -105,59 +104,33 @@ fun FamyrexPremiumApp(context: Context) {
                         Text("Protección familiar inteligente", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
-                actions = {
-                    IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "Ajustes") }
-                }
+                actions = { IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "Ajustes") } }
             )
         },
         bottomBar = {
             NavigationBar(modifier = Modifier.navigationBarsPadding()) {
-                PremiumNavItem(0, tab, "Inicio", Icons.Default.Home) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(1, tab, "Alertas", Icons.Default.Notifications) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(2, tab, "Familia", Icons.Default.Person) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(3, tab, "Mapa", Icons.Default.LocationOn) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(4, tab, "Asistente", Icons.Default.Info) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
-                PremiumNavItem(5, tab, "Informe", Icons.Default.CheckCircle) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false }
+                PremiumNavItem(0, tab, "Inicio", Icons.Default.Home) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
+                PremiumNavItem(1, tab, "Alertas", Icons.Default.Notifications) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
+                PremiumNavItem(2, tab, "Familia", Icons.Default.Person) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
+                PremiumNavItem(3, tab, "Mapa", Icons.Default.LocationOn) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
+                PremiumNavItem(4, tab, "Asistente", Icons.Default.Info) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
+                PremiumNavItem(5, tab, "Actividad", Icons.Default.CheckCircle) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
             }
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
-                0 -> FamilyChildOverviewScreen(
-                    context = context,
-                    modifier = Modifier.fillMaxSize(),
-                    onOpenAlerts = { tab = 1 },
-                    onOpenLocation = { tab = 3 },
-                    onOpenUsage = { tab = 5 },
-                    onOpenFamily = { tab = 2; familyManagementOpen = true },
-                    onOpenParentalControl = { tab = 2; parentalControlOpen = true },
-                    onOpenSettings = { settingsOpen = true }
-                )
+                0 -> FamilyChildOverviewScreen(context, Modifier.fillMaxSize(), onOpenAlerts = { tab = 1 }, onOpenLocation = { tab = 3 }, onOpenUsage = { tab = 5 }, onOpenFamily = { tab = 2; familyManagementOpen = true }, onOpenParentalControl = { tab = 2; parentalControlOpen = true }, onOpenSettings = { settingsOpen = true })
                 1 -> RealAlertsScreen(context, Modifier.fillMaxSize())
                 2 -> when {
                     remoteControlOpen -> FamilyRemoteControlScreen(context, FamyrexCloudFamilyRepository(context).cachedFamilyId(), Modifier.fillMaxSize())
                     parentalControlOpen -> ParentalControlScreen(Modifier.fillMaxSize())
-                    familyManagementOpen -> FamilyCoreScreen(
-                        context = context,
-                        onOpenParentalControl = { parentalControlOpen = true },
-                        onOpenRemoteControl = { remoteControlOpen = true },
-                        onFamilyChanged = { refreshFamily() },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    else -> FamilyChildOverviewScreen(
-                        context = context,
-                        modifier = Modifier.fillMaxSize(),
-                        onOpenAlerts = { tab = 1 },
-                        onOpenLocation = { tab = 3 },
-                        onOpenUsage = { tab = 5 },
-                        onOpenFamily = { familyManagementOpen = true },
-                        onOpenParentalControl = { parentalControlOpen = true },
-                        onOpenSettings = { settingsOpen = true }
-                    )
+                    familyManagementOpen -> FamilyCoreScreen(context = context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { refreshFamily() }, modifier = Modifier.fillMaxSize())
+                    else -> FamilyChildOverviewScreen(context, Modifier.fillMaxSize(), onOpenAlerts = { tab = 1 }, onOpenLocation = { tab = 3 }, onOpenUsage = { tab = 5 }, onOpenFamily = { familyManagementOpen = true }, onOpenParentalControl = { parentalControlOpen = true }, onOpenSettings = { settingsOpen = true })
                 }
                 3 -> LocationScreen(context, zones, { updated -> zones = updated; savePremiumZones(prefs, updated) }, Modifier.fillMaxSize())
                 4 -> FamilyAssistantScreen(context, Modifier.fillMaxSize())
-                5 -> DailyReportScreen(context, onBack = { tab = 0 }, modifier = Modifier.fillMaxSize())
+                5 -> if (usageReportOpen) DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize()) else UsageInsightsScreen(context, Modifier.fillMaxSize(), onOpenSettings = { settingsOpen = true }, onOpenReport = { usageReportOpen = true })
             }
         }
     }
@@ -165,10 +138,5 @@ fun FamyrexPremiumApp(context: Context) {
 
 @Composable
 private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onSelect: (Int) -> Unit) {
-    NavigationBarItem(
-        selected = selected == index,
-        onClick = { onSelect(index) },
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) }
-    )
+    NavigationBarItem(selected = selected == index, onClick = { onSelect(index) }, icon = { Icon(icon, contentDescription = label) }, label = { Text(label) })
 }
