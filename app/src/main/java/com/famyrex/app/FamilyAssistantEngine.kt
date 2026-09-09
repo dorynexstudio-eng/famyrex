@@ -18,8 +18,10 @@ object FamilyAssistantEngine {
         return when {
             asksAboutCapabilities(q) -> capabilitiesAnswer()
 
+            asksForMediation(q) -> FamilyMediationEngine.answer(context, original, detectAppName(q))
+
             asksAboutBullying(q) ->
-                "Famyrex puede ayudar a detectar señales compatibles con acoso o ciberacoso a partir de indicadores autorizados, como patrones de comunicación de riesgo, señales repetidas en notificaciones y cambios de comportamiento o uso. La app combina señales y contexto para generar alertas y explicaciones. No puede afirmar por sí sola que exista bullying ni sustituye hablar con el menor, revisar el contexto y actuar ante una situación real."
+                "Famyrex puede ayudar a detectar señales compatibles con acoso o ciberacoso a partir de indicadores autorizados, como patrones de comunicación de riesgo, señales repetidas en notificaciones y cambios de comportamiento o uso. La app puede asociar el incidente con la aplicación de origen cuando Android proporciona ese dato. No puede afirmar por sí sola que exista bullying ni identificar automáticamente al responsable."
 
             asksHowDetectionWorks(q) ->
                 "La detección de riesgo no depende de una sola palabra. Famyrex puede combinar señales de comunicación autorizadas, evolución de incidentes, notificaciones observables, patrones de uso, bienestar y otras evidencias disponibles en el dispositivo. Cuando hay suficientes señales, el Centro de Inteligencia puede explicar qué datos han provocado la alerta y recomendar qué hacer."
@@ -29,11 +31,8 @@ object FamilyAssistantEngine {
 
             asksAboutApps(q) -> {
                 val app = today?.topApps?.firstOrNull()
-                if (app == null) {
-                    "Famyrex puede registrar el uso de aplicaciones mediante UsageStatsManager y crear historial y tendencias. Todavía no hay datos suficientes para decir cuál se ha usado más hoy."
-                } else {
-                    "Famyrex puede registrar qué aplicaciones se usan y durante cuánto tiempo. En el último registro de hoy, la aplicación con más uso es ${app.label}, con aproximadamente ${app.totalTimeMs / 60_000L} minutos."
-                }
+                if (app == null) "Famyrex puede registrar el uso de aplicaciones mediante UsageStatsManager y crear historial y tendencias. Todavía no hay datos suficientes para decir cuál se ha usado más hoy."
+                else "Famyrex puede registrar qué aplicaciones se usan y durante cuánto tiempo. En el último registro de hoy, la aplicación con más uso es ${app.label}, con aproximadamente ${app.totalTimeMs / 60_000L} minutos."
             }
 
             asksAboutScreenTime(q) ->
@@ -50,9 +49,7 @@ object FamilyAssistantEngine {
 
             asksAboutWellbeing(q) -> {
                 val settings = WellbeingSettingsStore(context).load()
-                val intervals = UsageIntervalStore(context).load(
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                )
+                val intervals = UsageIntervalStore(context).load(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
                 val assessment = WellbeingEngine.evaluate(todayMinutes, intervals, settings)
                 "Famyrex también incluye bienestar digital. Objetivo diario: ${assessment.goalMinutes} minutos. Progreso: ${assessment.goalProgress}%. Pausas largas observadas entre muestras: ${assessment.breakCount}. ${assessment.recommendation}"
             }
@@ -65,10 +62,10 @@ object FamilyAssistantEngine {
                 }
 
             asksAboutProtection(q) ->
-                "Famyrex está pensado como una capa de protección familiar: supervisión del dispositivo, uso de aplicaciones, bienestar digital, ubicación y geozonas, alertas inteligentes, análisis de señales de comunicación autorizadas, historial y tendencias, Centro de Inteligencia, recomendaciones y controles familiares remotos cuando estén disponibles y autorizados."
+                "Famyrex está pensado como una capa de protección familiar: supervisión del dispositivo, uso de aplicaciones, bienestar digital, ubicación y geozonas, alertas inteligentes, análisis de señales de comunicación autorizadas, historial y tendencias, Centro de Inteligencia, recomendaciones, mediación familiar y controles familiares remotos cuando estén disponibles y autorizados."
 
             asksWhatCanSee(q) ->
-                "Puedo consultar la información que Famyrex haya registrado de forma autorizada en este dispositivo. Dependiendo de los permisos y del modo familiar, eso puede incluir uso de aplicaciones, historial y tendencias, alertas, bienestar, ubicación/geozonas y señales de comunicación observables. No significa que Famyrex pueda verlo todo: no puedo leer automáticamente el contenido privado de WhatsApp, Instagram, Telegram, correo u otras apps, ni inventar información que el dispositivo no haya registrado."
+                "Puedo consultar la información que Famyrex haya registrado de forma autorizada en este dispositivo. Dependiendo de los permisos y del modo familiar, eso puede incluir uso de aplicaciones, historial y tendencias, alertas, bienestar, ubicación/geozonas y señales de comunicación observables. No significa que Famyrex pueda verlo todo: las notificaciones permiten analizar el contenido que Android expone, pero no equivalen a leer automáticamente chats privados completos."
 
             q.contains("privacidad") || q.contains("seguridad") || q.contains("espi") ->
                 "Famyrex está diseñado para protección familiar, no para prometer vigilancia total. El asistente solo debe hablar de datos que la app realmente pueda obtener con los permisos correspondientes y debe distinguir entre una señal de riesgo y una conclusión."
@@ -97,9 +94,7 @@ object FamilyAssistantEngine {
 
             q.contains("bienestar") || q.contains("objetivo") || q.contains("descanso") || q.contains("pausa") -> {
                 val settings = WellbeingSettingsStore(context).load()
-                val intervals = UsageIntervalStore(context).load(
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                )
+                val intervals = UsageIntervalStore(context).load(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
                 val assessment = WellbeingEngine.evaluate(todayMinutes, intervals, settings)
                 "Objetivo diario: ${assessment.goalMinutes} minutos. Progreso: ${assessment.goalProgress}%. Pausas largas observadas entre muestras: ${assessment.breakCount}. ${assessment.recommendation}"
             }
@@ -107,63 +102,41 @@ object FamilyAssistantEngine {
             q.contains("que sabes") || q.contains("datos") -> asksWhatCanSeeAnswer()
 
             else ->
-                "Puedo explicarte las funciones de Famyrex y consultar sus datos. Por ejemplo, pregunta: «¿Qué funciones tiene Famyrex?», «¿Cómo detecta el bullying?», «¿Qué puede saber de mi hijo?», «¿Qué apps usa más?», «¿Dónde está?», «¿Qué alertas hay?» o «¿Cómo funciona el Centro de Inteligencia?»."
+                "Puedo explicarte las funciones de Famyrex, consultar datos y ayudarte a mediar problemas familiares. Por ejemplo: «¿Qué funciones tiene Famyrex?», «¿Cómo detecta el bullying?», «¿Qué puede saber de mi hijo?», «¿Qué apps usa más?», «¿Dónde está?», «¿Qué alertas hay?», «Tenemos un conflicto por el móvil» o «¿Quién tiene razón?»"
         }
     }
 
-    private fun normalize(value: String): String = value
-        .lowercase(Locale.getDefault())
-        .replace('á', 'a')
-        .replace('é', 'e')
-        .replace('í', 'i')
-        .replace('ó', 'o')
-        .replace('ú', 'u')
-        .replace('ü', 'u')
-        .replace('¿', ' ')
-        .replace('?', ' ')
+    private fun normalize(value: String): String = value.lowercase(Locale.getDefault())
+        .replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').replace('ü', 'u')
+        .replace('¿', ' ').replace('?', ' ')
 
     private fun containsAny(q: String, vararg terms: String): Boolean = terms.any { q.contains(it) }
 
-    private fun asksAboutCapabilities(q: String): Boolean =
-        containsAny(q, "funciones", "que puede hacer", "que hace famyrex", "para que sirve", "caracteristicas", "todo lo que puede hacer")
+    private fun asksForMediation(q: String): Boolean = containsAny(
+        q, "quien tiene razon", "quien tiene la razon", "tenemos un conflicto", "estamos discutiendo",
+        "discutimos", "nos peleamos", "problema familiar", "conflicto familiar", "no quiere hablar",
+        "no me escucha", "me controla demasiado", "controla demasiado", "que hacemos", "como lo solucionamos",
+        "quiero crear un acuerdo", "acuerdo familiar", "nos peleamos por", "discusion por el movil",
+        "discusion por el telefono", "discutimos por tiktok", "discutimos por instagram", "discutimos por whatsapp"
+    )
 
-    private fun asksAboutBullying(q: String): Boolean =
-        containsAny(q, "bullying", "bulling", "acoso", "ciberacoso", "insultan a mi hijo", "se meten con mi hijo")
+    private fun detectAppName(q: String): String? = listOf("TikTok", "Instagram", "WhatsApp", "Discord", "YouTube", "Telegram")
+        .firstOrNull { q.contains(it.lowercase(Locale.getDefault())) }
 
-    private fun asksHowDetectionWorks(q: String): Boolean =
-        containsAny(q, "como lo sabe", "como detecta", "como puede saber", "como detectar", "como descubre", "como identifica") &&
-            containsAny(q, "riesgo", "acoso", "bullying", "problema", "peligro", "comunicacion")
+    private fun asksAboutCapabilities(q: String): Boolean = containsAny(q, "funciones", "que puede hacer", "que hace famyrex", "para que sirve", "caracteristicas", "todo lo que puede hacer")
+    private fun asksAboutBullying(q: String): Boolean = containsAny(q, "bullying", "bulling", "acoso", "ciberacoso", "insultan a mi hijo", "se meten con mi hijo")
+    private fun asksHowDetectionWorks(q: String): Boolean = containsAny(q, "como lo sabe", "como detecta", "como puede saber", "como detectar", "como descubre", "como identifica") && containsAny(q, "riesgo", "acoso", "bullying", "problema", "peligro", "comunicacion")
+    private fun asksAboutLocation(q: String): Boolean = containsAny(q, "ubicacion", "localizacion", "donde esta", "donde se encuentra", "geozona", "geocerca")
+    private fun asksAboutApps(q: String): Boolean = containsAny(q, "aplicaciones", "apps", "app usada", "aplicacion usada", "que aplicaciones")
+    private fun asksAboutScreenTime(q: String): Boolean = containsAny(q, "tiempo de pantalla", "tiempo de uso", "cuanto usa el movil", "uso del movil", "horas de movil")
+    private fun asksAboutAlerts(q: String): Boolean = containsAny(q, "alertas inteligentes", "alertas", "avisos", "señales de riesgo", "senales de riesgo")
+    private fun asksAboutIntelligence(q: String): Boolean = containsAny(q, "centro de inteligencia", "inteligencia", "recomendaciones", "por que ha saltado", "por que hay una alerta")
+    private fun asksAboutWellbeing(q: String): Boolean = containsAny(q, "bienestar", "descanso", "pausas", "objetivo diario", "salud digital")
+    private fun asksAboutHistory(q: String): Boolean = containsAny(q, "historial", "historico", "tendencias", "tendencia semanal", "ultimos dias")
+    private fun asksAboutProtection(q: String): Boolean = containsAny(q, "proteccion", "protege", "seguridad familiar", "como protege", "que controla")
+    private fun asksWhatCanSee(q: String): Boolean = containsAny(q, "que puede ver", "que sabe de mi hijo", "que sabe de mis hijos", "que puede saber", "que ve de mi hijo", "puede verlo todo", "puede saber todo")
 
-    private fun asksAboutLocation(q: String): Boolean =
-        containsAny(q, "ubicacion", "localizacion", "donde esta", "donde se encuentra", "geozona", "geocerca")
+    private fun capabilitiesAnswer(): String = "Famyrex tiene varias capas de protección: 1) supervisión y estado del dispositivo; 2) uso de aplicaciones y tiempo de pantalla; 3) historial diario/semanal y tendencias; 4) ubicación y geozonas; 5) alertas inteligentes; 6) análisis de señales de comunicación autorizadas; 7) detección de patrones y evolución de incidentes; 8) bienestar digital; 9) Centro de Inteligencia con evidencias, explicaciones y recomendaciones; 10) vinculación segura entre dispositivos familiares; 11) mediación familiar y acuerdos revisables; y 12) controles familiares remotos cuando están configurados y autorizados. Puedo explicarte cualquiera de estas funciones."
 
-    private fun asksAboutApps(q: String): Boolean =
-        containsAny(q, "aplicaciones", "apps", "app usada", "aplicacion usada", "que aplicaciones")
-
-    private fun asksAboutScreenTime(q: String): Boolean =
-        containsAny(q, "tiempo de pantalla", "tiempo de uso", "cuanto usa el movil", "uso del movil", "horas de movil")
-
-    private fun asksAboutAlerts(q: String): Boolean =
-        containsAny(q, "alertas inteligentes", "alertas", "avisos", "señales de riesgo", "senales de riesgo")
-
-    private fun asksAboutIntelligence(q: String): Boolean =
-        containsAny(q, "centro de inteligencia", "inteligencia", "recomendaciones", "por que ha saltado", "por que hay una alerta")
-
-    private fun asksAboutWellbeing(q: String): Boolean =
-        containsAny(q, "bienestar", "descanso", "pausas", "objetivo diario", "salud digital")
-
-    private fun asksAboutHistory(q: String): Boolean =
-        containsAny(q, "historial", "historico", "tendencias", "tendencia semanal", "ultimos dias")
-
-    private fun asksAboutProtection(q: String): Boolean =
-        containsAny(q, "proteccion", "protege", "seguridad familiar", "como protege", "que controla")
-
-    private fun asksWhatCanSee(q: String): Boolean =
-        containsAny(q, "que puede ver", "que sabe de mi hijo", "que sabe de mis hijos", "que puede saber", "que ve de mi hijo", "puede verlo todo", "puede saber todo")
-
-    private fun capabilitiesAnswer(): String =
-        "Famyrex tiene varias capas de protección: 1) supervisión y estado del dispositivo; 2) uso de aplicaciones y tiempo de pantalla; 3) historial diario/semanal y tendencias; 4) ubicación y geozonas; 5) alertas inteligentes; 6) análisis de señales de comunicación autorizadas; 7) detección de patrones y evolución de incidentes; 8) bienestar digital; 9) Centro de Inteligencia con evidencias, explicaciones y recomendaciones; 10) vinculación segura entre dispositivos familiares; y 11) controles familiares remotos cuando están configurados y autorizados. Puedo explicarte cualquiera de estas funciones."
-
-    private fun asksWhatCanSeeAnswer(): String =
-        "Famyrex puede trabajar con datos autorizados como uso de apps, tiempo de pantalla, historial y tendencias, ubicación/geozonas, alertas, bienestar y determinadas señales de comunicación observables. No puede ver absolutamente todo ni leer por defecto el contenido privado de todas las aplicaciones."
+    private fun asksWhatCanSeeAnswer(): String = "Famyrex puede trabajar con datos autorizados como uso de apps, tiempo de pantalla, historial y tendencias, ubicación/geozonas, alertas, bienestar y determinadas señales de comunicación observables. No puede ver absolutamente todo ni leer por defecto el contenido privado de todas las aplicaciones."
 }
