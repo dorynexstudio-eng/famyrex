@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "369896309488",
+    "project_id": "famyrex",
+    "storage_bucket": "famyrex.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:369896309488:android:681d12b0677ae3f9157835",
+        "android_client_info": {
+          "package_name": "com.famyrex.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkxKRRa8QFRILCJ2cYr0ICirWylUBi55Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
