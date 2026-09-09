@@ -1,10 +1,6 @@
 package com.famyrex.app
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +16,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timelapse
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -37,8 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import java.util.Calendar
 import java.util.Locale
 
 private data class OverviewUsage(
@@ -57,39 +52,50 @@ fun FamilyChildOverviewScreen(
     onOpenParentalControl: () -> Unit = {},
     onOpenSettings: () -> Unit = {}
 ) {
-    val store = remember { FamilyStore(context) }
+    val appContext = context.applicationContext
+    val store = remember { FamilyStore(appContext) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var selectedChildId by remember { mutableStateOf<String?>(null) }
     var usage by remember { mutableStateOf<OverviewUsage?>(null) }
     var alertCount by remember { mutableStateOf(0) }
-    var location by remember { mutableStateOf<Location?>(null) }
-    var protection by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
+    var childLocation by remember { mutableStateOf<FamilyChildLocation?>(null) }
+    var protection by remember { mutableStateOf(ProtectionComponentChecker.check(appContext)) }
 
     fun refresh() {
         profiles = store.profiles()
         val children = profiles.filter { it.role == FamilyRole.CHILD }
         if (selectedChildId !in children.map { it.id }) selectedChildId = children.firstOrNull()?.id
-        val monitor = ParentalUsageMonitor(context)
-        val start = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        val monitor = ParentalUsageMonitor(appContext)
+        val start = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
         }.timeInMillis
         val stats = if (monitor.hasUsageAccess()) monitor.queryUsage(start, System.currentTimeMillis()) else emptyList()
         val topApps = stats.take(3).mapNotNull { stat ->
-            val label = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(stat.packageName, 0)).toString() }.getOrNull()
+            val label = runCatching { appContext.packageManager.getApplicationLabel(appContext.packageManager.getApplicationInfo(stat.packageName, 0)).toString() }.getOrNull()
             label?.let { it to (stat.totalTimeInForeground / 60_000L) }
         }
         usage = if (stats.isNotEmpty()) OverviewUsage(stats.sumOf { it.totalTimeInForeground } / 60_000L, topApps) else null
-        alertCount = AlertStore(context).load().count { it.lifecycleStatus != AlertLifecycleStatus.RESOLVED && it.lifecycleStatus != AlertLifecycleStatus.DISMISSED }
-        location = familyOverviewLastKnownLocation(context)
-        protection = ProtectionComponentChecker.check(context)
+        alertCount = AlertStore(appContext).load().count { it.lifecycleStatus != AlertLifecycleStatus.RESOLVED && it.lifecycleStatus != AlertLifecycleStatus.DISMISSED }
+        protection = ProtectionComponentChecker.check(appContext)
     }
 
     LaunchedEffect(Unit) { refresh() }
     val children = profiles.filter { it.role == FamilyRole.CHILD }
     val selectedChild = children.firstOrNull { it.id == selectedChildId } ?: children.firstOrNull()
+
+    LaunchedEffect(selectedChild?.id) {
+        childLocation = null
+        selectedChild?.id?.let { childId ->
+            FamilyLocationRepository(appContext).loadChildLocation(
+                childMemberId = childId,
+                onSuccess = { childLocation = it }
+            )
+        }
+    }
+
     val activeProtection = protection.count { it.status == ProtectionComponentStatus.ACTIVE }
     val attentionProtection = protection.count { it.status == ProtectionComponentStatus.DEGRADED || it.status == ProtectionComponentStatus.NOT_CONFIGURED }
-    val screenLimit = ParentalControlStore(context).load().screenTimeLimit
+    val screenLimit = ParentalControlStore(appContext).load().screenTimeLimit
     val usageLabel = usage?.let { formatOverviewMinutes(it.totalMinutes) } ?: "No disponible"
     val limitLabel = screenLimit?.let { formatOverviewMinutes(it.dailyMinutes.toLong()) } ?: "Sin límite configurado"
 
@@ -161,10 +167,12 @@ fun FamilyChildOverviewScreen(
                 }
             }
             item {
-                val locationText = location?.let { "Última ubicación disponible" } ?: "No hay una ubicación reciente disponible"
-                val age = location?.let { System.currentTimeMillis() - it.time }
-                val freshness = age?.let { if (it < 15 * 60_000L) "Actualizada recientemente" else "Puede estar desactualizada" }
-                OverviewMetricCard(Icons.Default.LocationOn, "Ubicación", locationText, location?.let { "${it.latitude.formatOverviewCoordinate()}, ${it.longitude.formatOverviewCoordinate()} · ${freshness ?: ""}" } ?: "Comprueba los permisos de ubicación", onOpenLocation)
+                FamilyLocationOverviewCard(
+                    context = appContext,
+                    childName = selectedChild?.displayName ?: "Perfil infantil",
+                    location = childLocation,
+                    onOpenLocation = onOpenLocation
+                )
             }
             item {
                 OverviewMetricCard(Icons.Default.Notifications, "Alertas", if (alertCount == 0) "Todo tranquilo" else "$alertCount para revisar", "Las alertas son señales contextualizadas, no diagnósticos", onOpenAlerts)
@@ -180,6 +188,46 @@ fun FamilyChildOverviewScreen(
                         TextButton(onClick = onOpenFamily) { Text("Gestionar familia") }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FamilyLocationOverviewCard(
+    context: Context,
+    childName: String,
+    location: FamilyChildLocation?,
+    onOpenLocation: () -> Unit
+) {
+    Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(11.dp).size(26.dp))
+                }
+                Spacer(Modifier.size(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Ubicación", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (location != null) "${childName} está localizado" else "Sin ubicación reciente", style = MaterialTheme.typography.titleLarge)
+                }
+            }
+            if (location != null) {
+                val age = (System.currentTimeMillis() - location.capturedAtMs).coerceAtLeast(0L)
+                val freshness = if (age < 15 * 60_000L) "Actualizada recientemente" else "Última ubicación disponible"
+                Text("${location.latitude.formatOverviewCoordinate()}, ${location.longitude.formatOverviewCoordinate()} · ${freshness}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Precisión aproximada: ${location.accuracyMeters.toInt().coerceAtLeast(1)} m")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { openFamilyLocationInMaps(context, location.latitude, location.longitude, childName) }, modifier = Modifier.weight(1f)) {
+                        Text("Ver en Maps")
+                    }
+                    Button(onClick = { navigateFamilyLocationInMaps(context, location.latitude, location.longitude) }, modifier = Modifier.weight(1f)) {
+                        Text("Cómo llegar")
+                    }
+                }
+            } else {
+                Text("El dispositivo infantil todavía no ha enviado una ubicación. Comprueba los permisos de ubicación en el móvil del menor.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = onOpenLocation, modifier = Modifier.fillMaxWidth()) { Text("Abrir ubicación") }
             }
         }
     }
@@ -207,16 +255,3 @@ private fun formatOverviewMinutes(minutes: Long): String {
 }
 
 private fun Double.formatOverviewCoordinate(): String = String.format(Locale.US, "%.5f", this)
-
-private fun familyOverviewLastKnownLocation(context: Context): Location? {
-    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    if (!fine && !coarse) return null
-    val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    val provider = when {
-        fine && manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-        manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-        else -> return null
-    }
-    return runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
-}
