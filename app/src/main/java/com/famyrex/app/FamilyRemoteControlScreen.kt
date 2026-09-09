@@ -33,6 +33,7 @@ fun FamilyRemoteControlScreen(
     modifier: Modifier = Modifier
 ) {
     val repository = remember { FamilyCloudControlRepository(context) }
+    val policySyncService = remember { FamilyPolicySyncService(context) }
     val receiptStore = remember { RemoteCommandReceiptStore(context) }
     var children by remember { mutableStateOf(emptyList<CloudChildDevice>()) }
     var selectedUid by remember { mutableStateOf<String?>(null) }
@@ -41,6 +42,7 @@ fun FamilyRemoteControlScreen(
     var loading by remember { mutableStateOf(false) }
     var inventoryLoading by remember { mutableStateOf(false) }
     var statusLoading by remember { mutableStateOf(false) }
+    var policySyncLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var extraMinutes by remember { mutableStateOf("30") }
     var dailyLimit by remember { mutableStateOf("120") }
@@ -103,6 +105,24 @@ fun FamilyRemoteControlScreen(
             statusLoading = false
         }, { error ->
             statusLoading = false
+            message = error
+        })
+    }
+
+    fun syncPolicy(child: CloudChildDevice?) {
+        val id = familyId?.takeIf { it.isNotBlank() } ?: return
+        if (child == null) {
+            message = "Selecciona primero un dispositivo infantil."
+            return
+        }
+        policySyncLoading = true
+        policySyncService.syncCurrentPolicy(id, child, { commandId ->
+            policySyncLoading = false
+            lastCommandId = commandId
+            cloudReceipt = null
+            message = "Política completa enviada. Esperando confirmación del dispositivo…"
+        }, { error ->
+            policySyncLoading = false
             message = error
         })
     }
@@ -243,6 +263,19 @@ fun FamilyRemoteControlScreen(
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Sincronización de política", style = MaterialTheme.typography.titleMedium)
+                    Text("Envía al dispositivo infantil la política parental completa actualmente almacenada en este dispositivo.")
+                    Button(enabled = !policySyncLoading && selected != null, onClick = { syncPolicy(selected) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (policySyncLoading) "Sincronizando…" else "Sincronizar política completa")
+                    }
+                    Text("La sincronización se valida por familia, perfil y dispositivo y conserva protección contra revisiones repetidas.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Acciones inmediatas", style = MaterialTheme.typography.titleMedium)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = !loading && selected != null, onClick = { issue(FamilyControlAction.LOCK_DEVICE) }, modifier = Modifier.weight(1f)) { Text("Bloquear") }
@@ -321,50 +354,28 @@ fun FamilyRemoteControlScreen(
             }
         }
 
-        item {
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Sincronización de política", style = MaterialTheme.typography.titleMedium)
-                    Text("La política completa se sincronizará mediante SYNC_POLICY cuando exista un snapshot válido del dispositivo seleccionado.")
-                    OutlinedButton(enabled = false, onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Sincronizar política completa") }
-                }
-            }
-        }
+        item { if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodyMedium) }
+    }
+}
 
-        item {
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Último recibo local", style = MaterialTheme.typography.titleMedium)
-                    val receipt = lastReceipt
-                    if (receipt == null) {
-                        Text("⚪ Todavía no hay una ejecución remota registrada en este dispositivo.")
-                    } else {
-                        Text(if (receipt.success) "🟢 ${receipt.action.name}" else "🔴 ${receipt.action.name}")
-                        Text("Comando: ${receipt.commandId}")
-                        receipt.reason?.let { Text("Motivo: $it") }
-                    }
-                }
-            }
-        }
-
-        if (message.isNotBlank()) item { Text(message) }
+private fun formatDeviceAge(timestampMs: Long): String {
+    if (timestampMs <= 0L) return "sin datos"
+    val age = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0L)
+    val minutes = age / 60_000L
+    return when {
+        minutes < 1L -> "hace menos de 1 minuto"
+        minutes < 60L -> "hace $minutes min"
+        minutes < 1440L -> "hace ${minutes / 60L} h"
+        else -> "hace ${minutes / 1440L} d"
     }
 }
 
 private fun formatInventoryAge(ageMs: Long?): String {
-    if (ageMs == null) return "desconocida"
-    val hours = ageMs / (60L * 60L * 1000L)
-    return if (hours < 1) "hace menos de 1 h" else "hace ${hours} h"
-}
-
-private fun formatDeviceAge(timestampMs: Long): String {
-    if (timestampMs <= 0L) return "desconocida"
-    val ageMs = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0L)
+    if (ageMs == null || ageMs < 0L) return "sin datos"
     val minutes = ageMs / 60_000L
     return when {
-        minutes < 1 -> "hace menos de 1 min"
-        minutes < 60 -> "hace $minutes min"
-        minutes < 1440 -> "hace ${minutes / 60} h"
-        else -> "hace ${minutes / 1440} d"
+        minutes < 60L -> "$minutes min"
+        minutes < 1440L -> "${minutes / 60L} h"
+        else -> "${minutes / 1440L} d"
     }
 }
