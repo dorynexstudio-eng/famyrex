@@ -3,6 +3,7 @@ package com.famyrex.app
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
 import android.location.LocationManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import java.util.Calendar
+import java.util.Locale
+
+private data class OverviewUsage(
+    val totalMinutes: Long,
+    val topApps: List<Pair<String, Long>>
+)
 
 @Composable
 fun FamilyChildOverviewScreen(
@@ -53,22 +60,25 @@ fun FamilyChildOverviewScreen(
     val store = remember { FamilyStore(context) }
     var profiles by remember { mutableStateOf(store.profiles()) }
     var selectedChildId by remember { mutableStateOf<String?>(null) }
-    var usageMinutes by remember { mutableStateOf<Long?>(null) }
-    var usageAccess by remember { mutableStateOf(false) }
+    var usage by remember { mutableStateOf<OverviewUsage?>(null) }
     var alertCount by remember { mutableStateOf(0) }
-    var location by remember { mutableStateOf<android.location.Location?>(null) }
+    var location by remember { mutableStateOf<Location?>(null) }
     var protection by remember { mutableStateOf(ProtectionComponentChecker.check(context)) }
 
     fun refresh() {
         profiles = store.profiles()
         val children = profiles.filter { it.role == FamilyRole.CHILD }
         if (selectedChildId !in children.map { it.id }) selectedChildId = children.firstOrNull()?.id
-        val usage = ParentalUsageMonitor(context)
-        usageAccess = usage.hasUsageAccess()
+        val monitor = ParentalUsageMonitor(context)
         val start = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
-        usageMinutes = if (usageAccess) usage.queryUsage(start, System.currentTimeMillis()).sumOf { it.totalTimeInForeground } / 60_000L else null
+        val stats = if (monitor.hasUsageAccess()) monitor.queryUsage(start, System.currentTimeMillis()) else emptyList()
+        val topApps = stats.take(3).mapNotNull { stat ->
+            val label = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(stat.packageName, 0)).toString() }.getOrNull()
+            label?.let { it to (stat.totalTimeInForeground / 60_000L) }
+        }
+        usage = if (stats.isNotEmpty()) OverviewUsage(stats.sumOf { it.totalTimeInForeground } / 60_000L, topApps) else null
         alertCount = AlertStore(context).load().count { it.lifecycleStatus != AlertLifecycleStatus.RESOLVED && it.lifecycleStatus != AlertLifecycleStatus.DISMISSED }
         location = familyOverviewLastKnownLocation(context)
         protection = ProtectionComponentChecker.check(context)
@@ -80,7 +90,7 @@ fun FamilyChildOverviewScreen(
     val activeProtection = protection.count { it.status == ProtectionComponentStatus.ACTIVE }
     val attentionProtection = protection.count { it.status == ProtectionComponentStatus.DEGRADED || it.status == ProtectionComponentStatus.NOT_CONFIGURED }
     val screenLimit = ParentalControlStore(context).load().screenTimeLimit
-    val usageLabel = usageMinutes?.let { formatOverviewMinutes(it) } ?: "No disponible"
+    val usageLabel = usage?.let { formatOverviewMinutes(it.totalMinutes) } ?: "No disponible"
     val limitLabel = screenLimit?.let { formatOverviewMinutes(it.dailyMinutes.toLong()) } ?: "Sin límite configurado"
 
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -133,11 +143,28 @@ fun FamilyChildOverviewScreen(
                 }
             }
             item {
-                OverviewMetricCard(Icons.Default.Timelapse, "Tiempo de uso", usageLabel, if (usageMinutes != null) "$usageLabel hoy · límite $limitLabel" else "Activa el acceso a datos de uso para ver la actividad", onOpenUsage)
+                OverviewMetricCard(Icons.Default.Timelapse, "Tiempo de uso", usageLabel, if (usage != null) "$usageLabel hoy · límite $limitLabel" else "Activa el acceso a datos de uso para ver la actividad", onOpenUsage)
+            }
+            if (!usage?.topApps.isNullOrEmpty()) {
+                item {
+                    Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Más utilizadas hoy", style = MaterialTheme.typography.titleMedium)
+                            usage!!.topApps.forEachIndexed { index, app ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("${index + 1}. ${app.first}")
+                                    Text(formatOverviewMinutes(app.second), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
             }
             item {
                 val locationText = location?.let { "Última ubicación disponible" } ?: "No hay una ubicación reciente disponible"
-                OverviewMetricCard(Icons.Default.LocationOn, "Ubicación", locationText, location?.let { "${it.latitude.formatOverviewCoordinate()}, ${it.longitude.formatOverviewCoordinate()}" } ?: "Comprueba los permisos de ubicación", onOpenLocation)
+                val age = location?.let { System.currentTimeMillis() - it.time }
+                val freshness = age?.let { if (it < 15 * 60_000L) "Actualizada recientemente" else "Puede estar desactualizada" }
+                OverviewMetricCard(Icons.Default.LocationOn, "Ubicación", locationText, location?.let { "${it.latitude.formatOverviewCoordinate()}, ${it.longitude.formatOverviewCoordinate()} · ${freshness ?: ""}" } ?: "Comprueba los permisos de ubicación", onOpenLocation)
             }
             item {
                 OverviewMetricCard(Icons.Default.Notifications, "Alertas", if (alertCount == 0) "Todo tranquilo" else "$alertCount para revisar", "Las alertas son señales contextualizadas, no diagnósticos", onOpenAlerts)
@@ -179,9 +206,9 @@ private fun formatOverviewMinutes(minutes: Long): String {
     return if (h > 0) "${h}h ${m}min" else "${m} min"
 }
 
-private fun Double.formatOverviewCoordinate(): String = String.format(java.util.Locale.US, "%.5f", this)
+private fun Double.formatOverviewCoordinate(): String = String.format(Locale.US, "%.5f", this)
 
-private fun familyOverviewLastKnownLocation(context: Context): android.location.Location? {
+private fun familyOverviewLastKnownLocation(context: Context): Location? {
     val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     if (!fine && !coarse) return null
