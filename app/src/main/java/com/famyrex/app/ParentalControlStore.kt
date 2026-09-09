@@ -21,17 +21,24 @@ class ParentalControlStore(context: Context) {
     private fun persist(config: ParentalControlConfig, waitForDisk: Boolean): Boolean {
         val root = JSONObject().apply {
             config.screenTimeLimit?.let { limit -> put("screenTime", JSONObject().apply {
-                put("dailyMinutes", limit.dailyMinutes); put("enabled", limit.enabled)
+                put("dailyMinutes", limit.dailyMinutes)
+                put("enabled", limit.enabled)
             }) }
-            put("pauseSchedules", JSONArray().apply { config.pauseSchedules.forEach { schedule -> put(JSONObject().apply {
-                put("startMinuteOfDay", schedule.startMinuteOfDay); put("endMinuteOfDay", schedule.endMinuteOfDay); put("enabled", schedule.enabled)
-            }) } })
-            put("appRestrictions", JSONArray().apply { config.appRestrictions.forEach { restriction -> put(JSONObject().apply {
-                put("packageName", restriction.packageName)
-                if (restriction.dailyMinutes != null) put("dailyMinutes", restriction.dailyMinutes) else put("dailyMinutes", JSONObject.NULL)
-                put("blocked", restriction.blocked)
-                put("approvalRequired", restriction.approvalRequired)
-            }) } })
+            put("pauseSchedules", JSONArray().apply {
+                config.pauseSchedules.forEach { schedule -> put(JSONObject().apply {
+                    put("startMinuteOfDay", schedule.startMinuteOfDay)
+                    put("endMinuteOfDay", schedule.endMinuteOfDay)
+                    put("enabled", schedule.enabled)
+                }) }
+            })
+            put("appRestrictions", JSONArray().apply {
+                config.appRestrictions.forEach { restriction -> put(JSONObject().apply {
+                    put("packageName", restriction.packageName)
+                    if (restriction.dailyMinutes != null) put("dailyMinutes", restriction.dailyMinutes) else put("dailyMinutes", JSONObject.NULL)
+                    put("blocked", restriction.blocked)
+                    put("approvalRequired", restriction.approvalRequired)
+                }) }
+            })
         }
         val editor = prefs.edit().putString(KEY_CONFIG, root.toString())
         return if (waitForDisk) editor.commit() else { editor.apply(); true }
@@ -66,7 +73,5 @@ internal fun parseParentalControlConfig(raw: String): ParentalControlConfig = ru
             ))
         }
     }
-    ParentalControlConfig(screenTimeTimeLimit(screenTime), schedules, restrictions)
+    ParentalControlConfig(screenTime, schedules, restrictions)
 }.getOrDefault(ParentalControlConfig())
-
-private fun screenTimeTimeLimit(value: ScreenTimeLimit?): ScreenTimeLimit? = value
