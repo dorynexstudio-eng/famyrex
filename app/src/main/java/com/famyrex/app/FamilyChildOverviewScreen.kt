@@ -2,10 +2,8 @@ package com.famyrex.app
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
@@ -84,7 +81,7 @@ fun FamilyChildOverviewScreen(
     val attentionProtection = protection.count { it.status == ProtectionComponentStatus.DEGRADED || it.status == ProtectionComponentStatus.NOT_CONFIGURED }
     val screenLimit = ParentalControlStore(context).load().screenTimeLimit
     val usageLabel = usageMinutes?.let { formatOverviewMinutes(it) } ?: "No disponible"
-    val limitLabel = screenLimit?.let { formatOverviewMinutes(it.toLong()) } ?: "Sin límite configurado"
+    val limitLabel = screenLimit?.let { formatOverviewMinutes(it.dailyMinutes.toLong()) } ?: "Sin límite configurado"
 
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
