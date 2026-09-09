@@ -37,7 +37,18 @@ service cloud.firestore {
       allow update: if isChild(familyId) && deviceUid == request.auth.uid &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.memberUid == resource.data.memberUid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appInventory', 'appInventoryUpdatedAtMs', 'appInventoryUpdatedAt']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'appInventory', 'appInventoryUpdatedAtMs', 'appInventoryUpdatedAt',
+          'deviceStatusUpdatedAtMs', 'deviceStatusUpdatedAt',
+          'protectionActive', 'protectionReasons', 'protectionCheckedAtMs'
+        ]) &&
+        request.resource.data.deviceStatusUpdatedAtMs is int &&
+        request.resource.data.deviceStatusUpdatedAtMs >= 0 &&
+        request.resource.data.protectionActive is bool &&
+        request.resource.data.protectionCheckedAtMs is int &&
+        request.resource.data.protectionCheckedAtMs >= 0 &&
+        request.resource.data.protectionReasons is list &&
+        request.resource.data.protectionReasons.size() <= 8;
       allow delete: if isParent(familyId);
     }
 
