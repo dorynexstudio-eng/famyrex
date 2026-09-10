@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 fun FamyrexSettingsScreen(context: Context, onBack: () -> Unit, modifier: Modifier = Modifier) {
     var showCommunicationDisclosure by remember { mutableStateOf(false) }
     var communicationConsentAccepted by remember { mutableStateOf(CommunicationMonitoringConsentStore(context).isAccepted()) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var deletingAccount by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -87,7 +90,10 @@ fun FamyrexSettingsScreen(context: Context, onBack: () -> Unit, modifier: Modifi
         item { SettingsSection(Icons.Default.Info, "Privacidad y ayuda", "Consulta qué observa Famyrex y cómo se utilizan los datos.") {
             SettingsAction("Política de privacidad", "Abrir política de privacidad", { context.startActivity(Intent(context, PrivacyPolicyActivity::class.java)) })
         } }
-        item { Text("Famyrex 2.0.0", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) }
+        item { SettingsSection(Icons.Default.Security, "Cuenta y datos", "Elimina permanentemente tu cuenta de Famyrex y los datos asociados que se almacenan en nuestros servicios.") {
+            SettingsAction("Eliminar cuenta y datos", "Esta acción es permanente y no se puede deshacer", { showDeleteConfirmation = true })
+        } }
+        item { Text("Famyrex 2.1.0", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) }
     }
 
     if (showCommunicationDisclosure) {
@@ -114,6 +120,58 @@ fun FamyrexSettingsScreen(context: Context, onBack: () -> Unit, modifier: Modifi
             dismissButton = {
                 TextButton(onClick = { showCommunicationDisclosure = false }) { Text("Ahora no") }
             }
+        )
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingAccount) showDeleteConfirmation = false },
+            title = { Text("Eliminar cuenta y datos") },
+            text = {
+                Text(
+                    "Se eliminará de forma permanente tu cuenta de Famyrex y los datos asociados almacenados en los servicios de Famyrex. " +
+                        "También se borrará la información local de esta instalación. Esta acción no se puede deshacer."
+                )
+            },
+            confirmButton = {
+                Button(
+                    enabled = !deletingAccount,
+                    onClick = {
+                        deletingAccount = true
+                        deleteError = null
+                        FamyrexAccountDeletion.delete(
+                            context = context,
+                            onSuccess = {
+                                deletingAccount = false
+                                showDeleteConfirmation = false
+                                context.startActivity(
+                                    Intent(context, ModeRouterActivity::class.java).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                    }
+                                )
+                            },
+                            onError = { message ->
+                                deletingAccount = false
+                                deleteError = message
+                            }
+                        )
+                    }
+                ) {
+                    Text(if (deletingAccount) "Eliminando…" else "Eliminar definitivamente")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !deletingAccount, onClick = { showDeleteConfirmation = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    deleteError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { deleteError = null },
+            title = { Text("No se pudo eliminar la cuenta") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { deleteError = null }) { Text("Cerrar") } }
         )
     }
 }
