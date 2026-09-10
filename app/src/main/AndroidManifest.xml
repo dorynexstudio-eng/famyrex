@@ -34,6 +34,7 @@
                 <data android:scheme="famyrex" android:host="join" />
             </intent-filter>
         </activity>
+        <activity android:name=".FamilyInvitationQrActivity" android:exported="false" />
         <activity android:name=".FirstLaunchRoleActivity" android:exported="false" />
         <activity android:name=".ParentFirstSetupActivity" android:exported="false" />
         <activity android:name=".PremiumMainActivity" android:exported="false" />
