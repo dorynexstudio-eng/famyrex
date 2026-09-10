@@ -62,14 +62,13 @@ fun JoinFamilyScreen(
         message = "Vinculando dispositivo…"
         val normalizedLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
         val normalizedToken = token.trim()
-        val memberId = "profile-${UUID.randomUUID().toString().replace("-", "").take(16)}"
         val deviceId = "device-${UUID.randomUUID().toString().replace("-", "").take(16)}"
 
         FamyrexPairingService(appContext).redeemCode(
             code = code,
             token = normalizedToken,
             childLabel = normalizedLabel,
-            famyrexMemberId = memberId,
+            famyrexMemberId = null,
             famyrexDeviceId = deviceId,
             onSuccess = { familyId, _, resolvedMemberId, resolvedDeviceId ->
                 runCatching {
