@@ -68,10 +68,34 @@ fun PremiumFamilyScreen(context: Context, onOpenParentalControl: () -> Unit, onO
         )
         return
     }
+
+    val store = remember { FamilyStore(context) }
+    val profiles = remember { store.profiles() }
+    val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
+    val children = profiles.filter { it.role == FamilyRole.CHILD }
+
     PremiumScreenScaffold(modifier, Icons.Default.Group, "Familia", "Personas, acuerdos y protección en un mismo lugar") {
-        PremiumInfoCard(Icons.Default.Person, "Añade un perfil infantil", "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.", onClick = { management = true }, actionLabel = "Configurar familia")
+        if (owner != null) {
+            PremiumPersonCard(owner.displayName, "Adulto responsable", Icons.Default.Person)
+        }
+        if (children.isEmpty()) {
+            PremiumInfoCard(
+                Icons.Default.Person,
+                "Añade un perfil infantil",
+                "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.",
+                onClick = { management = true },
+                actionLabel = "Configurar familia"
+            )
+        } else {
+            children.forEach { child ->
+                PremiumPersonCard(child.displayName, "Perfil infantil protegido", Icons.Default.Person)
+            }
+        }
         PremiumInfoCard(Icons.Default.Security, "Protección y límites", "Gestiona tiempo de pantalla, aplicaciones y medidas que requieren permisos especiales de Android.", onClick = onOpenParentalControl, actionLabel = "Gestionar protección")
         PremiumInfoCard(Icons.Default.Group, "Gestión de la familia", "Códigos de vinculación, perfiles y conexión entre dispositivos.", onClick = { management = true }, actionLabel = "Gestionar familia")
+        if (children.isNotEmpty()) {
+            PremiumInfoCard(Icons.Default.Security, "Control remoto", "Accede a las acciones disponibles para el dispositivo vinculado, dentro de las reglas y permisos de Famyrex.", onClick = onOpenRemoteControl, actionLabel = "Abrir control")
+        }
     }
 }
 
