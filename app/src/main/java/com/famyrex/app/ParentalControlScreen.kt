@@ -59,6 +59,7 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
     val usageMonitor = remember { ParentalUsageMonitor(context) }
     val usageAccess = remember(refreshToken) { usageMonitor.hasUsageAccess() }
     val accessibilityEnabled = remember(refreshToken) { isParentalAccessibilityEnabled(context) }
+    val accessibilityConsent = remember(refreshToken) { AccessibilityConsentStore(context).isAccepted() }
     val apps = remember {
         context.packageManager.getInstalledApplications(0)
             .filter { it.packageName != context.packageName }
@@ -127,8 +128,36 @@ fun ParentalControlScreen(modifier: Modifier = Modifier) {
                     Text(if (usageAccess) "🟢 Datos de uso disponibles" else "⚪ Datos de uso no disponibles")
                     Text(if (accessibilityEnabled) "🟢 Guardia parental activa" else "🟠 Guardia parental no activa")
                     if (!usageAccess) Button(onClick = { openUsageSettings(context) }, Modifier.fillMaxWidth()) { Text("Activar acceso al uso") }
-                    if (!accessibilityEnabled) Button(onClick = { openParentalAccessibilitySettings(context) }, Modifier.fillMaxWidth()) { Text("Activar guardia parental") }
+                    if (!accessibilityEnabled) {
+                        Button(
+                            onClick = { openParentalAccessibilitySettings(context) },
+                            Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (accessibilityConsent) "Activar guardia parental" else "Configurar guardia parental")
+                        }
+                    }
                     OutlinedButton(onClick = { openUsageSettings(context) }, Modifier.fillMaxWidth()) { Text("Revisar permisos de control") }
+                }
+            }
+        }
+
+        item {
+            if (!accessibilityConsent && !accessibilityEnabled) {
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Protección mediante accesibilidad", style = MaterialTheme.typography.titleMedium)
+                        Text("Para activar la guardia parental, Famyrex necesita el servicio de accesibilidad de Android.")
+                        Text("Qué datos se acceden: información de la aplicación que está en primer plano y eventos de accesibilidad necesarios para aplicar las reglas familiares configuradas.")
+                        Text("Cómo se usan: la información se utiliza para aplicar el control parental en este dispositivo. No se utiliza para publicidad ni se comparte con terceros para esos fines.")
+                        Text("Famyrex no usa este servicio para leer, guardar o transmitir el contenido de chats, contraseñas o mensajes privados.")
+                        Text("La función es opcional. Debes aceptar expresamente esta explicación antes de que Famyrex abra los Ajustes de accesibilidad de Android.")
+                        Button(
+                            onClick = { openParentalAccessibilitySettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Aceptar y abrir ajustes")
+                        }
+                    }
                 }
             }
         }
@@ -312,7 +341,31 @@ private fun openUsageSettings(context: Context) {
 }
 
 private fun openParentalAccessibilitySettings(context: Context) {
-    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    if (AccessibilityConsentStore(context).isAccepted()) {
+        context.startActivity(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        return
+    }
+
+    android.app.AlertDialog.Builder(context)
+        .setTitle("Supervisión de aplicaciones")
+        .setMessage(
+            "Famyrex necesita el servicio de accesibilidad para detectar qué aplicación está en primer plano y aplicar las reglas familiares configuradas en este dispositivo.\n\n" +
+                "Datos a los que accede: información de la aplicación en primer plano y eventos de accesibilidad necesarios para aplicar esas reglas.\n\n" +
+                "Uso y compartición: esta información se utiliza para el control parental en el propio dispositivo y no se envía a terceros para publicidad. Famyrex no usa este servicio para leer, guardar o transmitir el contenido de chats, contraseñas o mensajes privados.\n\n" +
+                "El servicio es opcional. Si aceptas, se guardará tu consentimiento y se abrirán los Ajustes de accesibilidad de Android para que actives la función explícitamente."
+        )
+        .setNegativeButton("Ahora no", null)
+        .setPositiveButton("Aceptar y continuar") { _, _ ->
+            AccessibilityConsentStore(context).accept()
+            context.startActivity(
+                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+        .show()
 }
 
 private fun isParentalAccessibilityEnabled(context: Context): Boolean {
