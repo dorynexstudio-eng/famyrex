@@ -1,6 +1,8 @@
 package com.famyrex.app
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
@@ -37,9 +39,50 @@ class FamyrexPairingService(context: Context) {
                 val expiresAtMs = (data?.get("expiresAtMs") as? Number)?.toLong()
                 if (code.isNullOrBlank() || token.isNullOrBlank() || expiresAtMs == null) {
                     onError("Firebase devolvió una invitación incompleta.")
-                } else onSuccess(code, token, expiresAtMs)
+                } else {
+                    shareChildInvitation(childLabel, code, token, expiresAtMs)
+                    onSuccess(code, token, expiresAtMs)
+                }
             }
             .addOnFailureListener { onError(it.toUserMessage()) }
+    }
+
+    private fun shareChildInvitation(childLabel: String, code: String, token: String, expiresAtMs: Long) {
+        val safeLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
+        val link = Uri.Builder()
+            .scheme("famyrex")
+            .authority("join")
+            .appendQueryParameter("code", code)
+            .appendQueryParameter("token", token)
+            .appendQueryParameter("label", safeLabel)
+            .build()
+            .toString()
+        val minutes = ((expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1
+        val message = """
+            Te han invitado a unirte a una familia en Famyrex.
+
+            Perfil: $safeLabel
+
+            Si Famyrex ya está instalada en este móvil, pulsa este enlace para abrir la invitación:
+            $link
+
+            Si todavía no está instalada, instala Famyrex y utiliza estos datos para completar la vinculación:
+            Código: $code
+            Clave: $token
+
+            La invitación caduca en aproximadamente $minutes minutos.
+        """.trimIndent()
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Invitación a la familia Famyrex · $safeLabel")
+            putExtra(Intent.EXTRA_TEXT, message)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching {
+            appContext.startActivity(Intent.createChooser(shareIntent, "Enviar invitación de Famyrex").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        }
     }
 
     fun redeemCode(
