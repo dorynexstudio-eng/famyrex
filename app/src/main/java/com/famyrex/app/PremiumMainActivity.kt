@@ -137,10 +137,18 @@ fun FamyrexPremiumApp(context: Context) {
 
 @Composable
 private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onSelect: (Int) -> Unit) {
-    androidx.compose.material3.NavigationBarItem(
-        selected = selected == index,
-        onClick = { onSelect(index) },
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) }
-    )
+    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        IconButton(onClick = { onSelect(index) }) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = if (selected == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
