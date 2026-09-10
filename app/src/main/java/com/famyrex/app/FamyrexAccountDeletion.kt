@@ -12,10 +12,6 @@ object FamyrexAccountDeletion {
             .call(emptyMap<String, Any>())
             .addOnSuccessListener {
                 runCatching { FamyrexLocalDataCleaner.clear(context) }
-                    .onFailure {
-                        onError("La cuenta se eliminó en el servidor, pero no se pudo limpiar todo el almacenamiento local.")
-                        return@addOnSuccessListener
-                    }
                 FirebaseAuth.getInstance().signOut()
                 onSuccess()
             }
