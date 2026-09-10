@@ -28,14 +28,21 @@ object FamilySituationEngine {
 
     fun analyze(text: String, appName: String? = null, evidence: List<Evidence> = emptyList()): Situation {
         val q = text.lowercase()
-        val safety = listOf("amenaza", "amenazas", "acoso", "bullying", "bulin", "insulto", "humill", "chantaje", "extors", "miedo", "suicid", "autoles", "pelea").any(q::contains)
+        val immediateRisk = listOf(
+            "suicid", "autoles", "amenaza de muerte", "matar", "peligro inmediato",
+            "agresion fisica", "agresión física", "violencia fisica", "violencia física"
+        ).any(q::contains)
+        val safety = listOf(
+            "amenaza", "amenazas", "acoso", "bullying", "bulin", "chantaje", "extors",
+            "humill", "miedo"
+        ).any(q::contains)
         val digital = listOf("tiktok", "instagram", "whatsapp", "discord", "youtube", "móvil", "movil", "telefono", "teléfono", "pantalla", "juego", "videojuego").any(q::contains)
         val trust = listOf("oculta", "secret", "control", "privacidad", "espiar", "confío", "confio", "confianza").any(q::contains)
         val rules = listOf("límite", "limite", "norma", "castigo", "quitar", "horario", "no me deja", "no hace caso").any(q::contains)
         val communication = listOf("no habla", "no quiere hablar", "discut", "pelea", "enfad", "enoj", "me escucha", "escuchar").any(q::contains)
 
         val category = when {
-            safety -> Category.SAFETY
+            immediateRisk || safety -> Category.SAFETY
             digital && rules -> Category.RULES
             trust -> Category.TRUST
             communication -> Category.COMMUNICATION
@@ -43,7 +50,7 @@ object FamilySituationEngine {
             else -> Category.FAMILY_CONFLICT
         }
         val severity = when {
-            listOf("suicid", "autoles", "amenaza de muerte", "matar", "peligro inmediato").any(q::contains) -> Severity.RED
+            immediateRisk -> Severity.RED
             safety -> Severity.ORANGE
             trust || rules || communication || digital -> Severity.YELLOW
             else -> Severity.GREEN
@@ -60,7 +67,7 @@ object FamilySituationEngine {
 
         val allEvidence = buildList {
             addAll(evidence)
-            if (!appName.isNullOrBlank()) add(Evidence(EvidenceKind.OBSERVED_DATA, "La situación menciona o está relacionada con $appName.", appName, 60))
+            if (!appName.isNullOrBlank()) add(Evidence(EvidenceKind.USER_REPORTED, "La situación menciona o está relacionada con $appName.", appName, 60))
             add(Evidence(EvidenceKind.USER_REPORTED, "La situación procede de lo que ha expresado la familia.", "Asistente Familiar", 80))
         }
 
