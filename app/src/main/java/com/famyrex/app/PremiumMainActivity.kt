@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -27,7 +26,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +74,13 @@ fun FamyrexPremiumApp(context: Context) {
         return
     }
 
+    fun resetSubscreens() {
+        familyManagementOpen = false
+        parentalControlOpen = false
+        remoteControlOpen = false
+        usageReportOpen = false
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -90,18 +95,17 @@ fun FamyrexPremiumApp(context: Context) {
         },
         bottomBar = {
             NavigationBar(modifier = Modifier.navigationBarsPadding()) {
-                PremiumNavItem(0, tab, "Inicio", Icons.Default.Home) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
-                PremiumNavItem(1, tab, "Alertas", Icons.Default.Notifications) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
-                PremiumNavItem(2, tab, "Familia", Icons.Default.Person) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
-                PremiumNavItem(3, tab, "Mapa", Icons.Default.LocationOn) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
-                PremiumNavItem(4, tab, "Asistente", Icons.Default.Info) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
-                PremiumNavItem(5, tab, "Actividad", Icons.Default.CheckCircle) { tab = it; familyManagementOpen = false; parentalControlOpen = false; remoteControlOpen = false; usageReportOpen = false }
+                PremiumNavItem(0, tab, "Inicio", Icons.Default.Home) { tab = it; resetSubscreens() }
+                PremiumNavItem(1, tab, "Alertas", Icons.Default.Notifications) { tab = it; resetSubscreens() }
+                PremiumNavItem(2, tab, "Familia", Icons.Default.Person) { tab = it; resetSubscreens() }
+                PremiumNavItem(3, tab, "Mapa", Icons.Default.LocationOn) { tab = it; resetSubscreens() }
+                PremiumNavItem(4, tab, "Actividad", Icons.Default.CheckCircle) { tab = it; resetSubscreens() }
             }
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
-                0 -> FamilyChildOverviewScreen(context, Modifier.fillMaxSize(), onOpenAlerts = { tab = 1 }, onOpenLocation = { tab = 3 }, onOpenUsage = { tab = 5 }, onOpenFamily = { tab = 2; familyManagementOpen = true }, onOpenParentalControl = { tab = 2; parentalControlOpen = true }, onOpenSettings = { settingsOpen = true })
+                0 -> FamilyChildOverviewScreen(context, Modifier.fillMaxSize(), onOpenAlerts = { tab = 1 }, onOpenLocation = { tab = 3 }, onOpenUsage = { tab = 4 }, onOpenFamily = { tab = 2; familyManagementOpen = true }, onOpenParentalControl = { tab = 2; parentalControlOpen = true }, onOpenSettings = { settingsOpen = true })
                 1 -> PremiumAlertsScreen(context, Modifier.fillMaxSize())
                 2 -> if (remoteControlOpen) {
                     FamilyRemoteControlScreen(context, FamyrexCloudFamilyRepository(context).cachedFamilyId(), Modifier.fillMaxSize())
@@ -111,8 +115,7 @@ fun FamyrexPremiumApp(context: Context) {
                     PremiumFamilyScreen(context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { familyManagementOpen = false }, modifier = Modifier.fillMaxSize())
                 }
                 3 -> PremiumLocationScreen(context, zones, { updated -> zones = updated; savePremiumZones(prefs, updated) }, Modifier.fillMaxSize())
-                4 -> PremiumAssistantScreen(context, Modifier.fillMaxSize())
-                5 -> if (usageReportOpen) DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize()) else PremiumActivityScreen(context, onOpenReport = { usageReportOpen = true }, modifier = Modifier.fillMaxSize())
+                4 -> if (usageReportOpen) DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize()) else PremiumActivityScreen(context, onOpenReport = { usageReportOpen = true }, modifier = Modifier.fillMaxSize())
             }
         }
     }
