@@ -12,7 +12,20 @@
           "package_name": "com.famyrex.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "369896309488-09k0v9rjefkb0v7vghvmdfgmo37mqhi6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.famyrex.app",
+            "certificate_hash": "dadc5d67f90d42a017e1fc84458a6d6d2f4d84b3"
+          }
+        },
+        {
+          "client_id": "369896309488-fraeqa5lc58vrffh9vb23bblp3t2cto6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCkxKRRa8QFRILCJ2cYr0ICirWylUBi55Q"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "369896309488-fraeqa5lc58vrffh9vb23bblp3t2cto6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
