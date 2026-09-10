@@ -58,22 +58,20 @@ fun PremiumAlertsScreen(context: Context, modifier: Modifier = Modifier) {
 @Composable
 fun PremiumFamilyScreen(context: Context, onOpenParentalControl: () -> Unit, onOpenRemoteControl: () -> Unit, onFamilyChanged: () -> Unit, modifier: Modifier = Modifier) {
     var management by remember { mutableStateOf(false) }
+    if (management) {
+        FamilyCoreScreen(
+            context = context,
+            onOpenParentalControl = onOpenParentalControl,
+            onOpenRemoteControl = onOpenRemoteControl,
+            onFamilyChanged = onFamilyChanged,
+            modifier = modifier
+        )
+        return
+    }
     PremiumScreenScaffold(modifier, Icons.Default.Group, "Familia", "Personas, acuerdos y protección en un mismo lugar") {
-        // Keep the summary screen lightweight. FamilyCoreScreen owns all family-store initialization.
         PremiumInfoCard(Icons.Default.Person, "Añade un perfil infantil", "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.", onClick = { management = true }, actionLabel = "Configurar familia")
         PremiumInfoCard(Icons.Default.Security, "Protección y límites", "Gestiona tiempo de pantalla, aplicaciones y medidas que requieren permisos especiales de Android.", onClick = onOpenParentalControl, actionLabel = "Gestionar protección")
         PremiumInfoCard(Icons.Default.Group, "Gestión de la familia", "Códigos de vinculación, perfiles y conexión entre dispositivos.", onClick = { management = true }, actionLabel = "Gestionar familia")
-        if (management) {
-            Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                FamilyCoreScreen(
-                    context = context,
-                    onOpenParentalControl = onOpenParentalControl,
-                    onOpenRemoteControl = onOpenRemoteControl,
-                    onFamilyChanged = onFamilyChanged,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
     }
 }
 
