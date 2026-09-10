@@ -97,13 +97,20 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
         var sourceCount = observations.count { it.sourcePackage == sourcePackage }
         if (sourceCount <= MAX_OBSERVATIONS_PER_SOURCE) return
 
-        val iterator = observations.iterator()
-        while (iterator.hasNext() && sourceCount > MAX_OBSERVATIONS_PER_SOURCE) {
-            if (iterator.next().sourcePackage == sourcePackage) {
-                iterator.remove()
-                sourceCount--
+        // ArrayDeque no garantiza remove() a través de su iterator en todas las
+        // versiones de Kotlin usadas por Android. Reconstruimos el buffer de forma
+        // determinista para conservar el orden temporal y evitar fallos en runtime.
+        val retained = ArrayDeque<CommunicationObservation>(observations.size)
+        var toRemove = sourceCount - MAX_OBSERVATIONS_PER_SOURCE
+        observations.forEach { observation ->
+            if (observation.sourcePackage == sourcePackage && toRemove > 0) {
+                toRemove--
+            } else {
+                retained.addLast(observation)
             }
         }
+        observations.clear()
+        observations.addAll(retained)
     }
 
     private fun findRecentEquivalentIncident(
