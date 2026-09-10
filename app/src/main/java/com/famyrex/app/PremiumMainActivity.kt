@@ -53,7 +53,7 @@ private fun loadPremiumZones(prefs: SharedPreferences): List<GeoZone> {
     }
 }
 
-private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone>) {
+private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone) {
     prefs.edit().putString("geo_zones", zones.joinToString(";") { "${it.name}|${it.latitude}|${it.longitude}|${it.radiusMeters}" }).apply()
 }
 
@@ -114,7 +114,7 @@ fun FamyrexPremiumApp(context: Context) {
                 } else if (parentalControlOpen) {
                     ParentalControlScreen(Modifier.fillMaxSize())
                 } else {
-                    PremiumFamilyScreen(context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { familyManagementOpen = false }, modifier = Modifier.fillMaxSize())
+                    PremiumFamilyScreen(context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { familyManagementOpen = false }, openManagement = familyManagementOpen, modifier = Modifier.fillMaxSize())
                 }
                 3 -> PremiumLocationScreen(context, zones, { updated -> zones = updated; savePremiumZones(prefs, updated) }, Modifier.fillMaxSize())
                 4 -> when {
