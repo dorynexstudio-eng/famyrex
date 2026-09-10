@@ -40,14 +40,14 @@ class FamyrexPairingService(context: Context) {
                 if (code.isNullOrBlank() || token.isNullOrBlank() || expiresAtMs == null) {
                     onError("Firebase devolvió una invitación incompleta.")
                 } else {
-                    showChildInvitationQr(childLabel, code, token, expiresAtMs)
+                    showChildInvitationQr(childLabel, code, token)
                     onSuccess(code, token, expiresAtMs)
                 }
             }
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
-    private fun showChildInvitationQr(childLabel: String, code: String, token: String, expiresAtMs: Long) {
+    private fun showChildInvitationQr(childLabel: String, code: String, token: String) {
         val safeLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
         val link = Uri.Builder()
             .scheme("famyrex")
@@ -63,11 +63,10 @@ class FamyrexPairingService(context: Context) {
             putExtra(FamilyInvitationQrActivity.EXTRA_LABEL, safeLabel)
             putExtra(FamilyInvitationQrActivity.EXTRA_CODE, code)
             putExtra(FamilyInvitationQrActivity.EXTRA_TOKEN, token)
-            putExtra(FamilyInvitationQrActivity.EXTRA_EXPIRES_AT_MS, expiresAtMs)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { appContext.startActivity(qrIntent) }
-            .onFailure { /* Never fall back to sharing the child secret outside the two devices. */ }
+            .onFailure { /* Never share child invitation secrets outside the two devices. */ }
     }
 
     fun redeemCode(
