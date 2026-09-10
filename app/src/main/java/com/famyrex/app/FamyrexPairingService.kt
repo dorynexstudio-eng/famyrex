@@ -40,14 +40,14 @@ class FamyrexPairingService(context: Context) {
                 if (code.isNullOrBlank() || token.isNullOrBlank() || expiresAtMs == null) {
                     onError("Firebase devolvió una invitación incompleta.")
                 } else {
-                    showChildInvitationOptions(childLabel, code, token, expiresAtMs)
+                    showChildInvitationQr(childLabel, code, token, expiresAtMs)
                     onSuccess(code, token, expiresAtMs)
                 }
             }
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
-    private fun showChildInvitationOptions(childLabel: String, code: String, token: String, expiresAtMs: Long) {
+    private fun showChildInvitationQr(childLabel: String, code: String, token: String, expiresAtMs: Long) {
         val safeLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
         val link = Uri.Builder()
             .scheme("famyrex")
@@ -57,41 +57,17 @@ class FamyrexPairingService(context: Context) {
             .appendQueryParameter("label", safeLabel)
             .build()
             .toString()
-        val minutes = ((expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1
-        val message = """
-            Te han invitado a unirte a una familia en Famyrex.
-
-            Perfil: $safeLabel
-
-            Si Famyrex ya está instalada en este móvil, pulsa este enlace para abrir la invitación:
-            $link
-
-            Si todavía no está instalada, instala Famyrex y utiliza estos datos para completar la vinculación:
-            Código: $code
-            Clave: $token
-
-            La invitación caduca en aproximadamente $minutes minutos.
-        """.trimIndent()
 
         val qrIntent = Intent(appContext, FamilyInvitationQrActivity::class.java).apply {
             putExtra(FamilyInvitationQrActivity.EXTRA_LINK, link)
             putExtra(FamilyInvitationQrActivity.EXTRA_LABEL, safeLabel)
-            putExtra(FamilyInvitationQrActivity.EXTRA_MESSAGE, message)
+            putExtra(FamilyInvitationQrActivity.EXTRA_CODE, code)
+            putExtra(FamilyInvitationQrActivity.EXTRA_TOKEN, token)
+            putExtra(FamilyInvitationQrActivity.EXTRA_EXPIRES_AT_MS, expiresAtMs)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        runCatching { appContext.startActivity(qrIntent) }.onFailure {
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "Invitación a la familia Famyrex · $safeLabel")
-                putExtra(Intent.EXTRA_TEXT, message)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            runCatching {
-                appContext.startActivity(Intent.createChooser(shareIntent, "Enviar invitación de Famyrex").apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
-            }
-        }
+        runCatching { appContext.startActivity(qrIntent) }
+            .onFailure { /* Never fall back to sharing the child secret outside the two devices. */ }
     }
 
     fun redeemCode(
@@ -128,9 +104,7 @@ class FamyrexPairingService(context: Context) {
                 "childLabel" to childLabel,
                 "famyrexDeviceId" to famyrexDeviceId
             )
-            if (!famyrexMemberId.isNullOrBlank()) {
-                payload["famyrexMemberId"] = famyrexMemberId
-            }
+            if (!famyrexMemberId.isNullOrBlank()) payload["famyrexMemberId"] = famyrexMemberId
             functions().getHttpsCallable("redeemPairingCode")
                 .call(payload)
                 .addOnSuccessListener { result ->
