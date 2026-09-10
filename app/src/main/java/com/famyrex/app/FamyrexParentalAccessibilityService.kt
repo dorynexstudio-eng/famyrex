@@ -16,6 +16,11 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     private var blockedPackage: String? = null
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (!AccessibilityConsentStore(this).isAccepted()) {
+            removeBlockingOverlay()
+            return
+        }
+
         val targetPackage = event?.packageName?.toString() ?: return
         val launcherPackage = resolveLauncherPackage()
 
