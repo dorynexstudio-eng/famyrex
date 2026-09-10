@@ -1,5 +1,5 @@
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { getFirestore, Query, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 function firestore() {
@@ -13,7 +13,7 @@ async function deleteQueryResults(snapshots: QueryDocumentSnapshot[]): Promise<v
   await batch.commit();
 }
 
-async function deleteByQuery(query: FirebaseFirestore.Query): Promise<void> {
+async function deleteByQuery(query: Query): Promise<void> {
   while (true) {
     const snapshot = await query.limit(400).get();
     if (snapshot.empty) return;
