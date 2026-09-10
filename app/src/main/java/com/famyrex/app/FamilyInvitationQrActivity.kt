@@ -8,12 +8,12 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.common.BitMatrix
 
-class FamilyInvitationQrActivity : AppCompatActivity() {
+class FamilyInvitationQrActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -29,21 +29,21 @@ class FamilyInvitationQrActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 32)
         }
-        val title = TextView(this).apply {
+        root.addView(TextView(this).apply {
             text = "Vincular $childLabel"
             textSize = 24f
-        }
-        val subtitle = TextView(this).apply {
+        })
+        root.addView(TextView(this).apply {
             text = "En el móvil del menor, abre Famyrex y escanea este código QR. Después deberá aceptar la invitación."
             textSize = 16f
             setPadding(0, 12, 0, 20)
-        }
-        val qr = ImageView(this).apply {
+        })
+        root.addView(ImageView(this).apply {
             setImageBitmap(createQr(link))
             adjustViewBounds = true
             contentDescription = "Código QR de vinculación de Famyrex"
-        }
-        val share = Button(this).apply {
+        }, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(Button(this).apply {
             text = "Enviar enlace por WhatsApp, correo…"
             setOnClickListener {
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -53,17 +53,12 @@ class FamilyInvitationQrActivity : AppCompatActivity() {
                 }
                 startActivity(Intent.createChooser(shareIntent, "Enviar invitación de Famyrex"))
             }
-        }
-        val linkText = TextView(this).apply {
+        })
+        root.addView(TextView(this).apply {
             text = "También puedes compartir el enlace directamente:\n$link"
             textSize = 13f
             setPadding(0, 16, 0, 0)
-        }
-        root.addView(title)
-        root.addView(subtitle)
-        root.addView(qr, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(share, LinearLayout.LayoutParams(-1, -2))
-        root.addView(linkText)
+        })
         setContentView(root)
     }
 
