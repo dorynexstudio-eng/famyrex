@@ -26,18 +26,19 @@ class PrivacyPolicyActivity : ComponentActivity() {
                         .padding(20.dp)
                 ) {
                     Text("Política de privacidad", style = MaterialTheme.typography.headlineSmall)
-                    Text("Última actualización: 6 de septiembre de 2026", style = MaterialTheme.typography.bodySmall)
+                    Text("Última actualización: 10 de septiembre de 2026", style = MaterialTheme.typography.bodySmall)
                     Text(
                         "Famyrex está diseñado para proteger, explicar y acompañar, no para espiar. " +
-                            "El procesamiento funcional se realiza principalmente en el dispositivo.",
+                            "El procesamiento funcional es principalmente local, pero algunas funciones de familia conectada utilizan Firebase/Firestore para sincronizar el estado estrictamente necesario entre dispositivos autorizados.",
                         modifier = Modifier.padding(top = 12.dp)
                     )
-                    PrivacySection("Qué procesa", "Según las funciones activadas, Famyrex puede procesar localmente uso de aplicaciones, alertas, configuración parental, vinculación familiar, geozonas, informes y observaciones de notificaciones cuando el análisis de comunicación está expresamente activado.")
-                    PrivacySection("Qué no hace", "No utiliza vigilancia oculta, publicidad personalizada, lectura secreta de chats ni un servidor propio para almacenar el historial familiar.")
-                    PrivacySection("Ubicación", "Las geozonas requieren permiso de ubicación. Famyrex guarda localmente la configuración y los eventos funcionales; Android y Google Play Services pueden intervenir en la obtención de la ubicación y geofencing.")
+                    PrivacySection("Qué puede procesar", "Según las funciones activadas, Famyrex puede procesar localmente uso de aplicaciones, alertas, configuración parental, vinculación familiar, geozonas, informes y señales derivadas de notificaciones cuando el análisis de comunicación está expresamente activado.")
+                    PrivacySection("Familia conectada", "Las funciones de vinculación y supervisión entre dispositivos utilizan Firebase/Firestore. Cuando la ubicación familiar conectada está activa, puede sincronizarse la última ubicación del dispositivo infantil: latitud, longitud, precisión aproximada y momento de captura. Famyrex conserva en remoto únicamente el último punto necesario para esta función, no un historial remoto de recorridos.")
+                    PrivacySection("Qué no hace", "No utiliza vigilancia oculta, no lee contraseñas, no realiza lectura secreta de chats o mensajes, no utiliza micrófono ni cámara para vigilancia y no vende datos personales ni usa publicidad personalizada.")
+                    PrivacySection("Ubicación", "Las geozonas requieren permiso de ubicación. La ubicación sincronizada entre dispositivos requiere además la función familiar correspondiente y permisos de Android. Android y Google Play Services pueden intervenir en la obtención de la ubicación y el geofencing.")
                     PrivacySection("Seguridad web", "El navegador integrado puede cargar páginas de Internet y utilizar Safe Browsing para amenazas conocidas. Famyrex no intercepta el navegador externo ni los mensajes de otras aplicaciones.")
-                    PrivacySection("Conservación", "Los datos funcionales permanecen en el dispositivo mientras sean necesarios o hasta que el usuario borre los datos de la aplicación o la desinstale. Esta versión no crea una cuenta remota de Famyrex.")
-                    PrivacySection("Seguridad", "Los secretos de vinculación familiar se protegen mediante Android Keystore. Si faltan permisos o datos necesarios, Famyrex muestra el estado ⚪ Datos insuficientes en lugar de presentar una falsa sensación de seguridad.")
+                    PrivacySection("Conservación y eliminación", "Los datos funcionales locales permanecen mientras sean necesarios o hasta que el usuario borre los datos de Famyrex o desinstale la aplicación. La ubicación conectada se limita al último punto sincronizado y se sustituye al publicar uno nuevo. Los datos de infraestructura de Firebase pueden estar sujetos a sus propias políticas y retenciones técnicas.")
+                    PrivacySection("Permisos y seguridad", "Famyrex solicita permisos solo para funciones que los necesitan y el usuario puede revocarlos desde Android. Los secretos de vinculación se protegen mediante Android Keystore. Las alertas son señales para revisar el contexto y no diagnósticos ni acusaciones.")
                     TextButton(onClick = { finish() }) { Text("Volver") }
                 }
             }
