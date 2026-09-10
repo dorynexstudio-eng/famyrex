@@ -40,14 +40,14 @@ class FamyrexPairingService(context: Context) {
                 if (code.isNullOrBlank() || token.isNullOrBlank() || expiresAtMs == null) {
                     onError("Firebase devolvió una invitación incompleta.")
                 } else {
-                    shareChildInvitation(childLabel, code, token, expiresAtMs)
+                    showChildInvitationOptions(childLabel, code, token, expiresAtMs)
                     onSuccess(code, token, expiresAtMs)
                 }
             }
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
-    private fun shareChildInvitation(childLabel: String, code: String, token: String, expiresAtMs: Long) {
+    private fun showChildInvitationOptions(childLabel: String, code: String, token: String, expiresAtMs: Long) {
         val safeLabel = childLabel.trim().ifBlank { "Perfil infantil" }.take(40)
         val link = Uri.Builder()
             .scheme("famyrex")
@@ -72,16 +72,25 @@ class FamyrexPairingService(context: Context) {
 
             La invitación caduca en aproximadamente $minutes minutos.
         """.trimIndent()
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Invitación a la familia Famyrex · $safeLabel")
-            putExtra(Intent.EXTRA_TEXT, message)
+
+        val qrIntent = Intent(appContext, FamilyInvitationQrActivity::class.java).apply {
+            putExtra(FamilyInvitationQrActivity.EXTRA_LINK, link)
+            putExtra(FamilyInvitationQrActivity.EXTRA_LABEL, safeLabel)
+            putExtra(FamilyInvitationQrActivity.EXTRA_MESSAGE, message)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        runCatching {
-            appContext.startActivity(Intent.createChooser(shareIntent, "Enviar invitación de Famyrex").apply {
+        runCatching { appContext.startActivity(qrIntent) }.onFailure {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "Invitación a la familia Famyrex · $safeLabel")
+                putExtra(Intent.EXTRA_TEXT, message)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
+            }
+            runCatching {
+                appContext.startActivity(Intent.createChooser(shareIntent, "Enviar invitación de Famyrex").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            }
         }
     }
 
