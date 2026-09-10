@@ -24,7 +24,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName == packageName) return
-        if (!CommunicationMonitoringSettings.isNotificationListenerEnabled(this)) return
+        if (!CommunicationMonitoringSettings.isMonitoringActive(this)) return
 
         val text = extractNotificationText(sbn.notification)
         if (text.isBlank()) return
