@@ -46,7 +46,7 @@ class FamyrexPairingService(context: Context) {
         code: String,
         token: String,
         childLabel: String,
-        famyrexMemberId: String,
+        famyrexMemberId: String?,
         famyrexDeviceId: String,
         onSuccess: (familyId: String, childUid: String, memberId: String, deviceId: String) -> Unit,
         onError: (String) -> Unit
@@ -59,21 +59,28 @@ class FamyrexPairingService(context: Context) {
             onError("Falta la clave de vinculación.")
             return
         }
-        if (famyrexMemberId.isBlank() || famyrexDeviceId.isBlank()) {
+        if (!famyrexMemberId.isNullOrBlank() && famyrexMemberId.length !in 8..128) {
+            onError("La identidad del perfil infantil no es válida.")
+            return
+        }
+        if (famyrexDeviceId.isBlank()) {
             onError("La identidad local del dispositivo está incompleta.")
             return
         }
 
         val auth = FirebaseAuth.getInstance()
         fun redeem() {
+            val payload = hashMapOf<String, Any>(
+                "code" to code,
+                "token" to token,
+                "childLabel" to childLabel,
+                "famyrexDeviceId" to famyrexDeviceId
+            )
+            if (!famyrexMemberId.isNullOrBlank()) {
+                payload["famyrexMemberId"] = famyrexMemberId
+            }
             functions().getHttpsCallable("redeemPairingCode")
-                .call(hashMapOf(
-                    "code" to code,
-                    "token" to token,
-                    "childLabel" to childLabel,
-                    "famyrexMemberId" to famyrexMemberId,
-                    "famyrexDeviceId" to famyrexDeviceId
-                ))
+                .call(payload)
                 .addOnSuccessListener { result ->
                     val data = result.data as? Map<*, *>
                     val familyId = data?.get("familyId") as? String
