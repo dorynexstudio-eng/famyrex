@@ -51,10 +51,8 @@ fun PremiumAlertsScreen(context: Context, modifier: Modifier = Modifier) {
     PremiumScreenScaffold(modifier, Icons.Default.Notifications, "Alertas", if (pending == 0) "No hay nada que requiera tu atención ahora" else "$pending señal${if (pending == 1) "" else "es"} para revisar") {
         PremiumInfoCard(Icons.Default.CheckCircle, if (pending == 0) "Todo tranquilo" else "Hay algo que revisar", if (pending == 0) "Famyrex no detecta alertas pendientes. Una ausencia de alertas no demuestra que no exista ningún riesgo." else "Famyrex ha detectado señales que conviene revisar con contexto antes de tomar decisiones.", onClick = { details = !details }, actionLabel = if (details) "Ocultar detalle" else "Ver alertas")
         PremiumInfoCard(Icons.Default.Security, "Cómo interpreta Famyrex", "Las alertas son señales, no diagnósticos ni acusaciones. La aplicación separa datos observados, cambios, indicadores y hechos confirmados.")
-        if (details) {
-            Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                RealAlertsScreen(context, Modifier.fillMaxWidth())
-            }
+        if (details) Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            RealAlertsScreen(context, Modifier.fillMaxWidth())
         }
     }
 }
@@ -123,11 +121,12 @@ fun PremiumAssistantScreen(context: Context, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun PremiumActivityScreen(context: Context, onOpenReport: () -> Unit, modifier: Modifier = Modifier) {
+fun PremiumActivityScreen(context: Context, onOpenReport: () -> Unit, onOpenAssistant: () -> Unit = {}, modifier: Modifier = Modifier) {
     var details by remember { mutableStateOf(false) }
     PremiumScreenScaffold(modifier, Icons.Default.Timelapse, "Actividad", "Tiempo de uso, hábitos y tendencias de hoy") {
         PremiumInfoCard(Icons.Default.Timelapse, "Tu resumen digital", "Consulta cuánto tiempo se ha utilizado el dispositivo y qué aplicaciones concentran la actividad. Los datos dependen del acceso de uso concedido por Android.", onClick = { details = !details }, actionLabel = if (details) "Ocultar actividad" else "Ver actividad")
         PremiumInfoCard(Icons.Default.Assessment, "Informe familiar", "Convierte la actividad y las señales disponibles en una lectura sencilla del día.", onClick = onOpenReport, actionLabel = "Abrir informe")
+        PremiumInfoCard(Icons.Default.Security, "Asistente familiar", "Habla con Famyrex para entender señales, contexto y próximos pasos sin sacar conclusiones precipitadas.", onClick = onOpenAssistant, actionLabel = "Abrir asistente")
         PremiumInfoCard(Icons.Default.CheckCircle, "Pensado para entender, no vigilar", "Famyrex muestra tendencias y contexto para facilitar conversaciones familiares, evitando presentar una métrica aislada como una conclusión.")
         if (details) Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { UsageInsightsScreen(context, Modifier.fillMaxWidth(), onOpenSettings = {}, onOpenReport = onOpenReport) }
     }
