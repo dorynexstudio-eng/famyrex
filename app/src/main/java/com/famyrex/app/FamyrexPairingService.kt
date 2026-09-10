@@ -29,13 +29,7 @@ class FamyrexPairingService(context: Context) {
             return
         }
         functions().getHttpsCallable("createPairingInvite")
-            .call(
-                hashMapOf(
-                    "familyId" to familyId,
-                    "childLabel" to childLabel,
-                    "famyrexMemberId" to famyrexMemberId
-                )
-            )
+            .call(hashMapOf("familyId" to familyId, "childLabel" to childLabel, "famyrexMemberId" to famyrexMemberId))
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
                 val code = data?.get("code") as? String
@@ -73,15 +67,13 @@ class FamyrexPairingService(context: Context) {
         val auth = FirebaseAuth.getInstance()
         fun redeem() {
             functions().getHttpsCallable("redeemPairingCode")
-                .call(
-                    hashMapOf(
-                        "code" to code,
-                        "token" to token,
-                        "childLabel" to childLabel,
-                        "famyrexMemberId" to famyrexMemberId,
-                        "famyrexDeviceId" to famyrexDeviceId
-                    )
-                )
+                .call(hashMapOf(
+                    "code" to code,
+                    "token" to token,
+                    "childLabel" to childLabel,
+                    "famyrexMemberId" to famyrexMemberId,
+                    "famyrexDeviceId" to famyrexDeviceId
+                ))
                 .addOnSuccessListener { result ->
                     val data = result.data as? Map<*, *>
                     val familyId = data?.get("familyId") as? String
