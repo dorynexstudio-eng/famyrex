@@ -20,6 +20,13 @@ class FamilyLocationWorker(
         val coarse = applicationContext.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!fine && !coarse) return Result.success()
 
+        // The worker can execute while the app is not visible. On Android 10+
+        // that requires explicit background-location access. Do not attempt
+        // background collection unless the user has granted that capability.
+        val backgroundGranted = android.os.Build.VERSION.SDK_INT < 29 ||
+            applicationContext.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!backgroundGranted) return Result.success()
+
         return runCatching {
             val client = LocationServices.getFusedLocationProviderClient(applicationContext)
             val location = Tasks.await(client.lastLocation)
