@@ -56,8 +56,8 @@ fun PremiumAlertsScreen(context: Context, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun PremiumFamilyScreen(context: Context, onOpenParentalControl: () -> Unit, onOpenRemoteControl: () -> Unit, onFamilyChanged: () -> Unit, modifier: Modifier = Modifier) {
-    var management by remember { mutableStateOf(false) }
+fun PremiumFamilyScreen(context: Context, onOpenParentalControl: () -> Unit, onOpenRemoteControl: () -> Unit, onFamilyChanged: () -> Unit, openManagement: Boolean = false, modifier: Modifier = Modifier) {
+    var management by remember(openManagement) { mutableStateOf(openManagement) }
     if (management) {
         FamilyCoreScreen(
             context = context,
@@ -79,13 +79,7 @@ fun PremiumFamilyScreen(context: Context, onOpenParentalControl: () -> Unit, onO
             PremiumPersonCard(owner.displayName, "Adulto responsable", Icons.Default.Person)
         }
         if (children.isEmpty()) {
-            PremiumInfoCard(
-                Icons.Default.Person,
-                "Añade un perfil infantil",
-                "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.",
-                onClick = { management = true },
-                actionLabel = "Configurar familia"
-            )
+            PremiumInfoCard(Icons.Default.Person, "Añade un perfil infantil", "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.", onClick = { management = true }, actionLabel = "Configurar familia")
         } else {
             children.forEach { child ->
                 PremiumPersonCard(child.displayName, "Perfil infantil protegido", Icons.Default.Person)
