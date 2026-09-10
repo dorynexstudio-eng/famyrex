@@ -60,6 +60,8 @@ fun FamilyChildOverviewScreen(
     var alertCount by remember { mutableStateOf(0) }
     var childLocation by remember { mutableStateOf<FamilyChildLocation?>(null) }
     var protection by remember { mutableStateOf(ProtectionComponentChecker.check(appContext)) }
+    var communicationMonitoringEnabled by remember { mutableStateOf(CommunicationMonitoringSettings.isNotificationListenerEnabled(appContext)) }
+    var communicationIncidentCount by remember { mutableStateOf(0) }
 
     fun refresh() {
         profiles = store.profiles()
@@ -75,7 +77,12 @@ fun FamilyChildOverviewScreen(
             label?.let { it to (stat.totalTimeInForeground / 60_000L) }
         }
         usage = if (stats.isNotEmpty()) OverviewUsage(stats.sumOf { it.totalTimeInForeground } / 60_000L, topApps) else null
-        alertCount = AlertStore(appContext).load().count { it.lifecycleStatus != AlertLifecycleStatus.RESOLVED && it.lifecycleStatus != AlertLifecycleStatus.DISMISSED }
+        val alerts = AlertStore(appContext).load()
+        alertCount = alerts.count { it.lifecycleStatus != AlertLifecycleStatus.RESOLVED && it.lifecycleStatus != AlertLifecycleStatus.DISMISSED }
+        communicationIncidentCount = CommunicationRiskIncidentStore(appContext).load().count { incident ->
+            incident.status != RiskIncidentStatus.RESOLVED && incident.status != RiskIncidentStatus.DISMISSED && incident.status != RiskIncidentStatus.AUTO_DISMISSED
+        }
+        communicationMonitoringEnabled = CommunicationMonitoringSettings.isNotificationListenerEnabled(appContext)
         protection = ProtectionComponentChecker.check(appContext)
     }
 
@@ -175,6 +182,13 @@ fun FamilyChildOverviewScreen(
                 )
             }
             item {
+                CommunicationMonitoringOverviewCard(
+                    enabled = communicationMonitoringEnabled,
+                    incidentCount = communicationIncidentCount,
+                    onOpenSettings = { CommunicationMonitoringSettings.openSystemSettings(appContext) }
+                )
+            }
+            item {
                 OverviewMetricCard(Icons.Default.Notifications, "Alertas", if (alertCount == 0) "Todo tranquilo" else "$alertCount para revisar", "Las alertas son señales contextualizadas, no diagnósticos", onOpenAlerts)
             }
             item {
@@ -188,6 +202,40 @@ fun FamilyChildOverviewScreen(
                         TextButton(onClick = onOpenFamily) { Text("Gestionar familia") }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommunicationMonitoringOverviewCard(
+    enabled: Boolean,
+    incidentCount: Int,
+    onOpenSettings: () -> Unit
+) {
+    Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(Icons.Default.Notifications, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(11.dp).size(26.dp))
+                }
+                Spacer(Modifier.size(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Protección de comunicaciones", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (enabled) "Monitorización activa" else "Necesita activación", style = MaterialTheme.typography.titleLarge)
+                }
+            }
+            Text(
+                if (enabled) {
+                    if (incidentCount == 0) "No hay señales de riesgo pendientes. Famyrex analiza las notificaciones expuestas por Android sin guardar la conversación completa."
+                    else "$incidentCount episodio(s) de riesgo para revisar. Famyrex muestra señales y contexto, no acusaciones."
+                } else {
+                    "Activa el acceso especial de Android para que Famyrex pueda analizar las notificaciones disponibles y detectar señales de riesgo. La función es opcional."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                Text(if (enabled) "Revisar acceso" else "Activar en Android")
             }
         }
     }
