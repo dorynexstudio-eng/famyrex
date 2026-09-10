@@ -51,29 +51,27 @@ fun PremiumAlertsScreen(context: Context, modifier: Modifier = Modifier) {
     PremiumScreenScaffold(modifier, Icons.Default.Notifications, "Alertas", if (pending == 0) "No hay nada que requiera tu atención ahora" else "$pending señal${if (pending == 1) "" else "es"} para revisar") {
         PremiumInfoCard(Icons.Default.CheckCircle, if (pending == 0) "Todo tranquilo" else "Hay algo que revisar", if (pending == 0) "Famyrex no detecta alertas pendientes. Una ausencia de alertas no demuestra que no exista ningún riesgo." else "Famyrex ha detectado señales que conviene revisar con contexto antes de tomar decisiones.", onClick = { details = !details }, actionLabel = if (details) "Ocultar detalle" else "Ver alertas")
         PremiumInfoCard(Icons.Default.Security, "Cómo interpreta Famyrex", "Las alertas son señales, no diagnósticos ni acusaciones. La aplicación separa datos observados, cambios, indicadores y hechos confirmados.")
-        if (details) Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-            RealAlertsScreen(context, Modifier.fillMaxWidth())
-        }
+        if (details) Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { RealAlertsScreen(context, Modifier.fillMaxWidth()) }
     }
 }
 
 @Composable
 fun PremiumFamilyScreen(context: Context, onOpenParentalControl: () -> Unit, onOpenRemoteControl: () -> Unit, onFamilyChanged: () -> Unit, modifier: Modifier = Modifier) {
-    val store = remember { FamilyStore(context) }
-    val profiles = remember { store.profiles() }
-    val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
-    val children = profiles.filter { it.role == FamilyRole.CHILD }
     var management by remember { mutableStateOf(false) }
     PremiumScreenScaffold(modifier, Icons.Default.Group, "Familia", "Personas, acuerdos y protección en un mismo lugar") {
-        if (owner != null) PremiumPersonCard(owner.displayName, "Adulto responsable", Icons.Default.Person)
-        if (children.isEmpty()) PremiumInfoCard(Icons.Default.Person, "Añade un perfil infantil", "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.", onClick = { management = true }, actionLabel = "Configurar familia")
-        else children.forEach { child -> PremiumPersonCard(child.displayName, "Perfil infantil protegido", Icons.Default.Person) }
+        // Keep the summary screen lightweight. FamilyCoreScreen owns all family-store initialization.
+        PremiumInfoCard(Icons.Default.Person, "Añade un perfil infantil", "Vincula el dispositivo de un hijo/a para consultar actividad, ubicación y señales de protección.", onClick = { management = true }, actionLabel = "Configurar familia")
         PremiumInfoCard(Icons.Default.Security, "Protección y límites", "Gestiona tiempo de pantalla, aplicaciones y medidas que requieren permisos especiales de Android.", onClick = onOpenParentalControl, actionLabel = "Gestionar protección")
         PremiumInfoCard(Icons.Default.Group, "Gestión de la familia", "Códigos de vinculación, perfiles y conexión entre dispositivos.", onClick = { management = true }, actionLabel = "Gestionar familia")
-        if (children.isNotEmpty()) PremiumInfoCard(Icons.Default.Security, "Control remoto", "Accede a las acciones disponibles para el dispositivo vinculado, dentro de las reglas y permisos de Famyrex.", onClick = onOpenRemoteControl, actionLabel = "Abrir control")
         if (management) {
             Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                FamilyCoreScreen(context = context, onOpenParentalControl = onOpenParentalControl, onOpenRemoteControl = onOpenRemoteControl, onFamilyChanged = onFamilyChanged, modifier = Modifier.fillMaxWidth())
+                FamilyCoreScreen(
+                    context = context,
+                    onOpenParentalControl = onOpenParentalControl,
+                    onOpenRemoteControl = onOpenRemoteControl,
+                    onFamilyChanged = onFamilyChanged,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -104,9 +102,7 @@ fun PremiumLocationScreen(context: Context, zones: List<GeoZone>, onZonesChange:
                 }
             }
         }
-        if (details) Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-            LocationScreen(context, zones, onZonesChange, Modifier.fillMaxWidth())
-        }
+        if (details) Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { LocationScreen(context, zones, onZonesChange, Modifier.fillMaxWidth()) }
     }
 }
 
