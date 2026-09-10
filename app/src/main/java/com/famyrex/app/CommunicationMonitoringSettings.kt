@@ -12,6 +12,11 @@ object CommunicationMonitoringSettings {
         }
     }
 
+    /** Monitoring is active only after both Android access and explicit in-app consent are present. */
+    fun isMonitoringActive(context: Context): Boolean =
+        CommunicationMonitoringConsentStore(context).isAccepted() &&
+            isNotificationListenerEnabled(context)
+
     fun openSystemSettings(context: Context) {
         context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
