@@ -59,6 +59,16 @@ private fun WebSafetyScreen() {
         webView?.let { WebSafetyController.configure(it, next) }
     }
 
+    fun loadIfAllowed(candidate: String) {
+        val normalized = candidate.trim()
+        val decision = WebSafetyEngine.decide(normalized, settings)
+        if (decision.action == WebSafetyAction.ALLOW) {
+            webView?.loadUrl(normalized)
+        } else {
+            android.widget.Toast.makeText(context, decision.reason, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Seguridad web", style = MaterialTheme.typography.headlineSmall)
         Text("Configuración para el adulto responsable. En el dispositivo supervisado no se ofrece navegación web general.")
@@ -107,7 +117,7 @@ private fun WebSafetyScreen() {
             item { Text("Permitidos: ${settings.allowedDomains.joinToString().ifBlank { "ninguno" }}") }
             item {
                 OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("Dirección web") }, singleLine = true)
-                Button(enabled = url.isNotBlank(), onClick = { webView?.loadUrl(url.trim()) }, modifier = Modifier.fillMaxWidth()) { Text("Abrir") }
+                Button(enabled = url.isNotBlank(), onClick = { loadIfAllowed(url) }, modifier = Modifier.fillMaxWidth()) { Text("Abrir") }
             }
             item {
                 AndroidView(
@@ -116,7 +126,7 @@ private fun WebSafetyScreen() {
                         WebView(viewContext).also {
                             WebSafetyController.configure(it, settings)
                             webView = it
-                            it.loadUrl(url)
+                            loadIfAllowed(url)
                         }
                     },
                     update = { webView = it }
