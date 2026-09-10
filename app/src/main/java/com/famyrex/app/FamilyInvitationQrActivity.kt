@@ -1,10 +1,8 @@
 package com.famyrex.app
 
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -19,7 +17,8 @@ class FamilyInvitationQrActivity : ComponentActivity() {
 
         val link = intent.getStringExtra(EXTRA_LINK).orEmpty()
         val childLabel = intent.getStringExtra(EXTRA_LABEL).orEmpty().ifBlank { "Perfil infantil" }
-        val message = intent.getStringExtra(EXTRA_MESSAGE).orEmpty()
+        val code = intent.getStringExtra(EXTRA_CODE).orEmpty()
+        val token = intent.getStringExtra(EXTRA_TOKEN).orEmpty()
         if (link.isBlank()) {
             finish()
             return
@@ -34,7 +33,7 @@ class FamilyInvitationQrActivity : ComponentActivity() {
             textSize = 24f
         })
         root.addView(TextView(this).apply {
-            text = "En el móvil del menor, abre Famyrex y escanea este código QR. Después deberá aceptar la invitación."
+            text = "Abre Famyrex en el móvil de $childLabel y escanea este código. Los dos móviles deben estar juntos."
             textSize = 16f
             setPadding(0, 12, 0, 20)
         })
@@ -43,21 +42,18 @@ class FamilyInvitationQrActivity : ComponentActivity() {
             adjustViewBounds = true
             contentDescription = "Código QR de vinculación de Famyrex"
         }, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(Button(this).apply {
-            text = "Enviar enlace por WhatsApp, correo…"
-            setOnClickListener {
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "Invitación a la familia Famyrex · $childLabel")
-                    putExtra(Intent.EXTRA_TEXT, message)
-                }
-                startActivity(Intent.createChooser(shareIntent, "Enviar invitación de Famyrex"))
-            }
-        })
+
+        if (code.isNotBlank() || token.isNotBlank()) {
+            root.addView(TextView(this).apply {
+                text = "Si no puedes escanearlo, introduce estos datos manualmente en el otro móvil:\n\nCódigo: $code\nToken: $token"
+                textSize = 14f
+                setPadding(0, 16, 0, 0)
+            })
+        }
         root.addView(TextView(this).apply {
-            text = "También puedes compartir el enlace directamente:\n$link"
+            text = "No compartas estos datos por mensajes o redes. Úsalos solo entre los dos móviles que se van a vincular."
             textSize = 13f
-            setPadding(0, 16, 0, 0)
+            setPadding(0, 12, 0, 0)
         })
         setContentView(root)
     }
@@ -77,6 +73,7 @@ class FamilyInvitationQrActivity : ComponentActivity() {
     companion object {
         const val EXTRA_LINK = "extra_link"
         const val EXTRA_LABEL = "extra_label"
-        const val EXTRA_MESSAGE = "extra_message"
+        const val EXTRA_CODE = "extra_code"
+        const val EXTRA_TOKEN = "extra_token"
     }
 }
