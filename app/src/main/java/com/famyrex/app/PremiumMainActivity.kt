@@ -68,6 +68,7 @@ fun FamyrexPremiumApp(context: Context) {
     var familyManagementOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var usageReportOpen by remember { mutableStateOf(false) }
+    var assistantOpen by remember { mutableStateOf(false) }
 
     if (settingsOpen) {
         FamyrexSettingsScreen(context, onBack = { settingsOpen = false }, modifier = Modifier.fillMaxSize())
@@ -79,6 +80,7 @@ fun FamyrexPremiumApp(context: Context) {
         parentalControlOpen = false
         remoteControlOpen = false
         usageReportOpen = false
+        assistantOpen = false
     }
 
     Scaffold(
@@ -115,7 +117,11 @@ fun FamyrexPremiumApp(context: Context) {
                     PremiumFamilyScreen(context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { familyManagementOpen = false }, modifier = Modifier.fillMaxSize())
                 }
                 3 -> PremiumLocationScreen(context, zones, { updated -> zones = updated; savePremiumZones(prefs, updated) }, Modifier.fillMaxSize())
-                4 -> if (usageReportOpen) DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize()) else PremiumActivityScreen(context, onOpenReport = { usageReportOpen = true }, modifier = Modifier.fillMaxSize())
+                4 -> when {
+                    assistantOpen -> PremiumAssistantScreen(context, Modifier.fillMaxSize())
+                    usageReportOpen -> DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize())
+                    else -> PremiumActivityScreen(context, onOpenReport = { usageReportOpen = true }, onOpenAssistant = { assistantOpen = true }, modifier = Modifier.fillMaxSize())
+                }
             }
         }
     }
