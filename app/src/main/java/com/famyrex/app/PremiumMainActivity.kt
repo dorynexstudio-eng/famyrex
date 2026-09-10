@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -46,13 +46,6 @@ class PremiumMainActivity : ComponentActivity() {
     }
 }
 
-private data class PremiumFamilyState(val parent: String, val child: String)
-
-private fun loadPremiumFamily(prefs: SharedPreferences): PremiumFamilyState = PremiumFamilyState(
-    prefs.getString("parent_name", "") ?: "",
-    prefs.getString("child_name", "") ?: ""
-)
-
 private fun loadPremiumZones(prefs: SharedPreferences): List<GeoZone> {
     val raw = prefs.getString("geo_zones", "") ?: return emptyList()
     if (raw.isBlank()) return emptyList()
@@ -70,24 +63,13 @@ private fun savePremiumZones(prefs: SharedPreferences, zones: List<GeoZone>) {
 @Composable
 fun FamyrexPremiumApp(context: Context) {
     val prefs = remember { context.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE) }
-    val familyStore = remember { FamilyStore(context) }
     var tab by remember { mutableIntStateOf(0) }
-    var family by remember { mutableStateOf(loadPremiumFamily(prefs)) }
     var zones by remember { mutableStateOf(loadPremiumZones(prefs)) }
     var parentalControlOpen by remember { mutableStateOf(false) }
     var remoteControlOpen by remember { mutableStateOf(false) }
     var familyManagementOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var usageReportOpen by remember { mutableStateOf(false) }
-
-    fun refreshFamily() {
-        val profiles = familyStore.profiles()
-        val owner = profiles.firstOrNull { it.role == FamilyRole.OWNER }
-        val child = profiles.firstOrNull { it.role == FamilyRole.CHILD }
-        family = if (owner != null || child != null) PremiumFamilyState(owner?.displayName.orEmpty(), child?.displayName.orEmpty()) else loadPremiumFamily(prefs)
-    }
-
-    LaunchedEffect(Unit) { refreshFamily() }
 
     if (settingsOpen) {
         FamyrexSettingsScreen(context, onBack = { settingsOpen = false }, modifier = Modifier.fillMaxSize())
@@ -120,16 +102,17 @@ fun FamyrexPremiumApp(context: Context) {
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
                 0 -> FamilyChildOverviewScreen(context, Modifier.fillMaxSize(), onOpenAlerts = { tab = 1 }, onOpenLocation = { tab = 3 }, onOpenUsage = { tab = 5 }, onOpenFamily = { tab = 2; familyManagementOpen = true }, onOpenParentalControl = { tab = 2; parentalControlOpen = true }, onOpenSettings = { settingsOpen = true })
-                1 -> RealAlertsScreen(context, Modifier.fillMaxSize())
-                2 -> when {
-                    remoteControlOpen -> FamilyRemoteControlScreen(context, FamyrexCloudFamilyRepository(context).cachedFamilyId(), Modifier.fillMaxSize())
-                    parentalControlOpen -> ParentalControlScreen(Modifier.fillMaxSize())
-                    familyManagementOpen -> FamilyCoreScreen(context = context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { refreshFamily() }, modifier = Modifier.fillMaxSize())
-                    else -> FamilyChildOverviewScreen(context, Modifier.fillMaxSize(), onOpenAlerts = { tab = 1 }, onOpenLocation = { tab = 3 }, onOpenUsage = { tab = 5 }, onOpenFamily = { familyManagementOpen = true }, onOpenParentalControl = { parentalControlOpen = true }, onOpenSettings = { settingsOpen = true })
+                1 -> PremiumAlertsScreen(context, Modifier.fillMaxSize())
+                2 -> if (remoteControlOpen) {
+                    FamilyRemoteControlScreen(context, FamyrexCloudFamilyRepository(context).cachedFamilyId(), Modifier.fillMaxSize())
+                } else if (parentalControlOpen) {
+                    ParentalControlScreen(Modifier.fillMaxSize())
+                } else {
+                    PremiumFamilyScreen(context, onOpenParentalControl = { parentalControlOpen = true }, onOpenRemoteControl = { remoteControlOpen = true }, onFamilyChanged = { familyManagementOpen = false }, modifier = Modifier.fillMaxSize())
                 }
-                3 -> LocationScreen(context, zones, { updated -> zones = updated; savePremiumZones(prefs, updated) }, Modifier.fillMaxSize())
-                4 -> FamilyAssistantScreen(context, Modifier.fillMaxSize())
-                5 -> if (usageReportOpen) DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize()) else UsageInsightsScreen(context, Modifier.fillMaxSize(), onOpenSettings = { settingsOpen = true }, onOpenReport = { usageReportOpen = true })
+                3 -> PremiumLocationScreen(context, zones, { updated -> zones = updated; savePremiumZones(prefs, updated) }, Modifier.fillMaxSize())
+                4 -> PremiumAssistantScreen(context, Modifier.fillMaxSize())
+                5 -> if (usageReportOpen) DailyReportScreen(context, onBack = { usageReportOpen = false }, modifier = Modifier.fillMaxSize()) else PremiumActivityScreen(context, onOpenReport = { usageReportOpen = true }, modifier = Modifier.fillMaxSize())
             }
         }
     }
@@ -139,16 +122,8 @@ fun FamyrexPremiumApp(context: Context) {
 private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onSelect: (Int) -> Unit) {
     Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
         IconButton(onClick = { onSelect(index) }) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = if (selected == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Icon(icon, contentDescription = label, tint = if (selected == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(label, style = MaterialTheme.typography.labelSmall, color = if (selected == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
