@@ -84,7 +84,9 @@ class FamyrexPairingService(context: Context) {
         onError: (String) -> Unit
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
-        functions().getHttpsCallable("createParentInvite").call(hashMapOf("familyId" to familyId))
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para invitar a otro adulto."); return }
+        functions().getHttpsCallable("createSecureParentInvite").call(hashMapOf("familyId" to familyId))
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
                 val inviteId = data?.get("inviteId") as? String
@@ -95,14 +97,14 @@ class FamyrexPairingService(context: Context) {
     }
 
     fun acceptParentInvite(
-        familyId: String, inviteId: String, displayName: String,
+        inviteId: String, displayName: String,
         onSuccess: (familyId: String) -> Unit, onError: (String) -> Unit
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para aceptar esta invitación."); return }
-        functions().getHttpsCallable("acceptParentInvite")
-            .call(hashMapOf("familyId" to familyId, "inviteId" to inviteId, "displayName" to displayName))
+        functions().getHttpsCallable("acceptSecureParentInvite")
+            .call(hashMapOf("inviteId" to inviteId, "displayName" to displayName))
             .addOnSuccessListener { result ->
                 val resolvedFamilyId = (result.data as? Map<*, *>)?.get("familyId") as? String
                 if (resolvedFamilyId.isNullOrBlank()) onError("Firebase no confirmó la incorporación a la familia.") else onSuccess(resolvedFamilyId)
