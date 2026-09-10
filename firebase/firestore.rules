@@ -10,7 +10,11 @@ service cloud.firestore {
 
     match /families/{familyId} {
       allow create: if signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com' && request.resource.data.keys().hasOnly(['ownerUid', 'name', 'createdAt']) && request.resource.data.ownerUid == request.auth.uid;
-      allow read: if memberExists(familyId);
+      // The adult must be able to recover their own family before their member
+      // document exists. The client queries families by ownerUid during first setup.
+      // This does not expose other families because the query must be constrained
+      // to the authenticated user's own ownerUid.
+      allow read: if memberExists(familyId) || (signedIn() && resource.data.ownerUid == request.auth.uid);
       allow update: if isParent(familyId) && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if isParent(familyId) && resource.data.ownerUid == request.auth.uid;
     }
@@ -58,7 +62,6 @@ service cloud.firestore {
         request.resource.data.deviceStatusUpdatedAtMs >= 0 &&
         request.resource.data.protectionActive is bool &&
         request.resource.data.protectionCheckedAtMs is int &&
-        request.resource.data.protectionCheckedAtMs >= 0 &&
         request.resource.data.protectionReasons is list &&
         request.resource.data.protectionReasons.size() <= 8;
       allow delete: if isParent(familyId);
