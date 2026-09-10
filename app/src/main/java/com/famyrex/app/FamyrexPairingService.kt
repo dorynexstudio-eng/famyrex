@@ -14,6 +14,26 @@ class FamyrexPairingService(context: Context) {
 
     private fun functions(): FirebaseFunctions = FirebaseFunctions.getInstance(FirebaseApp.getInstance(), "europe-west1")
 
+    fun createPendingChildProfile(
+        familyId: String,
+        displayName: String,
+        ageRange: String,
+        onSuccess: (memberId: String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
+        if (familyId.isBlank() || displayName.isBlank() || ageRange.isBlank()) { onError("Faltan datos del perfil infantil."); return }
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para crear el perfil infantil."); return }
+        functions().getHttpsCallable("createPendingChildProfile")
+            .call(hashMapOf("familyId" to familyId, "displayName" to displayName.trim(), "ageRange" to ageRange))
+            .addOnSuccessListener { result ->
+                val data = result.data as? Map<*, *>
+                val memberId = data?.get("memberId") as? String
+                if (memberId.isNullOrBlank()) onError("Firebase no devolvió la identidad del perfil infantil.") else onSuccess(memberId)
+            }.addOnFailureListener { onError(it.toUserMessage()) }
+    }
+
     fun createInvite(
         familyId: String,
         childLabel: String,
