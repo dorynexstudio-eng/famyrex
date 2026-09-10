@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,6 +72,7 @@ fun FamyrexPremiumApp(context: Context) {
     var assistantOpen by remember { mutableStateOf(false) }
 
     if (settingsOpen) {
+        BackHandler { settingsOpen = false }
         FamyrexSettingsScreen(context, onBack = { settingsOpen = false }, modifier = Modifier.fillMaxSize())
         return
     }
@@ -81,6 +83,16 @@ fun FamyrexPremiumApp(context: Context) {
         remoteControlOpen = false
         usageReportOpen = false
         assistantOpen = false
+    }
+
+    BackHandler(enabled = familyManagementOpen || parentalControlOpen || remoteControlOpen || usageReportOpen || assistantOpen) {
+        when {
+            remoteControlOpen -> remoteControlOpen = false
+            parentalControlOpen -> parentalControlOpen = false
+            familyManagementOpen -> familyManagementOpen = false
+            usageReportOpen -> usageReportOpen = false
+            assistantOpen -> assistantOpen = false
+        }
     }
 
     Scaffold(
