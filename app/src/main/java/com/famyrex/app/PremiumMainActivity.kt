@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -138,5 +137,10 @@ fun FamyrexPremiumApp(context: Context) {
 
 @Composable
 private fun PremiumNavItem(index: Int, selected: Int, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onSelect: (Int) -> Unit) {
-    NavigationBarItem(selected = selected == index, onClick = { onSelect(index) }, icon = { Icon(icon, contentDescription = label) }, label = { Text(label) })
+    androidx.compose.material3.NavigationBarItem(
+        selected = selected == index,
+        onClick = { onSelect(index) },
+        icon = { Icon(icon, contentDescription = label) },
+        label = { Text(label) }
+    )
 }
