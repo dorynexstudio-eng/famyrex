@@ -1,3 +1,4 @@
 export * from "./index";
 export { deleteMyAccount } from "./deleteMyAccount";
-export { createSecureParentInvite, acceptSecureParentInvite, createPendingChildProfile } from "./secureParentInvite";
+export { createSecureParentInvite, acceptSecureParentInvite } from "./secureParentInvite";
+export { createPendingChildProfile } from "./childProfile";
