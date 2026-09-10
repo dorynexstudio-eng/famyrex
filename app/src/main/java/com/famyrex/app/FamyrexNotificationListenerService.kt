@@ -12,7 +12,10 @@ import android.service.notification.StatusBarNotification
  */
 class FamyrexNotificationListenerService : NotificationListenerService() {
     companion object {
-        private const val WINDOW_MS = 30 * 60 * 1000L
+        // El detector de señales sociales puede analizar evolución durante 7 días.
+        // Conservamos solo una pequeña cantidad de observaciones por aplicación,
+        // por lo que el contexto sigue estando acotado en memoria.
+        private const val WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
         private const val MAX_OBSERVATIONS_PER_SOURCE = 40
     }
 
@@ -94,7 +97,7 @@ class FamyrexNotificationListenerService : NotificationListenerService() {
     }
 
     private fun pruneSource(sourcePackage: String) {
-        var sourceCount = observations.count { it.sourcePackage == sourcePackage }
+        val sourceCount = observations.count { it.sourcePackage == sourcePackage }
         if (sourceCount <= MAX_OBSERVATIONS_PER_SOURCE) return
 
         // ArrayDeque no garantiza remove() a través de su iterator en todas las
