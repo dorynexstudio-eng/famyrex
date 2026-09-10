@@ -1,5 +1,6 @@
 package com.famyrex.app
 
+import android.app.Activity
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,10 +30,16 @@ fun JoinFamilyScreen(
     val appContext = context.applicationContext
     val store = remember { FamilyStore(appContext) }
     val existingIdentity = remember { store.verifiedFamilyIdentity() }
-    var code by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
-    var childLabel by remember { mutableStateOf("Perfil infantil") }
-    var message by remember { mutableStateOf("") }
+    val inviteUri = remember { (context as? Activity)?.intent?.data }
+    var code by remember { mutableStateOf(inviteUri?.getQueryParameter("code").orEmpty()) }
+    var token by remember { mutableStateOf(inviteUri?.getQueryParameter("token").orEmpty()) }
+    var childLabel by remember { mutableStateOf(inviteUri?.getQueryParameter("label")?.takeIf { it.isNotBlank() } ?: "Perfil infantil") }
+    var message by remember {
+        mutableStateOf(
+            if (!code.isNullOrBlank() && !token.isNullOrBlank()) "Invitación de Famyrex detectada. Revisa el perfil y pulsa Aceptar invitación."
+            else ""
+        )
+    }
     var joining by remember { mutableStateOf(false) }
 
     if (existingIdentity != null) {
@@ -100,13 +107,13 @@ fun JoinFamilyScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Unirse a una familia", style = MaterialTheme.typography.headlineMedium)
-        Text("Introduce el código y la clave de vinculación que te proporciona el adulto autorizado. Ambos son necesarios para completar la vinculación segura.")
+        Text(if (!code.isNullOrBlank() && !token.isNullOrBlank()) "Has abierto una invitación de Famyrex. Comprueba el nombre del perfil antes de aceptar." else "Introduce el código y la clave de vinculación que te proporciona el adulto autorizado. Ambos son necesarios para completar la vinculación segura.")
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(childLabel, { childLabel = it.take(40) }, Modifier.fillMaxWidth(), label = { Text("Nombre del perfil") }, singleLine = true)
                 OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.fillMaxWidth(), label = { Text("Código de 6 dígitos") }, singleLine = true)
                 OutlinedTextField(token, { token = it.filterNot(Char::isWhitespace) }, Modifier.fillMaxWidth(), label = { Text("Clave de vinculación") }, singleLine = true)
-                Button(enabled = code.length == 6 && token.isNotBlank() && !joining, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text(if (joining) "Vinculando…" else "Verificar y vincular") }
+                Button(enabled = code.length == 6 && token.isNotBlank() && !joining, onClick = ::join, modifier = Modifier.fillMaxWidth()) { Text(if (joining) "Vinculando…" else if (!inviteUri?.getQueryParameter("code").isNullOrBlank()) "Aceptar invitación" else "Verificar y vincular") }
                 if (message.isNotBlank()) Text(message)
             }
         }
