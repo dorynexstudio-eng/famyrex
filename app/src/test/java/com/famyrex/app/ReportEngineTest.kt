@@ -2,6 +2,7 @@ package com.famyrex.app
 
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,6 +44,21 @@ class ReportEngineTest {
 
         assertEquals(2, report.alertCount)
         assertEquals(1, report.importantAlertCount)
+    }
+
+    @Test
+    fun dailyReportDoesNotComparePartialDayWithFullPreviousDay() {
+        val report = ReportEngine.build(
+            history = listOf(
+                DailyUsage("2026-09-05", 8 * 60 * 60_000L, emptyList()),
+                DailyUsage("2026-09-06", 60 * 60_000L, emptyList())
+            ),
+            alerts = emptyList(),
+            period = ReportPeriod.DAILY,
+            today = LocalDate.of(2026, 9, 6)
+        )
+
+        assertNull(report.trendPercent)
     }
 
     @Test
