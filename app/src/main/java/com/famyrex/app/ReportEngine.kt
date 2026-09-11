@@ -46,21 +46,38 @@ object ReportEngine {
         }
         val important = periodAlerts.count { it.severity == AlertSeverity.IMPORTANT }
 
-        // A daily report represents an in-progress day. Comparing it with the
-        // previous full day produces a misleading trend while the day is still
-        // accumulating usage, so daily reports intentionally have no trend.
+        // A trend must compare equivalent completed days. The current day is
+        // still accumulating usage, so exclude it from both sides of the
+        // comparison. The report totals still include today's available data.
         val trend = if (period == ReportPeriod.DAILY) {
             null
         } else {
-            val previousStart = start.minusDays(days)
-            val previousEnd = start.minusDays(1)
-            val previous = history.filter {
-                parseDate(it.date)?.let { date -> !date.isBefore(previousStart) && !date.isAfter(previousEnd) } == true
+            val completedEnd = today.minusDays(1)
+            val completedStart = completedEnd.minusDays(days - 1)
+            val previousEnd = completedStart.minusDays(1)
+            val previousStart = previousEnd.minusDays(days - 1)
+
+            val completed = history.filter { entry ->
+                parseDate(entry.date)?.let { date ->
+                    !date.isBefore(completedStart) && !date.isAfter(completedEnd)
+                } == true
             }
-            val previousMinutes = previous.sumOf { it.totalTimeMs } / 60_000L
-            if (previousMinutes > 0L) {
-                (((totalMinutes - previousMinutes).toDouble() / previousMinutes) * 100.0)
-                    .roundToInt()
+            val previous = history.filter { entry ->
+                parseDate(entry.date)?.let { date ->
+                    !date.isBefore(previousStart) && !date.isAfter(previousEnd)
+                } == true
+            }
+
+            // Missing days mean incomplete coverage. Comparing totals would
+            // interpret missing data as lower usage, so only publish a trend
+            // when both windows contain all expected daily snapshots.
+            if (completed.size == days.toInt() && previous.size == days.toInt()) {
+                val completedMinutes = completed.sumOf { it.totalTimeMs } / 60_000L
+                val previousMinutes = previous.sumOf { it.totalTimeMs } / 60_000L
+                if (previousMinutes > 0L) {
+                    (((completedMinutes - previousMinutes).toDouble() / previousMinutes) * 100.0)
+                        .roundToInt()
+                } else null
             } else null
         }
 
