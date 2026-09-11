@@ -29,10 +29,12 @@ class ParentalUsageMonitor(private val context: Context) {
     }
 
     fun queryUsage(startMs: Long, endMs: Long): List<UsageStats> {
-        if (!hasUsageAccess()) return emptyList()
+        if (!hasUsageAccess() || endMs <= startMs) return emptyList()
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         return manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startMs, endMs)
             .orEmpty()
+            // Time spent inside Famyrex itself must not consume the child's screen-time budget.
+            .filter { it.packageName != context.packageName }
             .filter { it.totalTimeInForeground > 0L }
             .sortedByDescending { it.totalTimeInForeground }
     }
