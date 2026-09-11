@@ -52,13 +52,13 @@ class FamilyStore(context: Context) {
 
     /**
      * Rebuilds only the cloud-family mirror. Server identifiers are retained and any
-     * previous cloud mirror entries are removed; supervised secrets and other prefs remain untouched.
+     * previous/legacy local mirror entries are removed; supervised secrets and other prefs remain untouched.
      */
     fun applyCloudFamilySnapshot(snapshot: FamilySnapshot) {
         val previousProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
         val previousDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
-        val currentProfiles = profiles().filterNot { it.id in previousProfileIds }.toMutableList()
-        val currentDevices = devices().filterNot { it.id in previousDeviceIds }.toMutableList()
+        val currentProfiles = profiles().filterNot { it.id in previousProfileIds || it.id.startsWith("profile-") }.toMutableList()
+        val currentDevices = devices().filterNot { it.id in previousDeviceIds || it.id.startsWith("device-") }.toMutableList()
 
         val adultProfiles = snapshot.adults.map { adult ->
             FamilyProfile(
