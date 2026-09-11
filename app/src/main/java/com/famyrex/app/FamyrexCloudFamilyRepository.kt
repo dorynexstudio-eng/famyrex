@@ -5,6 +5,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import java.util.UUID
 
 /** Creates/restores the adult's Famyrex family in Firestore. */
@@ -49,11 +50,57 @@ class FamyrexCloudFamilyRepository(context: Context) {
         findOwnedFamily(db, user.uid, displayName, onSuccess, onError)
     }
 
+    /** Recovers the complete safe cloud mirror through the trusted callable backend. */
+    fun syncFamilySnapshot(
+        familyId: String,
+        onSuccess: (FamilySnapshot) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (FirebaseApp.getApps(appContext).isEmpty()) {
+            onError("Firebase todavía no está configurado.")
+            return
+        }
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.isAnonymous) {
+            onError("Inicia sesión con Google para recuperar la familia.")
+            return
+        }
+        if (familyId.isBlank()) {
+            onError("La identidad de la familia está incompleta.")
+            return
+        }
+        FirebaseFunctions.getInstance(FirebaseApp.getInstance(), "europe-west1")
+            .getHttpsCallable("getSecureFamilySnapshot")
+            .call(hashMapOf("familyId" to familyId))
+            .addOnSuccessListener { result ->
+                val data = result.data as? Map<*, *>
+                val resolvedFamilyId = data?.string("familyId")
+                if (resolvedFamilyId.isNullOrBlank()) {
+                    onError("Firebase no devolvió una familia válida.")
+                    return@addOnSuccessListener
+                }
+                val adults = data.list("adults").mapNotNull { it as? Map<*, *> }.mapNotNull { it.toAdultSnapshot() }
+                val children = data.list("children").mapNotNull { it as? Map<*, *> }.mapNotNull { it.toChildSnapshot() }
+                val devices = data.list("devices").mapNotNull { it as? Map<*, *> }.mapNotNull { it.toDeviceSnapshot() }
+                onSuccess(
+                    FamilySnapshot(
+                        familyId = resolvedFamilyId,
+                        ownerUid = data.string("ownerUid").orEmpty(),
+                        name = data.string("name") ?: "Familia Famyrex",
+                        adults = adults,
+                        children = children,
+                        devices = devices
+                    )
+                )
+            }
+            .addOnFailureListener { onError(it.message ?: "No se pudo recuperar la familia desde el servidor.") }
+    }
+
     private fun findOwnedFamily(
         db: FirebaseFirestore,
         uid: String,
         displayName: String,
-        onSuccess: (familyId: String) -> Unit,
+        onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
         db.collection("families")
@@ -105,4 +152,51 @@ class FamyrexCloudFamilyRepository(context: Context) {
             }
             .addOnFailureListener { onError(it.message ?: "No se pudo registrar el adulto en la familia.") }
     }
+
+    private fun Map<*, *>.string(key: String): String? = (this[key] as? String)?.trim()?.takeIf { it.isNotBlank() }
+    private fun Map<*, *>.list(key: String): List<Any?> = this[key] as? List<Any?> ?: emptyList()
+
+    private fun Map<*, *>.toAdultSnapshot(): FamilyAdultSnapshot? {
+        val uid = string("uid") ?: return null
+        return FamilyAdultSnapshot(uid, string("displayName") ?: "Adulto autorizado", string("status") ?: "active", number("createdAtMs"))
+    }
+
+    private fun Map<*, *>.toChildSnapshot(): FamilyChildSnapshot? {
+        val memberId = string("memberId") ?: return null
+        return FamilyChildSnapshot(
+            memberId = memberId,
+            displayName = string("displayName") ?: "Perfil infantil",
+            ageRange = string("ageRange").orEmpty(),
+            status = string("status") ?: "pending",
+            linkedUid = string("linkedUid"),
+            linkedDeviceId = string("linkedDeviceId"),
+            createdAtMs = number("createdAtMs")
+        )
+    }
+
+    private fun Map<*, *>.toDeviceSnapshot(): FamilyDeviceSnapshot? {
+        val uid = string("uid") ?: return null
+        return FamilyDeviceSnapshot(
+            uid = uid,
+            role = string("role") ?: "child",
+            famyrexMemberId = string("famyrexMemberId"),
+            famyrexDeviceId = string("famyrexDeviceId"),
+            linkedAtMs = number("linkedAtMs")
+        )
+    }
+
+    private fun Map<*, *>.number(key: String): Long = (this[key] as? Number)?.toLong() ?: 0L
 }
+
+data class FamilySnapshot(
+    val familyId: String,
+    val ownerUid: String,
+    val name: String,
+    val adults: List<FamilyAdultSnapshot>,
+    val children: List<FamilyChildSnapshot>,
+    val devices: List<FamilyDeviceSnapshot>
+)
+
+data class FamilyAdultSnapshot(val uid: String, val displayName: String, val status: String, val createdAtMs: Long)
+data class FamilyChildSnapshot(val memberId: String, val displayName: String, val ageRange: String, val status: String, val linkedUid: String?, val linkedDeviceId: String?, val createdAtMs: Long)
+data class FamilyDeviceSnapshot(val uid: String, val role: String, val famyrexMemberId: String?, val famyrexDeviceId: String?, val linkedAtMs: Long)
