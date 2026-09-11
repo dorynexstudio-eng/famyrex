@@ -7,8 +7,8 @@ import org.json.JSONObject
 /**
  * Local safety gate for commands that may arrive from the online layer.
  * Validation is performed before a command can be consumed. A command is
- * recorded only after its local execution succeeds, so malformed or
- * unsupported commands can never poison the replay ledger.
+ * recorded only after its local execution succeeds, so malformed or unsupported
+ * commands can never poison the replay ledger.
  */
 class FamilyCommandGate(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -28,9 +28,9 @@ class FamilyCommandGate(context: Context) {
     }
 
     /** Marks a successfully executed command as consumed. */
-    fun complete(commandId: String, completedAtMs: Long = System.currentTimeMillis()) {
+    fun complete(commandId: String, completedAtMs: Long = System.currentTimeMillis()): Boolean {
         require(commandId.isNotBlank())
-        if (isConsumed(commandId)) return
+        if (isConsumed(commandId)) return true
         val items = consumedCommands()
             .filter { completedAtMs - it.second <= RECEIPT_RETENTION_MS }
             .toMutableList()
@@ -43,12 +43,14 @@ class FamilyCommandGate(context: Context) {
                 put("acceptedAtMs", timestamp)
             })
         }
-        prefs.edit().putString(KEY_CONSUMED, json.toString()).apply()
+        // A successful command must not be considered consumed only in memory. Use commit()
+        // so a process death immediately after execution cannot normally reopen the replay window.
+        return prefs.edit().putString(KEY_CONSUMED, json.toString()).commit()
     }
 
     /** Removes replay state when the supervised enrollment is reset. */
     fun clear() {
-        prefs.edit().remove(KEY_CONSUMED).apply()
+        prefs.edit().remove(KEY_CONSUMED).commit()
     }
 
     /** Backwards-compatible acceptance API; callers should prefer check + complete. */
