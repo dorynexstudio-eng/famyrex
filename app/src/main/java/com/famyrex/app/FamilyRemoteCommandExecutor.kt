@@ -43,7 +43,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
                 val minutes = command.value?.trim()?.toIntOrNull()
                 if (minutes == null || minutes !in 1..1440) {
                     receipt(command, nowMs, "El tiempo extra debe estar entre 1 y 1440 minutos.")
-                } else if (extraTimeStore.grantMinutes(minutes)) {
+                } else if (extraTimeStore.grantMinutes(minutes, command.commandId)) {
                     receiptSuccess(command, nowMs)
                 } else {
                     receipt(command, nowMs, "No se pudo guardar el tiempo extra.")
