@@ -46,6 +46,9 @@ fun FamilyCoreScreen(
     var childName by remember { mutableStateOf("") }
     var childAgeRange by remember { mutableStateOf("") }
     var childCreationLoading by remember { mutableStateOf(false) }
+    var adultInviteLoading by remember { mutableStateOf(false) }
+    var adultInviteId by remember { mutableStateOf("") }
+    var adultInviteExpiresAtMs by remember { mutableStateOf<Long?>(null) }
     var deviceName by remember { mutableStateOf("") }
     var agreementMinutes by remember { mutableStateOf(agreement?.dailyMinutes?.toString() ?: "120") }
     var agreementGoal by remember { mutableStateOf(agreement?.goal ?: "Mantener un uso equilibrado") }
@@ -67,6 +70,7 @@ fun FamilyCoreScreen(
     val adults = profiles.filter { it.role == FamilyRole.OWNER || it.role == FamilyRole.ADULT }
     val children = profiles.filter { it.role == FamilyRole.CHILD }
     val selectedAgreementChild = children.firstOrNull { it.id == selectedAgreementChildId } ?: children.firstOrNull()
+    val cloudFamilyId = cloudFamilyRepository.cachedFamilyId()
 
     LaunchedEffect(selectedAgreementChild?.id) {
         selectedAgreementChild?.let { child ->
@@ -78,8 +82,6 @@ fun FamilyCoreScreen(
             agreementReviewDate = agreement?.reviewDate ?: LocalDate.now().plusDays(30).toString()
         }
     }
-
-    val cloudFamilyId = cloudFamilyRepository.cachedFamilyId()
 
     LazyColumn(modifier = modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -93,13 +95,42 @@ fun FamilyCoreScreen(
                     Text("Adultos autorizados", style = MaterialTheme.typography.titleMedium)
                     adults.forEach { adult -> Text("👑 ${adult.displayName} · ${if (adult.role == FamilyRole.OWNER) "Administrador" else "Adulto autorizado"}") }
                     OutlinedTextField(adultName, { adultName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del segundo padre/madre") })
-                    Button(enabled = adultName.isNotBlank(), onClick = {
-                        store.addAdult(adultName.trim())
-                        adultName = ""
-                        profiles = store.profiles()
-                        message = "Adulto autorizado añadido."
-                        onFamilyChanged()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Añadir adulto") }
+                    Button(enabled = adultName.isNotBlank() && !adultInviteLoading, onClick = {
+                        val name = adultName.trim()
+                        if (cloudFamilyId.isNullOrBlank()) {
+                            store.addAdult(name)
+                            adultName = ""
+                            profiles = store.profiles()
+                            message = "Adulto autorizado añadido."
+                            onFamilyChanged()
+                        } else {
+                            adultInviteLoading = true
+                            pairingService.createParentInvite(
+                                familyId = cloudFamilyId,
+                                onSuccess = { inviteId, expiresAtMs ->
+                                    adultName = ""
+                                    adultInviteId = inviteId
+                                    adultInviteExpiresAtMs = expiresAtMs
+                                    adultInviteLoading = false
+                                    message = "Invitación segura de adulto generada. Entrégale el identificador para que inicie sesión con Google y la acepte."
+                                },
+                                onError = { error ->
+                                    adultInviteLoading = false
+                                    message = error
+                                }
+                            )
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (adultInviteLoading) "Generando invitación…" else if (cloudFamilyId.isNullOrBlank()) "Añadir adulto" else "Generar invitación de adulto")
+                    }
+                    if (!cloudFamilyId.isNullOrBlank()) {
+                        Text("En una familia cloud no se crea un adulto solo en el dispositivo: la incorporación se hace mediante una invitación segura del backend.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (adultInviteId.isNotBlank()) {
+                        Text("Identificador de invitación", style = MaterialTheme.typography.labelLarge)
+                        Text(adultInviteId, style = MaterialTheme.typography.bodyMedium)
+                        Text("Compártelo solo con el adulto invitado. Caduca en aproximadamente ${((adultInviteExpiresAtMs?.minus(System.currentTimeMillis()) ?: 0L).coerceAtLeast(0L) / 3_600_000L) + 1} h.", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
@@ -114,67 +145,28 @@ fun FamilyCoreScreen(
                     }
                     OutlinedTextField(childName, { childName = it.take(40) }, Modifier.fillMaxWidth(), label = { Text("Nombre del hijo/a") }, singleLine = true)
                     if (!cloudFamilyId.isNullOrBlank()) {
-                        OutlinedTextField(
-                            childAgeRange,
-                            { childAgeRange = it.take(24) },
-                            Modifier.fillMaxWidth(),
-                            label = { Text("Rango de edad (ej. 10-12)") },
-                            supportingText = { Text("El perfil se crea primero en Firebase y después se refleja localmente con la misma identidad.") },
-                            singleLine = true
-                        )
+                        OutlinedTextField(childAgeRange, { childAgeRange = it.take(24) }, Modifier.fillMaxWidth(), label = { Text("Rango de edad (ej. 10-12)") }, supportingText = { Text("El perfil se crea primero en Firebase y después se refleja localmente con la misma identidad.") }, singleLine = true)
                     }
-                    Button(
-                        enabled = childName.isNotBlank() && adults.isNotEmpty() && !childCreationLoading && (cloudFamilyId.isNullOrBlank() || childAgeRange.isNotBlank()),
-                        onClick = {
-                            val name = childName.trim()
-                            val ageRange = childAgeRange.trim()
-                            val guardians = adults.map { it.id }
-                            if (cloudFamilyId.isNullOrBlank()) {
-                                store.addChild(name, guardians)
-                                childName = ""
-                                childAgeRange = ""
-                                profiles = store.profiles()
-                                message = "Perfil infantil local creado y vinculado a los adultos autorizados."
-                                onFamilyChanged()
-                            } else {
-                                childCreationLoading = true
-                                pairingService.createPendingChildProfile(
-                                    familyId = cloudFamilyId,
-                                    displayName = name,
-                                    ageRange = ageRange,
-                                    onSuccess = { memberId ->
-                                        runCatching { store.addChildWithId(memberId, name, guardians) }
-                                            .onSuccess {
-                                                childName = ""
-                                                childAgeRange = ""
-                                                profiles = store.profiles()
-                                                selectedAgreementChildId = memberId
-                                                message = "Perfil infantil seguro creado y vinculado. Ya puedes generar su invitación."
-                                                onFamilyChanged()
-                                            }
-                                            .onFailure { error -> message = error.message ?: "No se pudo reflejar el perfil infantil en este dispositivo." }
-                                        childCreationLoading = false
-                                    },
-                                    onError = { error ->
-                                        childCreationLoading = false
-                                        message = error
-                                    }
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            when {
-                                childCreationLoading -> "Creando perfil seguro…"
-                                cloudFamilyId.isNullOrBlank() -> "Añadir hijo/a"
-                                else -> "Crear perfil infantil seguro"
-                            }
-                        )
+                    Button(enabled = childName.isNotBlank() && adults.isNotEmpty() && !childCreationLoading && (cloudFamilyId.isNullOrBlank() || childAgeRange.isNotBlank()), onClick = {
+                        val name = childName.trim(); val ageRange = childAgeRange.trim(); val guardians = adults.map { it.id }
+                        if (cloudFamilyId.isNullOrBlank()) {
+                            store.addChild(name, guardians); childName = ""; childAgeRange = ""; profiles = store.profiles(); message = "Perfil infantil local creado y vinculado a los adultos autorizados."; onFamilyChanged()
+                        } else {
+                            childCreationLoading = true
+                            pairingService.createPendingChildProfile(cloudFamilyId, name, ageRange,
+                                onSuccess = { memberId ->
+                                    runCatching { store.addChildWithId(memberId, name, guardians) }
+                                        .onSuccess { childName = ""; childAgeRange = ""; profiles = store.profiles(); selectedAgreementChildId = memberId; message = "Perfil infantil seguro creado y vinculado. Ya puedes generar su invitación."; onFamilyChanged() }
+                                        .onFailure { error -> message = error.message ?: "No se pudo reflejar el perfil infantil en este dispositivo." }
+                                    childCreationLoading = false
+                                },
+                                onError = { error -> childCreationLoading = false; message = error }
+                            )
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text(when { childCreationLoading -> "Creando perfil seguro…"; cloudFamilyId.isNullOrBlank() -> "Añadir hijo/a"; else -> "Crear perfil infantil seguro" })
                     }
-                    if (!cloudFamilyId.isNullOrBlank()) {
-                        Text("Familia cloud conectada: el identificador del perfil lo asigna Firebase y se reutiliza al generar la invitación.", style = MaterialTheme.typography.bodySmall)
-                    }
+                    if (!cloudFamilyId.isNullOrBlank()) Text("Familia cloud conectada: el identificador del perfil lo asigna Firebase y se reutiliza al generar la invitación.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -216,10 +208,7 @@ fun FamilyCoreScreen(
                             val familyId = cloudFamilyRepository.cachedFamilyId()
                             if (familyId.isNullOrBlank()) { message = "La familia todavía no tiene una identidad Firebase activa. Completa primero el acceso del adulto."; return@Button }
                             cloudPairingLoading = true
-                            pairingService.createInvite(
-                                familyId = familyId,
-                                childLabel = child.displayName,
-                                famyrexMemberId = child.id,
+                            pairingService.createInvite(familyId, child.displayName, child.id,
                                 onSuccess = { code, token, expiresAtMs -> cloudCode = code; cloudToken = token; cloudExpiresAtMs = expiresAtMs; cloudPairingLoading = false; message = "Código y clave de vinculación generados para ${child.displayName}." },
                                 onError = { error -> cloudPairingLoading = false; message = error }
                             )
@@ -239,12 +228,8 @@ fun FamilyCoreScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Control remoto familiar", style = MaterialTheme.typography.titleMedium)
                     Text("Administra a distancia los dispositivos infantiles que ya estén vinculados a la familia cloud.")
-                    if (cloudFamilyId.isNullOrBlank()) {
-                        Text("⚪ Conecta primero la cuenta del adulto con Firebase para habilitar el control remoto.")
-                    } else {
-                        Text("🟢 Familia cloud conectada", color = MaterialTheme.colorScheme.primary)
-                        Button(onClick = onOpenRemoteControl, modifier = Modifier.fillMaxWidth()) { Text("Abrir control remoto") }
-                    }
+                    if (cloudFamilyId.isNullOrBlank()) Text("⚪ Conecta primero la cuenta del adulto con Firebase para habilitar el control remoto.")
+                    else { Text("🟢 Familia cloud conectada", color = MaterialTheme.colorScheme.primary); Button(onClick = onOpenRemoteControl, modifier = Modifier.fillMaxWidth()) { Text("Abrir control remoto") } }
                 }
             }
         }
@@ -256,7 +241,7 @@ fun FamilyCoreScreen(
                     invitation?.let { token ->
                         Text("Código de vinculación", style = MaterialTheme.typography.labelLarge); Text(OfflinePairingTokenCodec.code(token), style = MaterialTheme.typography.headlineMedium); Text("Familia: ${token.familyId.take(12)}…"); Text("Perfil: ${token.childDisplayName}"); Text("Clave de invitación", style = MaterialTheme.typography.labelLarge); Text(OfflinePairingTokenCodec.encode(token)); Text("Huella: ${OfflinePairingTokenCodec.fingerprint(token.secret)}"); Text("Caduca en ${((token.expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L) + 1} min aproximadamente")
                     }
-                    Button(enabled = selectedAgreementChild != null, onClick = { val child = selectedAgreementChild ?: return@Button; invitation = OfflinePairingTokenCodec.create(familyId = identityStore.identity().familyId, childProfileId = child.id, childDisplayName = child.displayName, now = System.currentTimeMillis()); message = "Invitación offline generada para ${child.displayName}." }, modifier = Modifier.fillMaxWidth()) { Text("Generar invitación offline") }
+                    Button(enabled = selectedAgreementChild != null, onClick = { val child = selectedAgreementChild ?: return@Button; invitation = OfflinePairingTokenCodec.create(identityStore.identity().familyId, child.id, child.displayName, System.currentTimeMillis()); message = "Invitación offline generada para ${child.displayName}." }, modifier = Modifier.fillMaxWidth()) { Text("Generar invitación offline") }
                 }
             }
         }
