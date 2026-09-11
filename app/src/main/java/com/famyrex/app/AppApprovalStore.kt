@@ -2,7 +2,6 @@ package com.famyrex.app
 
 import android.content.Context
 import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * Local state for adult-approved applications.
@@ -34,6 +33,12 @@ class AppApprovalStore(context: Context) {
 
     @Synchronized
     fun approvedPackages(): Set<String> = loadApprovedPackages()
+
+    /** Removes approvals that belong to a previous supervised enrollment. */
+    @Synchronized
+    fun clear() {
+        prefs.edit().remove(KEY_PACKAGES).apply()
+    }
 
     private fun loadApprovedPackages(): Set<String> {
         val raw = prefs.getString(KEY_PACKAGES, null) ?: return emptySet()
