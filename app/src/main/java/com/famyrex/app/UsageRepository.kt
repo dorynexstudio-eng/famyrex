@@ -42,11 +42,15 @@ object UsageRepository {
      * UsageStats buckets are not suitable for narrow windows: a daily bucket can
      * contain time outside the requested hour. UsageEvents lets us calculate the
      * actual foreground intervals and clip them exactly to [start, end).
+     *
+     * A small lookback reconstructs an app that was already foreground at the
+     * window boundary. The lookback event is never counted before [start].
      */
     private fun query(context: Context, start: Long, end: Long): List<AppUsage> {
         if (end <= start) return emptyList()
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val events = manager.queryEvents(start, end)
+        val lookbackStart = (start - LOOKBACK_MS).coerceAtLeast(0L)
+        val events = manager.queryEvents(lookbackStart, end)
         val event = UsageEvents.Event()
         val foregroundSince = mutableMapOf<String, Long>()
         val totals = mutableMapOf<String, Long>()
@@ -59,21 +63,18 @@ object UsageRepository {
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND,
                 UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    foregroundSince.putIfAbsent(pkg, event.timeStamp.coerceIn(start, end))
+                    foregroundSince[pkg] = event.timeStamp
                 }
                 UsageEvents.Event.MOVE_TO_BACKGROUND,
                 UsageEvents.Event.ACTIVITY_PAUSED -> {
                     val foregroundStart = foregroundSince.remove(pkg) ?: continue
-                    val duration = event.timeStamp.coerceAtMost(end) - foregroundStart
-                    if (duration > 0L) totals[pkg] = (totals[pkg] ?: 0L) + duration
+                    addClippedDuration(totals, pkg, foregroundStart, event.timeStamp, start, end)
                 }
             }
         }
 
-        val now = end
         foregroundSince.forEach { (pkg, foregroundStart) ->
-            val duration = now - foregroundStart
-            if (duration > 0L) totals[pkg] = (totals[pkg] ?: 0L) + duration
+            addClippedDuration(totals, pkg, foregroundStart, end, start, end)
         }
 
         return totals
@@ -91,4 +92,21 @@ object UsageRepository {
             }
             .sortedByDescending { it.totalTimeMs }
     }
+
+    private fun addClippedDuration(
+        totals: MutableMap<String, Long>,
+        packageName: String,
+        foregroundStart: Long,
+        foregroundEnd: Long,
+        windowStart: Long,
+        windowEnd: Long
+    ) {
+        val clippedStart = maxOf(foregroundStart, windowStart)
+        val clippedEnd = minOf(foregroundEnd, windowEnd)
+        if (clippedEnd <= clippedStart) return
+        val duration = clippedEnd - clippedStart
+        totals[packageName] = (totals[packageName] ?: 0L) + duration
+    }
+
+    private const val LOOKBACK_MS = 5 * 60 * 1000L
 }
