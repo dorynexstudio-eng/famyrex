@@ -29,9 +29,8 @@ service cloud.firestore {
         allow read: if isParent(familyId);
         allow create, update: if isChild(familyId) && memberUid == request.auth.uid && locationId == 'latest' &&
           request.resource.data.keys().hasOnly(['latitude', 'longitude', 'accuracyMeters', 'capturedAtMs']) &&
-          request.resource.data.latitude is number && request.resource.data.longitude is number &&
-          request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90 &&
-          request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180 &&
+          request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90 &&
+          request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180 &&
           request.resource.data.accuracyMeters is number && request.resource.data.accuracyMeters >= 0 &&
           request.resource.data.capturedAtMs is int && request.resource.data.capturedAtMs >= 0;
         allow delete: if false;
@@ -62,6 +61,7 @@ service cloud.firestore {
         request.resource.data.deviceStatusUpdatedAtMs >= 0 &&
         request.resource.data.protectionActive is bool &&
         request.resource.data.protectionCheckedAtMs is int &&
+        request.resource.data.protectionCheckedAtMs >= 0 &&
         request.resource.data.protectionReasons is list &&
         request.resource.data.protectionReasons.size() <= 8;
       allow delete: if isParent(familyId);
