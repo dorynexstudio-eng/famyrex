@@ -161,6 +161,11 @@ class FamilyStore(context: Context) {
 
     fun clearVerifiedFamilyIdentity() {
         prefs.edit().remove("verified_family_id").remove("verified_family_secret").remove("verified_family_secret_enc").remove("verified_family_fingerprint").remove("verified_family_at_ms").remove("supervised_child_profile_id").putString("app_mode", FamyrexAppMode.PARENT.name).apply()
+        ExtraTimeAllowanceStore(appContext).clear()
+        AppApprovalStore(appContext).clear()
+        AccessibilityConsentStore(appContext).clear()
+        DeviceEmergencyLockStore(appContext).clear()
+        FamilyCommandGate(appContext).clear()
     }
 
     private fun saveProfiles(items: List<FamilyProfile>) {
