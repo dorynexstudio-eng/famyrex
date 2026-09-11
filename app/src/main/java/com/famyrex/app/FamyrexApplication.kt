@@ -16,23 +16,27 @@ class FamyrexApplication : Application() {
         // before the BOOT_COMPLETED receiver restores the supervised enrollment.
         SupervisedStateRestorer.restore(FamilyStore(this))
 
-        val firebaseApp = FirebaseApp.initializeApp(this) ?: return
-        FirebaseAppCheck.getInstance(firebaseApp)
-            .installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
+        val firebaseApp = FirebaseApp.initializeApp(this)
+        if (firebaseApp != null) {
+            FirebaseAppCheck.getInstance(firebaseApp)
+                .installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
 
-        // FirebaseAuth can restore its persisted anonymous session asynchronously.
-        // Retry token registration when that session becomes available, otherwise a
-        // process restart could leave the supervised device temporarily unreachable.
-        val auth = FirebaseAuth.getInstance()
-        auth.addAuthStateListener { restoredAuth ->
-            registerRecoveredMessagingToken(restoredAuth.currentUser?.uid)
+            // FirebaseAuth can restore its persisted anonymous session asynchronously.
+            // Retry token registration when that session becomes available, otherwise a
+            // process restart could leave the supervised device temporarily unreachable.
+            val auth = FirebaseAuth.getInstance()
+            auth.addAuthStateListener { restoredAuth ->
+                registerRecoveredMessagingToken(restoredAuth.currentUser?.uid)
+            }
+
+            // Re-register on every process start so backend delivery remains recoverable
+            // even when FCM did not issue a new token callback.
+            registerRecoveredMessagingToken(auth.currentUser?.uid)
         }
 
-        // Re-register on every process start so backend delivery remains recoverable
-        // even when FCM did not issue a new token callback.
-        registerRecoveredMessagingToken(auth.currentUser?.uid)
-
-        // FCM is the fast path; WorkManager periodically recovers commands missed while offline.
+        // Local protection scheduling must not depend on Firebase initialization. If
+        // Firebase is temporarily unavailable, WorkManager can still restore the local
+        // protection/usage/health pipeline and retry network-dependent work later.
         FamyrexWorkScheduler.scheduleProtectionHealth(this)
     }
 
