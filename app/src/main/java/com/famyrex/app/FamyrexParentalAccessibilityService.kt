@@ -141,6 +141,6 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     }
 
     companion object {
-        private const val ENFORCEMENT_INTERVAL_MS = 5_000L
+        private const val ENFORCEMENT_INTERVAL_MS = 30_000L
     }
 }
