@@ -21,6 +21,7 @@ object FamyrexWorkScheduler {
     fun scheduleProtectionHealth(context: Context) {
         val appContext = context.applicationContext
         GeofenceBootstrap.sync(appContext)
+        UsageStatsScheduler.schedule(appContext)
 
         val workManager = WorkManager.getInstance(appContext)
 
