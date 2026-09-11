@@ -26,7 +26,10 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
             return
         }
 
-        val targetPackage = event?.packageName?.toString() ?: return
+        val targetPackage = event?.packageName?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: run {
+            removeBlockingOverlay()
+            return
+        }
         val launcherPackage = resolveLauncherPackage()
 
         // Recovery/control surfaces must stay usable even while the emergency lock is active.
