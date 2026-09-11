@@ -37,7 +37,7 @@ class AppApprovalStore(context: Context) {
     /** Removes approvals that belong to a previous supervised enrollment. */
     @Synchronized
     fun clear() {
-        prefs.edit().remove(KEY_PACKAGES).apply()
+        prefs.edit().remove(KEY_PACKAGES).commit()
     }
 
     private fun loadApprovedPackages(): Set<String> {
