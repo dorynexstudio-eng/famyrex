@@ -3,6 +3,8 @@ package com.famyrex.app
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -15,14 +17,32 @@ import java.util.Calendar
 class FamyrexParentalAccessibilityService : AccessibilityService() {
     private var blockingView: TextView? = null
     private var blockedPackage: String? = null
+    private var lastTargetPackage: String? = null
+    private val enforcementHandler = Handler(Looper.getMainLooper())
+    private val enforcementRunnable = object : Runnable {
+        override fun run() {
+            if (isSupervisedDeviceReady() && AccessibilityConsentStore(this@FamyrexParentalAccessibilityService).isAccepted()) {
+                lastTargetPackage?.let { evaluateTargetPackage(it) }
+            }
+            enforcementHandler.postDelayed(this, ENFORCEMENT_INTERVAL_MS)
+        }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        enforcementHandler.removeCallbacks(enforcementRunnable)
+        enforcementHandler.post(enforcementRunnable)
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!isSupervisedDeviceReady()) {
             removeBlockingOverlay()
+            lastTargetPackage = null
             return
         }
         if (!AccessibilityConsentStore(this).isAccepted()) {
             removeBlockingOverlay()
+            lastTargetPackage = null
             return
         }
 
@@ -30,6 +50,11 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
             removeBlockingOverlay()
             return
         }
+        lastTargetPackage = targetPackage
+        evaluateTargetPackage(targetPackage)
+    }
+
+    private fun evaluateTargetPackage(targetPackage: String) {
         val launcherPackage = resolveLauncherPackage()
 
         // Recovery/control surfaces must stay usable even while the emergency lock is active.
@@ -75,7 +100,11 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() = removeBlockingOverlay()
-    override fun onDestroy() { removeBlockingOverlay(); super.onDestroy() }
+    override fun onDestroy() {
+        enforcementHandler.removeCallbacks(enforcementRunnable)
+        removeBlockingOverlay()
+        super.onDestroy()
+    }
 
     private fun isSupervisedDeviceReady(): Boolean {
         val store = FamilyStore(applicationContext)
@@ -109,5 +138,9 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     private fun removeBlockingOverlay() {
         blockingView?.let { runCatching { getSystemService(WindowManager::class.java).removeView(it) } }
         blockingView = null; blockedPackage = null
+    }
+
+    companion object {
+        private const val ENFORCEMENT_INTERVAL_MS = 5_000L
     }
 }
