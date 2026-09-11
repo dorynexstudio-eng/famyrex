@@ -16,12 +16,14 @@ class ExtraTimeAllowanceStore(context: Context) {
         if (minutes !in 1..1440) return false
         val current = grantedMinutes(today)
         val total = (current + minutes).coerceAtMost(1440)
-        prefs.edit().putString(KEY_DATE, today.toString()).putInt(KEY_MINUTES, total).apply()
-        return true
+        return prefs.edit()
+            .putString(KEY_DATE, today.toString())
+            .putInt(KEY_MINUTES, total)
+            .commit()
     }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit().clear().commit()
     }
 
     companion object {
