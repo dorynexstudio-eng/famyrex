@@ -41,7 +41,33 @@ class PremiumMainActivity : ComponentActivity() {
         SupervisedStateRestorer.restore(familyStore)
         FamyrexNotificationManager.ensureChannels(this)
         FamyrexWorkScheduler.scheduleProtectionHealth(applicationContext)
-        setContent { FamyrexPremiumApp(applicationContext) }
+
+        val cloudRepository = FamyrexCloudFamilyRepository(applicationContext)
+        val cloudFamilyId = cloudRepository.cachedFamilyId()
+        if (cloudFamilyId.isNullOrBlank()) {
+            setContent { FamyrexPremiumApp(applicationContext) }
+        } else {
+            setContent { FamilyRecoveryLoadingScreen() }
+            cloudRepository.syncFamilySnapshot(
+                familyId = cloudFamilyId,
+                onSuccess = { snapshot ->
+                    runCatching { familyStore.applyCloudFamilySnapshot(snapshot) }
+                    runOnUiThread { setContent { FamyrexPremiumApp(applicationContext) } }
+                },
+                onError = {
+                    // Never erase the local mirror on a failed refresh. The user can
+                    // continue with the last known family state and retry next launch.
+                    runOnUiThread { setContent { FamyrexPremiumApp(applicationContext) } }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FamilyRecoveryLoadingScreen() {
+    Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Text("Recuperando la familia Famyrex…", style = MaterialTheme.typography.bodyLarge)
     }
 }
 
