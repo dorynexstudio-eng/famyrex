@@ -29,8 +29,9 @@ object ParentalPolicyEngine {
             if (restriction.dailyMinutes != null && appUsedTodayMinutes >= restriction.dailyMinutes) {
                 reasons += "Se ha alcanzado el límite diario configurado para esta aplicación."
             }
-            if (restriction.approvalRequired && appApprovals != null && !appApprovals.isApproved(packageName)) {
-                reasons += "Esta aplicación necesita la aprobación de un adulto autorizado."
+            if (restriction.approvalRequired) {
+                val approved = appApprovals?.isApproved(packageName) == true
+                if (!approved) reasons += "Esta aplicación necesita la aprobación de un adulto autorizado."
             }
         }
 
