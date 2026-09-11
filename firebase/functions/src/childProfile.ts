@@ -13,11 +13,31 @@ function requireGoogleAdult(request: any): string {
   return request.auth.uid;
 }
 
+function normalizeAgeRange(value: unknown): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  const normalized = raw.replace(/[–—]/g, "-").replace(/\s+/g, "");
+  const aliases: Record<string, string> = {
+    "under_6": "under_6",
+    "<6": "under_6",
+    "0-5": "under_6",
+    "6_9": "6_9",
+    "6-9": "6_9",
+    "10_12": "10_12",
+    "10-12": "10_12",
+    "13_15": "13_15",
+    "13-15": "13_15",
+    "16_plus": "16_plus",
+    "16+": "16_plus",
+    "16omas": "16_plus",
+  };
+  return aliases[normalized] ?? raw;
+}
+
 export const createPendingChildProfile = onCall(async (request) => {
   const parentUid = requireGoogleAdult(request);
   const familyId = String(request.data?.familyId ?? "").trim();
   const displayName = String(request.data?.displayName ?? "").trim().slice(0, 60);
-  const ageRange = String(request.data?.ageRange ?? "").trim();
+  const ageRange = normalizeAgeRange(request.data?.ageRange);
 
   if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
   if (displayName.length < 1) throw new HttpsError("invalid-argument", "El nombre del menor es obligatorio.");
