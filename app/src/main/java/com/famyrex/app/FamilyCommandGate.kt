@@ -46,6 +46,11 @@ class FamilyCommandGate(context: Context) {
         prefs.edit().putString(KEY_CONSUMED, json.toString()).apply()
     }
 
+    /** Removes replay state when the supervised enrollment is reset. */
+    fun clear() {
+        prefs.edit().remove(KEY_CONSUMED).apply()
+    }
+
     /** Backwards-compatible acceptance API; callers should prefer check + complete. */
     fun accept(
         command: FamilyControlCommand,
