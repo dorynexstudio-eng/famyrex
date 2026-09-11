@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.LocalTime
 
 class UsageStatsWorker(appContext: Context, workerParams: WorkerParameters) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result = try {
@@ -22,14 +23,22 @@ class UsageStatsWorker(appContext: Context, workerParams: WorkerParameters) : Co
         cumulativeStore.save(todayKey, cumulative)
         UsageIntervalStore(context).save(todayKey, UsageInterval(now, delta.values.sum()))
 
-        // A night window such as 22:00-07:00 spans two calendar dates. After
-        // midnight, include the previous day's intervals so the alert can see
-        // the complete configured night window without duplicating same-date data.
+        // A night window such as 22:00-07:00 spans two calendar dates. Only
+        // after midnight and before the configured end do we need the previous
+        // day's late-night segment. Passing the entire previous day's interval
+        // list would also include unrelated 00:00-07:00 usage from that day.
         val intervalStore = UsageIntervalStore(context)
+        val currentMinutes = LocalTime.now(zone).let { it.hour * 60 + it.minute }
         val intervals = buildList {
             addAll(intervalStore.load(todayKey))
-            if (settings.nightStartMinutes > settings.nightEndMinutes) {
-                addAll(intervalStore.load(today.minusDays(1).toString()))
+            if (settings.nightStartMinutes > settings.nightEndMinutes && currentMinutes < settings.nightEndMinutes) {
+                val previousDate = today.minusDays(1)
+                val previousStart = previousDate
+                    .atTime(settings.nightStartMinutes / 60, settings.nightStartMinutes % 60)
+                    .atZone(zone)
+                    .toInstant()
+                    .toEpochMilli()
+                addAll(intervalStore.load(previousDate.toString()).filter { it.timestampMs >= previousStart })
             }
         }
         val history = UsageSnapshotStore(context).loadHistory()
