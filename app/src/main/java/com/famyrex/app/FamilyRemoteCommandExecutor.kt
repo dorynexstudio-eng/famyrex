@@ -26,11 +26,11 @@ class FamilyRemoteCommandExecutor(context: Context) {
 
         val receipt = when (command.action) {
             FamilyControlAction.LOCK_DEVICE -> {
-                emergencyLockStore.setLocked(true)
+                emergencyLockStore.setLocked(identity.deviceId, true)
                 receiptSuccess(command, nowMs)
             }
             FamilyControlAction.UNLOCK_DEVICE -> {
-                emergencyLockStore.setLocked(false)
+                emergencyLockStore.setLocked(identity.deviceId, false)
                 receiptSuccess(command, nowMs)
             }
             FamilyControlAction.GRANT_EXTRA_TIME -> {
