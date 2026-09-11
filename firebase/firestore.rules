@@ -16,7 +16,7 @@ service cloud.firestore {
       // to the authenticated user's own ownerUid.
       allow read: if memberExists(familyId) || (signedIn() && resource.data.ownerUid == request.auth.uid);
       allow update: if isParent(familyId) && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if isParent(familyId) && resource.data.ownerUid == request.auth.uid;
+      allow delete: if isParent(familyId) && request.resource.data.ownerUid == request.auth.uid;
     }
 
     match /families/{familyId}/members/{memberUid} {
@@ -48,7 +48,7 @@ service cloud.firestore {
 
     match /families/{familyId}/devices/{deviceUid} {
       allow read: if memberExists(familyId) && (isParent(familyId) || request.auth.uid == deviceUid);
-      allow create: if isChild(familyId) && deviceUid == request.auth.uid && request.resource.data.uid == request.auth.uid && request.resource.data.memberUid == request.auth.uid;
+      allow create: if false;
       allow update: if isChild(familyId) && deviceUid == request.auth.uid &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.memberUid == resource.data.memberUid &&
@@ -61,7 +61,6 @@ service cloud.firestore {
         request.resource.data.deviceStatusUpdatedAtMs >= 0 &&
         request.resource.data.protectionActive is bool &&
         request.resource.data.protectionCheckedAtMs is int &&
-        request.resource.data.protectionCheckedAtMs >= 0 &&
         request.resource.data.protectionReasons is list &&
         request.resource.data.protectionReasons.size() <= 8;
       allow delete: if isParent(familyId);
