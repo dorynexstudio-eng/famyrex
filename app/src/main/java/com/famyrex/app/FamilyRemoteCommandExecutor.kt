@@ -1,6 +1,7 @@
 package com.famyrex.app
 
 import android.content.Context
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * Single entry point for executing a remote family command on this device.
@@ -19,6 +20,11 @@ class FamilyRemoteCommandExecutor(context: Context) {
         identity: FamyrexDeviceIdentity,
         nowMs: Long = System.currentTimeMillis()
     ): FamilyControlReceipt = synchronized(EXECUTION_LOCK) {
+        val preflightFailure = supervisedPreflightFailure(identity)
+        if (preflightFailure != null) {
+            return@synchronized receipt(command, nowMs, preflightFailure)
+        }
+
         val gateResult = gate.check(command, identity, nowMs)
         if (gateResult.status != CommandGateStatus.ACCEPTED) {
             return@synchronized receipt(command, nowMs, gateResult.reason)
@@ -68,6 +74,37 @@ class FamilyRemoteCommandExecutor(context: Context) {
         if (receipt.success) gate.complete(command.commandId, receipt.completedAtMs ?: nowMs)
         auditStore.record(receipt)
         receipt
+    }
+
+    /**
+     * Defense in depth: command execution must only happen from the currently
+     * enrolled supervised context, even if a transport layer supplies a forged
+     * or stale identity object.
+     */
+    private fun supervisedPreflightFailure(identity: FamyrexDeviceIdentity): String? {
+        if (!identity.isSupervised) return "El dispositivo no está en modo supervisado."
+        if (identity.familyId.isNullOrBlank() || identity.famyrexMemberId.isBlank() || identity.deviceId.isBlank()) {
+            return "La identidad supervisada está incompleta."
+        }
+        if (FamilyStore(appContext).appMode() != FamyrexAppMode.SUPERVISED) {
+            return "El dispositivo ya no está en modo supervisado."
+        }
+
+        val currentUser = FirebaseAuth.getInstance().currentUser
+            ?: return "La sesión del dispositivo no está disponible."
+        if (!currentUser.isAnonymous) return "La sesión del dispositivo no es anónima."
+        if (identity.firebaseUid != currentUser.uid) return "La identidad Firebase no coincide con el dispositivo."
+
+        val enrolledIdentity = FamilyDeviceIdentityStore(appContext).current()
+            ?: return "No existe una identidad supervisada válida."
+        if (enrolledIdentity.familyId != identity.familyId ||
+            enrolledIdentity.famyrexMemberId != identity.famyrexMemberId ||
+            enrolledIdentity.deviceId != identity.deviceId ||
+            enrolledIdentity.firebaseUid != currentUser.uid
+        ) {
+            return "La identidad del comando no coincide con el dispositivo inscrito."
+        }
+        return null
     }
 
     private fun receiptSuccess(command: FamilyControlCommand, nowMs: Long): FamilyControlReceipt =
