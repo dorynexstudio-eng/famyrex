@@ -33,7 +33,17 @@ class FamilyLocationRepository(context: Context) {
     ): Task<Void>? {
         val identity = FamilyStore(appContext).verifiedFamilyIdentity() ?: return null
         val user = FirebaseAuth.getInstance().currentUser ?: return null
-        if (!user.isAnonymous) return null
+        if (!user.isAnonymous || !identity.familyId.isNotBlank()) return null
+
+        // Defense in depth: the local verified identity must belong to the
+        // currently restored anonymous Firebase device and remain supervised.
+        val deviceIdentity = FamilyDeviceIdentityStore(appContext).current() ?: return null
+        if (!deviceIdentity.isSupervised ||
+            deviceIdentity.firebaseUid != user.uid ||
+            deviceIdentity.familyId != identity.familyId ||
+            deviceIdentity.deviceId.isBlank() ||
+            deviceIdentity.famyrexMemberId.isBlank()
+        ) return null
 
         return db.document("families/${identity.familyId}/members/${user.uid}/location/latest")
             .set(
