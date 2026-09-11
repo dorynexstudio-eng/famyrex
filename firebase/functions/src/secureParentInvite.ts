@@ -4,7 +4,6 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 const db = getFirestore();
 const TTL_MS = 24 * 60 * 60 * 1000;
-const AGE_RANGES = new Set(["under_6", "6_9", "10_12", "13_15", "16_plus"]);
 
 function requireGoogleAdult(request: any): string {
   if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión con Google.");
@@ -39,39 +38,6 @@ export const createSecureParentInvite = onCall(async (request) => {
   });
 
   return { inviteId, expiresAtMs: expiresAt.toMillis() };
-});
-
-export const createPendingChildProfile = onCall(async (request) => {
-  const parentUid = requireGoogleAdult(request);
-  const familyId = String(request.data?.familyId ?? "").trim();
-  const displayName = String(request.data?.displayName ?? "").trim().slice(0, 60);
-  const ageRange = String(request.data?.ageRange ?? "").trim();
-  if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
-  if (!displayName) throw new HttpsError("invalid-argument", "El nombre del perfil infantil es obligatorio.");
-  if (!AGE_RANGES.has(ageRange)) throw new HttpsError("invalid-argument", "El tramo de edad no es válido.");
-
-  const familyRef = db.doc(`families/${familyId}`);
-  const parentRef = familyRef.collection("members").doc(parentUid);
-  const [family, parent] = await Promise.all([familyRef.get(), parentRef.get()]);
-  if (!family.exists) throw new HttpsError("not-found", "La familia no existe.");
-  if (!parent.exists || parent.data()?.role !== "parent") {
-    throw new HttpsError("permission-denied", "No perteneces a esta familia como adulto.");
-  }
-
-  const memberId = `child-${randomBytes(16).toString("hex")}`;
-  const memberRef = familyRef.collection("profiles").doc(memberId);
-  const now = Timestamp.now();
-  await memberRef.create({
-    memberId,
-    role: "child",
-    displayName,
-    ageRange,
-    status: "pending",
-    createdByUid: parentUid,
-    createdAt: now,
-  });
-
-  return { familyId, memberId, displayName, ageRange, status: "pending" };
 });
 
 export const acceptSecureParentInvite = onCall(async (request) => {
