@@ -1,25 +1,30 @@
 package com.famyrex.app
 
 import android.content.Context
+import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 
 /** Registers the current device's FCM delivery token through the trusted backend. */
 object FamilyDeviceTokenRegistrar {
-    fun register(context: Context, token: String? = null) {
+    /**
+     * Returns the callable task so WorkManager can retry a transient registration failure.
+     * UI/FCM callers may safely ignore the returned task.
+     */
+    fun register(context: Context, token: String? = null): Task<*>? {
         val appContext = context.applicationContext
-        val identity = FamilyDeviceIdentityStore(appContext).current() ?: return
-        val firebaseUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        if (!identity.isSupervised || identity.firebaseUid != firebaseUid) return
+        val identity = FamilyDeviceIdentityStore(appContext).current() ?: return null
+        val firebaseUid = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+        if (!identity.isSupervised || identity.firebaseUid != firebaseUid) return null
 
         val resolvedToken = token?.trim()?.takeIf { it.isNotBlank() }
             ?: appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString(KEY_FCM_TOKEN, null)
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
-            ?: return
+            ?: return null
 
-        FirebaseFunctions.getInstance(REGION)
+        return FirebaseFunctions.getInstance(REGION)
             .getHttpsCallable("registerDeviceToken")
             .call(
                 hashMapOf(
@@ -37,6 +42,13 @@ object FamilyDeviceTokenRegistrar {
             .putString(KEY_FCM_TOKEN, token)
             .apply()
     }
+
+    fun rememberedToken(context: Context): String? =
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_FCM_TOKEN, null)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
 
     private const val REGION = "europe-west1"
     private const val PREFS = "famyrex_messaging"
