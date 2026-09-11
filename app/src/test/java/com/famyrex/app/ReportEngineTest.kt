@@ -62,6 +62,46 @@ class ReportEngineTest {
     }
 
     @Test
+    fun weeklyTrendIsSuppressedWhenDailyCoverageIsIncomplete() {
+        val today = LocalDate.of(2026, 9, 14)
+        val currentWindow = (1..6).map { offset ->
+            DailyUsage(today.minusDays(offset.toLong()).toString(), 60 * 60_000L, emptyList())
+        }
+        val previousWindow = (8..14).map { offset ->
+            DailyUsage(today.minusDays(offset.toLong()).toString(), 60 * 60_000L, emptyList())
+        }
+
+        val report = ReportEngine.build(
+            history = currentWindow + previousWindow,
+            alerts = emptyList(),
+            period = ReportPeriod.WEEKLY,
+            today = today
+        )
+
+        assertNull(report.trendPercent)
+    }
+
+    @Test
+    fun weeklyTrendUsesOnlyCompletedEquivalentWindows() {
+        val today = LocalDate.of(2026, 9, 14)
+        val completedWindow = (1..7).map { offset ->
+            DailyUsage(today.minusDays(offset.toLong()).toString(), 2 * 60 * 60_000L, emptyList())
+        }
+        val previousWindow = (8..14).map { offset ->
+            DailyUsage(today.minusDays(offset.toLong()).toString(), 60 * 60_000L, emptyList())
+        }
+
+        val report = ReportEngine.build(
+            history = completedWindow + previousWindow,
+            alerts = emptyList(),
+            period = ReportPeriod.WEEKLY,
+            today = today
+        )
+
+        assertEquals(100, report.trendPercent)
+    }
+
+    @Test
     fun malformedAlertDateDoesNotBreakReport() {
         val report = ReportEngine.build(
             history = listOf(DailyUsage("2026-09-06", 30 * 60_000L, emptyList())),
