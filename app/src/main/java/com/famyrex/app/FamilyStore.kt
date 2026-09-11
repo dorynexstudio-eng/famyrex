@@ -34,7 +34,28 @@ class FamilyStore(context: Context) {
     }
 
     fun addChild(displayName: String, guardianProfileIds: List<String>): FamilyProfile {
-        val profile = FamilyProfile("profile-${UUIDHolder.next()}", displayName.ifBlank { "Perfil infantil" }, FamilyRole.CHILD, System.currentTimeMillis(), guardianProfileIds.distinct())
+        return addChildWithId("profile-${UUIDHolder.next()}", displayName, guardianProfileIds)
+    }
+
+    /**
+     * Adds the local mirror of a child profile created by the trusted cloud API.
+     * The server-assigned member id is deliberately preserved so pairing invitations
+     * cannot drift onto a second, unrelated local profile identity.
+     */
+    fun addChildWithId(profileId: String, displayName: String, guardianProfileIds: List<String>): FamilyProfile {
+        require(profileId.isNotBlank())
+        val existing = profiles().firstOrNull { it.id == profileId }
+        if (existing != null) {
+            require(existing.role == FamilyRole.CHILD)
+            return existing
+        }
+        val profile = FamilyProfile(
+            profileId,
+            displayName.ifBlank { "Perfil infantil" },
+            FamilyRole.CHILD,
+            System.currentTimeMillis(),
+            guardianProfileIds.distinct()
+        )
         saveProfiles(profiles() + profile)
         return profile
     }
