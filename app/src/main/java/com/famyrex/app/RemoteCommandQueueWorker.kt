@@ -30,6 +30,10 @@ class RemoteCommandQueueWorker(
                 .collection("families").document(familyId).collection("commands")
                 .whereEqualTo("targetDeviceUid", firebaseUid)
                 .whereEqualTo("status", "sent")
+                // The backend creates issuedAtMs for every command. Ordering in Firestore
+                // before applying the limit guarantees that an old command cannot be
+                // starved forever by a stream of newer commands filling the first 50.
+                .orderBy("issuedAtMs")
                 .limit(50)
                 .get()
         )
@@ -39,7 +43,6 @@ class RemoteCommandQueueWorker(
         val now = System.currentTimeMillis()
         snapshot.documents
             .asSequence()
-            .sortedBy { it.getLong("issuedAtMs") ?: Long.MAX_VALUE }
             .forEach { document ->
                 val command = document.toRemoteCommand() ?: return@forEach
                 if (command.familyId != familyId ||
