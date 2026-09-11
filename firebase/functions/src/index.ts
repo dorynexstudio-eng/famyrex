@@ -95,6 +95,11 @@ function validateCommandValue(action: string, value: string | null): void {
   }
 }
 
+function isPermanentFcmTokenError(error: any): boolean {
+  const code = String(error?.code ?? "");
+  return code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token";
+}
+
 export const createPairingInvite = onCall(async (request) => {
   const parentUid = requireParent(request);
   const familyId = String(request.data?.familyId ?? "").trim();
@@ -215,6 +220,14 @@ export const issueFamilyCommand = onCall(async (request) => {
   try {
     await messaging.send({ token: device.data()!.fcmToken, data: { famyrex_command: JSON.stringify(command) } });
   } catch (error: any) {
+    if (isPermanentFcmTokenError(error)) {
+      await Promise.all([
+        targetDeviceRef.update({ fcmToken: null, fcmTokenStatus: "invalid", fcmTokenInvalidatedAt: Timestamp.now() }),
+        commandRef.update({ status: "delivery_failed", deliveryFailure: "invalid_fcm_token", deliveryFailureAt: Timestamp.now() })
+      ]);
+      console.warn("FCM token is permanently invalid; token retired", error?.code ?? "unknown");
+      throw new HttpsError("failed-precondition", "El dispositivo no tiene un token de notificaciones válido. Se actualizará automáticamente cuando FCM emita uno nuevo.");
+    }
     console.warn("FCM delivery failed; keeping command pending for recovery", error?.code ?? "unknown");
     throw new HttpsError("unavailable", "No se pudo entregar el comando ahora; quedará pendiente para recuperación.");
   }
