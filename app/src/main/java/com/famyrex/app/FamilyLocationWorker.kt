@@ -29,7 +29,9 @@ class FamilyLocationWorker(
 
         return runCatching {
             val client = LocationServices.getFusedLocationProviderClient(applicationContext)
-            val location = Tasks.await(client.lastLocation)
+            val now = System.currentTimeMillis()
+            val cached = Tasks.await(client.lastLocation)
+            val location = cached?.takeIf { it.time > 0L && now - it.time <= MAX_CACHED_AGE_MS }
                 ?: Tasks.await(client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null))
                 ?: return Result.retry()
 
@@ -37,11 +39,15 @@ class FamilyLocationWorker(
                 latitude = location.latitude,
                 longitude = location.longitude,
                 accuracyMeters = location.accuracy,
-                capturedAtMs = location.time
+                capturedAtMs = location.time.takeIf { it > 0L } ?: now
             ) ?: return Result.success()
 
             Tasks.await(task)
             Result.success()
         }.getOrElse { Result.retry() }
+    }
+
+    companion object {
+        private const val MAX_CACHED_AGE_MS = 30 * 60 * 1000L
     }
 }
