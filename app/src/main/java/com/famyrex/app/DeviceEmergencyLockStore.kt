@@ -19,12 +19,12 @@ class DeviceEmergencyLockStore(context: Context) {
         prefs.edit()
             .putString(KEY_DEVICE_ID, normalizedDeviceId)
             .putBoolean(KEY_LOCKED, locked)
-            .apply()
+            .commit()
     }
 
     /** Removes persisted lock state when the supervised enrollment is reset. */
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit().clear().commit()
     }
 
     companion object {
