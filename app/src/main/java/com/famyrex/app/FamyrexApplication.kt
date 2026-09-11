@@ -11,6 +11,11 @@ class FamyrexApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        // Restore the locally verified supervised state before scheduling any workers.
+        // This closes the boot-time window in which a worker could observe PARENT mode
+        // before the BOOT_COMPLETED receiver restores the supervised enrollment.
+        SupervisedStateRestorer.restore(FamilyStore(this))
+
         val firebaseApp = FirebaseApp.initializeApp(this) ?: return
         FirebaseAppCheck.getInstance(firebaseApp)
             .installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
