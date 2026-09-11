@@ -101,11 +101,15 @@ export const createPairingInvite = onCall(async (request) => {
   const childLabel = String(request.data?.childLabel ?? "Perfil infantil").trim().slice(0, 40) || "Perfil infantil";
   const famyrexMemberId = normalizeMemberId(request.data?.famyrexMemberId);
   if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
-  const memberRef = db.doc(`families/${familyId}/members/${parentUid}`);
-  const member = await memberRef.get();
+  const familyRef = db.doc(`families/${familyId}`);
+  const memberRef = familyRef.collection("members").doc(parentUid);
+  const childProfileRef = familyRef.collection("childProfiles").doc(famyrexMemberId);
+  const [member, family, childProfile] = await Promise.all([memberRef.get(), familyRef.get(), childProfileRef.get()]);
   if (!member.exists || member.data()?.role !== "parent") throw new HttpsError("permission-denied", "No perteneces a esta familia como adulto.");
-  const family = await db.doc(`families/${familyId}`).get();
   if (!family.exists) throw new HttpsError("not-found", "No existe la familia indicada.");
+  if (!childProfile.exists || childProfile.data()?.role !== "child" || childProfile.data()?.memberId !== famyrexMemberId || childProfile.data()?.status !== "pending") {
+    throw new HttpsError("failed-precondition", "El perfil infantil no existe, no está pendiente o no pertenece a esta familia.");
+  }
   const now = Date.now();
   const expiresAt = Timestamp.fromMillis(now + INVITE_TTL_MS);
   const inviteId = randomBytes(16).toString("hex");
@@ -149,16 +153,29 @@ export const redeemPairingCode = onCall(async (request) => {
   if (!expiresAt || expiresAt.toMillis() <= now) { await inviteDoc.ref.update({ status: "expired" }); throw new HttpsError("deadline-exceeded", "El código de vinculación ha caducado."); }
   const invitedMemberId = normalizeMemberId(inviteData.famyrexMemberId);
   if (requestedMemberId != null && requestedMemberId !== invitedMemberId) throw new HttpsError("permission-denied", "El perfil infantil no coincide con la invitación.");
-  const familyId = familyRef.id; const memberRef = familyRef.collection("members").doc(deviceUid); const deviceRef = familyRef.collection("devices").doc(deviceUid);
+  const familyId = familyRef.id;
+  const childProfileRef = familyRef.collection("childProfiles").doc(invitedMemberId);
+  const memberRef = familyRef.collection("members").doc(deviceUid);
+  const deviceRef = familyRef.collection("devices").doc(deviceUid);
   await db.runTransaction(async (tx) => {
-    const freshInvite = await tx.get(inviteDoc.ref); if (!freshInvite.exists || freshInvite.data()?.status !== "active") throw new HttpsError("already-exists", "Esta invitación ya ha sido utilizada.");
+    const freshInvite = await tx.get(inviteDoc.ref);
+    if (!freshInvite.exists || freshInvite.data()?.status !== "active") throw new HttpsError("already-exists", "Esta invitación ya ha sido utilizada.");
+    const childProfile = await tx.get(childProfileRef);
+    if (!childProfile.exists || childProfile.data()?.role !== "child" || childProfile.data()?.memberId !== invitedMemberId || childProfile.data()?.status !== "pending") {
+      throw new HttpsError("failed-precondition", "El perfil infantil ya no está disponible para vinculación.");
+    }
     const freshMember = await tx.get(memberRef);
     if (freshMember.exists) {
-      if (freshMember.data()?.role === "child" && freshMember.data()?.famyrexDeviceId === famyrexDeviceId && freshMember.data()?.memberId === invitedMemberId) { tx.update(inviteDoc.ref, { status: "used", usedAt: Timestamp.fromMillis(now), usedByUid: deviceUid }); return; }
+      if (freshMember.data()?.role === "child" && freshMember.data()?.famyrexDeviceId === famyrexDeviceId && freshMember.data()?.memberId === invitedMemberId) {
+        tx.update(inviteDoc.ref, { status: "used", usedAt: Timestamp.fromMillis(now), usedByUid: deviceUid });
+        tx.update(childProfileRef, { status: "linked", linkedAt: Timestamp.fromMillis(now), linkedUid: deviceUid, linkedDeviceId: famyrexDeviceId });
+        return;
+      }
       throw new HttpsError("already-exists", "Este dispositivo ya pertenece a una familia.");
     }
-    tx.set(memberRef, { uid: deviceUid, role: "child", memberId: invitedMemberId, displayName: inviteData.childLabel || childLabel || "Perfil infantil", createdAt: Timestamp.fromMillis(now), status: "active", deviceUid, famyrexDeviceId });
+    tx.set(memberRef, { uid: deviceUid, role: "child", memberId: invitedMemberId, displayName: childProfile.data()?.displayName || inviteData.childLabel || childLabel || "Perfil infantil", createdAt: Timestamp.fromMillis(now), status: "active", deviceUid, famyrexDeviceId });
     tx.set(deviceRef, { uid: deviceUid, memberUid: deviceUid, role: "child", famyrexMemberId: invitedMemberId, famyrexDeviceId, createdAt: Timestamp.fromMillis(now), linkedAt: Timestamp.fromMillis(now) }, { merge: true });
+    tx.update(childProfileRef, { status: "linked", linkedAt: Timestamp.fromMillis(now), linkedUid: deviceUid, linkedDeviceId: famyrexDeviceId });
     tx.update(inviteDoc.ref, { status: "used", usedAt: Timestamp.fromMillis(now), usedByUid: deviceUid });
   });
   return { familyId, childUid: deviceUid, famyrexMemberId: invitedMemberId, famyrexDeviceId, linkedAtMs: now };
@@ -198,7 +215,6 @@ export const issueFamilyCommand = onCall(async (request) => {
   try {
     await messaging.send({ token: device.data()!.fcmToken, data: { famyrex_command: JSON.stringify(command) } });
   } catch (error: any) {
-    // Keep the command recoverable: WorkManager only polls `sent` commands.
     console.warn("FCM delivery failed; keeping command pending for recovery", error?.code ?? "unknown");
     throw new HttpsError("unavailable", "No se pudo entregar el comando ahora; quedará pendiente para recuperación.");
   }
