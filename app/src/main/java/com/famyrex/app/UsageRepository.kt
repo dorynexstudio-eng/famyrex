@@ -3,6 +3,7 @@ package com.famyrex.app
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.os.Build
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -45,6 +46,11 @@ object UsageRepository {
      *
      * A small lookback reconstructs an app that was already foreground at the
      * window boundary. The lookback event is never counted before [start].
+     *
+     * Android 10+ exposes activity-level RESUMED/PAUSED events alongside the older
+     * app-level FOREGROUND/BACKGROUND events. Mixing both streams can overwrite
+     * the same package's start time or close an interval twice, undercounting use.
+     * Use one event model per platform instead.
      */
     private fun query(context: Context, start: Long, end: Long): List<AppUsage> {
         if (end <= start) return emptyList()
@@ -60,13 +66,20 @@ object UsageRepository {
             val pkg = event.packageName ?: continue
             if (pkg == context.packageName) continue
 
-            when (event.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND,
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    foregroundSince[pkg] = event.timeStamp
-                }
-                UsageEvents.Event.MOVE_TO_BACKGROUND,
-                UsageEvents.Event.ACTIVITY_PAUSED -> {
+            val isForeground = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                event.eventType == UsageEvents.Event.ACTIVITY_RESUMED
+            } else {
+                event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND
+            }
+            val isBackground = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                event.eventType == UsageEvents.Event.ACTIVITY_PAUSED
+            } else {
+                event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND
+            }
+
+            when {
+                isForeground -> foregroundSince[pkg] = event.timeStamp
+                isBackground -> {
                     val foregroundStart = foregroundSince.remove(pkg) ?: continue
                     addClippedDuration(totals, pkg, foregroundStart, event.timeStamp, start, end)
                 }
