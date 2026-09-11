@@ -13,7 +13,8 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "targetDeviceUid", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "issuedAtMs", "order": "ASCENDING" }
       ]
     }
   ],
