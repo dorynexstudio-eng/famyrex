@@ -29,16 +29,20 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         val targetPackage = event?.packageName?.toString() ?: return
         val launcherPackage = resolveLauncherPackage()
 
+        // Recovery/control surfaces must stay usable even while the emergency lock is active.
+        if (!ProtectionSurfacePolicy.shouldEvaluate(targetPackage, packageName, launcherPackage)) {
+            removeBlockingOverlay()
+            return
+        }
+
         if (DeviceEmergencyLockStore(this).isLocked()) {
             showBlockingOverlay(targetPackage, listOf("El dispositivo está bloqueado temporalmente por un adulto autorizado."))
             return
         }
-        if (!ProtectionSurfacePolicy.shouldEvaluate(targetPackage, packageName, launcherPackage)) {
-            removeBlockingOverlay(); return
-        }
         val monitor = ParentalUsageMonitor(this)
         if (!monitor.hasUsageAccess()) {
-            removeBlockingOverlay(); return
+            removeBlockingOverlay()
+            return
         }
 
         val now = System.currentTimeMillis()
