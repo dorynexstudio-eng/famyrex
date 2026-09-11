@@ -27,7 +27,14 @@ class FamilyRemoteCommandExecutor(context: Context) {
 
         val gateResult = gate.check(command, identity, nowMs)
         if (gateResult.status != CommandGateStatus.ACCEPTED) {
-            return@synchronized receipt(command, nowMs, gateResult.reason)
+            return@synchronized if (gateResult.status == CommandGateStatus.REPLAY) {
+                // A replay means this exact command already completed successfully. Report it
+                // as successful so recovery after a lost receipt cannot overwrite a real success
+                // with a misleading failure when the queue retries the same command.
+                receiptSuccess(command, nowMs, gateResult.reason)
+            } else {
+                receipt(command, nowMs, gateResult.reason)
+            }
         }
 
         val receipt = when (command.action) {
@@ -107,13 +114,18 @@ class FamilyRemoteCommandExecutor(context: Context) {
         return null
     }
 
-    private fun receiptSuccess(command: FamilyControlCommand, nowMs: Long): FamilyControlReceipt =
+    private fun receiptSuccess(
+        command: FamilyControlCommand,
+        nowMs: Long,
+        reason: String? = null
+    ): FamilyControlReceipt =
         FamilyControlReceipt(
             commandId = command.commandId,
             action = command.action,
             acceptedAtMs = nowMs,
             completedAtMs = System.currentTimeMillis(),
-            success = true
+            success = true,
+            reason = reason
         )
 
     private fun receipt(command: FamilyControlCommand, nowMs: Long, reason: String?): FamilyControlReceipt =
