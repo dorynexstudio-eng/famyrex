@@ -60,6 +60,12 @@ class FamilyPolicySyncService(context: Context) {
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
+    /**
+     * Revision allocation is process-local but can be reached concurrently by multiple
+     * UI callbacks. Serialize the read/increment/write sequence so two sync requests for
+     * the same device can never receive the same revision within this process.
+     */
+    @Synchronized
     private fun nextRevision(deviceId: String): Long {
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val previous = prefs.getLong(revisionKey(deviceId), 0L)
