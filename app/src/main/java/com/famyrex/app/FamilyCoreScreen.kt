@@ -44,6 +44,8 @@ fun FamilyCoreScreen(
     var selectedAgreementChildId by remember { mutableStateOf(agreement?.childProfileId.orEmpty()) }
     var adultName by remember { mutableStateOf("") }
     var childName by remember { mutableStateOf("") }
+    var childAgeRange by remember { mutableStateOf("") }
+    var childCreationLoading by remember { mutableStateOf(false) }
     var deviceName by remember { mutableStateOf("") }
     var agreementMinutes by remember { mutableStateOf(agreement?.dailyMinutes?.toString() ?: "120") }
     var agreementGoal by remember { mutableStateOf(agreement?.goal ?: "Mantener un uso equilibrado") }
@@ -92,7 +94,11 @@ fun FamilyCoreScreen(
                     adults.forEach { adult -> Text("👑 ${adult.displayName} · ${if (adult.role == FamilyRole.OWNER) "Administrador" else "Adulto autorizado"}") }
                     OutlinedTextField(adultName, { adultName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del segundo padre/madre") })
                     Button(enabled = adultName.isNotBlank(), onClick = {
-                        store.addAdult(adultName.trim()); adultName = ""; profiles = store.profiles(); message = "Adulto autorizado añadido."; onFamilyChanged()
+                        store.addAdult(adultName.trim())
+                        adultName = ""
+                        profiles = store.profiles()
+                        message = "Adulto autorizado añadido."
+                        onFamilyChanged()
                     }, modifier = Modifier.fillMaxWidth()) { Text("Añadir adulto") }
                 }
             }
@@ -106,10 +112,69 @@ fun FamilyCoreScreen(
                         val guardians = child.guardianProfileIds.mapNotNull { id -> profiles.firstOrNull { it.id == id }?.displayName }
                         Text("🧒 ${child.displayName} · Adultos: ${guardians.ifEmpty { listOf("sin asignar") }.joinToString()}")
                     }
-                    OutlinedTextField(childName, { childName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del hijo/a") })
-                    Button(enabled = childName.isNotBlank() && adults.isNotEmpty(), onClick = {
-                        store.addChild(childName.trim(), adults.map { it.id }); childName = ""; profiles = store.profiles(); message = "Perfil infantil creado y vinculado a los adultos autorizados."; onFamilyChanged()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Añadir hijo/a") }
+                    OutlinedTextField(childName, { childName = it.take(40) }, Modifier.fillMaxWidth(), label = { Text("Nombre del hijo/a") }, singleLine = true)
+                    if (!cloudFamilyId.isNullOrBlank()) {
+                        OutlinedTextField(
+                            childAgeRange,
+                            { childAgeRange = it.take(24) },
+                            Modifier.fillMaxWidth(),
+                            label = { Text("Rango de edad (ej. 10-12)") },
+                            supportingText = { Text("El perfil se crea primero en Firebase y después se refleja localmente con la misma identidad.") },
+                            singleLine = true
+                        )
+                    }
+                    Button(
+                        enabled = childName.isNotBlank() && adults.isNotEmpty() && !childCreationLoading && (cloudFamilyId.isNullOrBlank() || childAgeRange.isNotBlank()),
+                        onClick = {
+                            val name = childName.trim()
+                            val ageRange = childAgeRange.trim()
+                            val guardians = adults.map { it.id }
+                            if (cloudFamilyId.isNullOrBlank()) {
+                                store.addChild(name, guardians)
+                                childName = ""
+                                childAgeRange = ""
+                                profiles = store.profiles()
+                                message = "Perfil infantil local creado y vinculado a los adultos autorizados."
+                                onFamilyChanged()
+                            } else {
+                                childCreationLoading = true
+                                pairingService.createPendingChildProfile(
+                                    familyId = cloudFamilyId,
+                                    displayName = name,
+                                    ageRange = ageRange,
+                                    onSuccess = { memberId ->
+                                        runCatching { store.addChildWithId(memberId, name, guardians) }
+                                            .onSuccess {
+                                                childName = ""
+                                                childAgeRange = ""
+                                                profiles = store.profiles()
+                                                selectedAgreementChildId = memberId
+                                                message = "Perfil infantil seguro creado y vinculado. Ya puedes generar su invitación."
+                                                onFamilyChanged()
+                                            }
+                                            .onFailure { error -> message = error.message ?: "No se pudo reflejar el perfil infantil en este dispositivo." }
+                                        childCreationLoading = false
+                                    },
+                                    onError = { error ->
+                                        childCreationLoading = false
+                                        message = error
+                                    }
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            when {
+                                childCreationLoading -> "Creando perfil seguro…"
+                                cloudFamilyId.isNullOrBlank() -> "Añadir hijo/a"
+                                else -> "Crear perfil infantil seguro"
+                            }
+                        )
+                    }
+                    if (!cloudFamilyId.isNullOrBlank()) {
+                        Text("Familia cloud conectada: el identificador del perfil lo asigna Firebase y se reutiliza al generar la invitación.", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
@@ -151,9 +216,13 @@ fun FamilyCoreScreen(
                             val familyId = cloudFamilyRepository.cachedFamilyId()
                             if (familyId.isNullOrBlank()) { message = "La familia todavía no tiene una identidad Firebase activa. Completa primero el acceso del adulto."; return@Button }
                             cloudPairingLoading = true
-                            pairingService.createInvite(familyId = familyId, childLabel = child.displayName, famyrexMemberId = child.id,
+                            pairingService.createInvite(
+                                familyId = familyId,
+                                childLabel = child.displayName,
+                                famyrexMemberId = child.id,
                                 onSuccess = { code, token, expiresAtMs -> cloudCode = code; cloudToken = token; cloudExpiresAtMs = expiresAtMs; cloudPairingLoading = false; message = "Código y clave de vinculación generados para ${child.displayName}." },
-                                onError = { error -> cloudPairingLoading = false; message = error })
+                                onError = { error -> cloudPairingLoading = false; message = error }
+                            )
                         }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudPairingLoading) "Generando código…" else "Generar código de vinculación") }
                         if (cloudCode.isNotBlank()) {
                             Text("Código", style = MaterialTheme.typography.labelLarge); Text(cloudCode, style = MaterialTheme.typography.headlineMedium); Text("Perfil: ${selectedAgreementChild?.displayName ?: "sin seleccionar"}")
