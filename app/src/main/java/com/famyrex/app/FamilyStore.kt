@@ -160,7 +160,18 @@ class FamilyStore(context: Context) {
     }
 
     fun clearVerifiedFamilyIdentity() {
-        prefs.edit().remove("verified_family_id").remove("verified_family_secret").remove("verified_family_secret_enc").remove("verified_family_fingerprint").remove("verified_family_at_ms").remove("supervised_child_profile_id").putString("app_mode", FamyrexAppMode.PARENT.name).apply()
+        // This is a security-critical boundary: wait until the identity/mode reset is
+        // durably written before returning, so a process death cannot leave the old
+        // verified enrollment temporarily restorable.
+        prefs.edit()
+            .remove("verified_family_id")
+            .remove("verified_family_secret")
+            .remove("verified_family_secret_enc")
+            .remove("verified_family_fingerprint")
+            .remove("verified_family_at_ms")
+            .remove("supervised_child_profile_id")
+            .putString("app_mode", FamyrexAppMode.PARENT.name)
+            .commit()
         ExtraTimeAllowanceStore(appContext).clear()
         AppApprovalStore(appContext).clear()
         AccessibilityConsentStore(appContext).clear()
