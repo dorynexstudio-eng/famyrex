@@ -12,8 +12,10 @@ object SupervisedStateRestorer {
 
     fun restore(store: FamilyStore): Boolean {
         val identity = store.verifiedFamilyIdentity()
-        val linked = store.devices().any { it.linkState == DeviceLinkState.LINKED }
-        if (!isRestorable(identity, linked)) {
+        val supervisedChildId = store.supervisedChildProfileId()
+        val linkedSupervisedDevice = supervisedChildId != null &&
+            store.devices().any { it.ownerProfileId == supervisedChildId && it.linkState == DeviceLinkState.LINKED }
+        if (!isRestorable(identity, linkedSupervisedDevice)) {
             store.clearVerifiedFamilyIdentity()
             return false
         }
