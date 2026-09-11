@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
+import com.google.firebase.auth.FirebaseAuth
 import java.time.LocalDate
 import java.util.Calendar
 
@@ -16,6 +17,10 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
     private var blockedPackage: String? = null
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (!isSupervisedDeviceReady()) {
+            removeBlockingOverlay()
+            return
+        }
         if (!AccessibilityConsentStore(this).isAccepted()) {
             removeBlockingOverlay()
             return
@@ -60,6 +65,15 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() = removeBlockingOverlay()
     override fun onDestroy() { removeBlockingOverlay(); super.onDestroy() }
+
+    private fun isSupervisedDeviceReady(): Boolean {
+        val store = FamilyStore(applicationContext)
+        if (store.appMode() != FamyrexAppMode.SUPERVISED) return false
+        val identity = FamilyDeviceIdentityStore(applicationContext).current() ?: return false
+        if (!identity.isSupervised) return false
+        val user = FirebaseAuth.getInstance().currentUser ?: return false
+        return user.isAnonymous && identity.firebaseUid == user.uid
+    }
 
     private fun resolveLauncherPackage(): String? = runCatching {
         packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName
