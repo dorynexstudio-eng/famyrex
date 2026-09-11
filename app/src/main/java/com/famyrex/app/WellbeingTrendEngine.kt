@@ -1,6 +1,7 @@
 package com.famyrex.app
 
 import java.text.DecimalFormat
+import java.time.LocalDate
 
 /**
  * Analiza tendencias de bienestar usando únicamente métricas agregadas de uso.
@@ -19,21 +20,35 @@ object WellbeingTrendEngine {
         val latestMinutes: Int
     )
 
-    fun evaluate(history: List<DailyUsage>): Assessment? {
-        if (history.size < 7) return null
+    fun evaluate(history: List<DailyUsage>, today: LocalDate = LocalDate.now()): Assessment? {
+        // The current snapshot is still accumulating during the day. Never use it as
+        // one of the completed days that establishes a wellbeing baseline/trend.
+        val completed = history.mapNotNull { day ->
+            val date = runCatching { LocalDate.parse(day.date.take(10)) }.getOrNull()
+            if (date == null || date.isAfter(today.minusDays(1))) null else date to day
+        }
+            .distinctBy { it.first }
+            .sortedBy { it.first }
 
-        val ordered = history.sortedBy { it.date }
-        val baseline = ordered.dropLast(3).takeLast(4)
-        val recent = ordered.takeLast(3)
+        // A trend is only meaningful when the seven reference days are consecutive.
+        // Missing snapshots must not be treated as zero-usage days.
+        if (completed.size < 7) return null
+        val recentWindow = completed.takeLast(7)
+        if (recentWindow.zipWithNext().any { (a, b) ->
+                java.time.temporal.ChronoUnit.DAYS.between(a.first, b.first) != 1L
+            }) return null
+
+        val baseline = recentWindow.dropLast(3)
+        val recent = recentWindow.takeLast(3)
         if (baseline.size < 4 || recent.size < 3) return null
 
-        val baselineAvg = baseline.map { minutes(it) }.average()
-        val recentAvg = recent.map { minutes(it) }.average()
+        val baselineAvg = baseline.map { minutes(it.second) }.average()
+        val recentAvg = recent.map { minutes(it.second) }.average()
         if (baselineAvg < 30.0) return null
 
-        val elevated = recent.count { minutes(it) >= baselineAvg * 1.25 }
-        val veryElevated = recent.count { minutes(it) >= baselineAvg * 1.50 }
-        val latest = minutes(ordered.last()).toInt()
+        val elevated = recent.count { minutes(it.second) >= baselineAvg * 1.25 }
+        val veryElevated = recent.count { minutes(it.second) >= baselineAvg * 1.50 }
+        val latest = minutes(recent.last().second).toInt()
         val ratio = recentAvg / baselineAvg
 
         var score = 0
