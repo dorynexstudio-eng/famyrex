@@ -30,28 +30,51 @@ class FamyrexCloudFamilyRepository(context: Context) {
             return
         }
 
-        cachedFamilyId()?.let { onSuccess(it); return }
-
         val db = FirebaseFirestore.getInstance()
+        cachedFamilyId()?.let { cachedId ->
+            db.document("families/$cachedId/members/${user.uid}")
+                .get()
+                .addOnSuccessListener { member ->
+                    if (member.exists() && member.data()?.get("role") == "parent") {
+                        onSuccess(cachedId)
+                    } else {
+                        prefs.edit().remove("cloud_family_id").apply()
+                        findOwnedFamily(db, user.uid, displayName, onSuccess, onError)
+                    }
+                }
+                .addOnFailureListener { onError(it.message ?: "No se pudo validar la familia guardada.") }
+            return
+        }
+
+        findOwnedFamily(db, user.uid, displayName, onSuccess, onError)
+    }
+
+    private fun findOwnedFamily(
+        db: FirebaseFirestore,
+        uid: String,
+        displayName: String,
+        onSuccess: (familyId: String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         db.collection("families")
-            .whereEqualTo("ownerUid", user.uid)
+            .whereEqualTo("ownerUid", uid)
             .limit(1)
             .get()
             .addOnSuccessListener { snapshot ->
                 val existing = snapshot.documents.firstOrNull()
                 if (existing != null) {
-                    bootstrapParentMember(db, existing.id, user.uid, displayName, onSuccess, onError)
+                    bootstrapParentMember(db, existing.id, uid, displayName, onSuccess, onError)
                 } else {
                     val familyId = "family-${UUID.randomUUID().toString().replace("-", "").take(20)}"
                     val familyRef = db.collection("families").document(familyId)
                     familyRef.set(
                         mapOf(
-                            "ownerUid" to user.uid,
+                            "ownerUid" to uid,
                             "name" to "Familia Famyrex",
                             "createdAt" to FieldValue.serverTimestamp()
                         )
                     ).addOnSuccessListener {
-                        bootstrapParentMember(db, familyId, user.uid, displayName, onSuccess, onError)
+                        bootstrapParentMember(db, familyId, uid, displayName, onSuccess, onError)
                     }.addOnFailureListener { onError(it.message ?: "No se pudo crear la familia Famyrex.") }
                 }
             }
