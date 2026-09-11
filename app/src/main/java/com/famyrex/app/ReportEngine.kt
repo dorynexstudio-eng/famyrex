@@ -46,16 +46,23 @@ object ReportEngine {
         }
         val important = periodAlerts.count { it.severity == AlertSeverity.IMPORTANT }
 
-        val previousStart = start.minusDays(days)
-        val previousEnd = start.minusDays(1)
-        val previous = history.filter {
-            parseDate(it.date)?.let { date -> !date.isBefore(previousStart) && !date.isAfter(previousEnd) } == true
+        // A daily report represents an in-progress day. Comparing it with the
+        // previous full day produces a misleading trend while the day is still
+        // accumulating usage, so daily reports intentionally have no trend.
+        val trend = if (period == ReportPeriod.DAILY) {
+            null
+        } else {
+            val previousStart = start.minusDays(days)
+            val previousEnd = start.minusDays(1)
+            val previous = history.filter {
+                parseDate(it.date)?.let { date -> !date.isBefore(previousStart) && !date.isAfter(previousEnd) } == true
+            }
+            val previousMinutes = previous.sumOf { it.totalTimeMs } / 60_000L
+            if (previousMinutes > 0L) {
+                (((totalMinutes - previousMinutes).toDouble() / previousMinutes) * 100.0)
+                    .roundToInt()
+            } else null
         }
-        val previousMinutes = previous.sumOf { it.totalTimeMs } / 60_000L
-        val trend = if (previousMinutes > 0L) {
-            (((totalMinutes - previousMinutes).toDouble() / previousMinutes) * 100.0)
-                .roundToInt()
-        } else null
 
         val narrative = when {
             selected.isEmpty() ->
