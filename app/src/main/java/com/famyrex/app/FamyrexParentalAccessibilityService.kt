@@ -35,7 +35,11 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (DeviceEmergencyLockStore(this).isLocked()) {
+        val identity = FamilyDeviceIdentityStore(applicationContext).current() ?: run {
+            removeBlockingOverlay()
+            return
+        }
+        if (DeviceEmergencyLockStore(this).isLocked(identity.deviceId)) {
             showBlockingOverlay(targetPackage, listOf("El dispositivo está bloqueado temporalmente por un adulto autorizado."))
             return
         }
