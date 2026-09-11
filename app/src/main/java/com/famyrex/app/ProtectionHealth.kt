@@ -53,9 +53,13 @@ object ProtectionHealthChecker {
         }
 
         val parentalConfig = ParentalControlStore(context).load()
-        if (context.isParentalEnforcementRequired(parentalConfig) &&
-            !isParentalAccessibilityServiceEnabled(context)) {
-            reasons += "El control parental de aplicaciones no está disponible; el servicio de accesibilidad está desactivado."
+        if (context.isParentalEnforcementRequired(parentalConfig)) {
+            if (!isParentalAccessibilityServiceEnabled(context)) {
+                reasons += "El control parental de aplicaciones no está disponible; el servicio de accesibilidad está desactivado."
+            }
+            if (!ParentalUsageMonitor(context).hasUsageAccess()) {
+                reasons += "El acceso al uso de aplicaciones está desactivado; Famyrex no puede aplicar correctamente los límites de tiempo."
+            }
         }
 
         return ProtectionHealth(
