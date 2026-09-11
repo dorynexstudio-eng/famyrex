@@ -22,6 +22,11 @@ class DeviceEmergencyLockStore(context: Context) {
             .apply()
     }
 
+    /** Removes persisted lock state when the supervised enrollment is reset. */
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
+
     companion object {
         private const val PREFS = "famyrex_emergency_lock"
         private const val KEY_LOCKED = "locked"
