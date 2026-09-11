@@ -37,11 +37,7 @@ class FamilyStore(context: Context) {
         return addChildWithId("profile-${UUIDHolder.next()}", displayName, guardianProfileIds)
     }
 
-    /**
-     * Adds the local mirror of a child profile created by the trusted cloud API.
-     * The server-assigned member id is deliberately preserved so pairing invitations
-     * cannot drift onto a second, unrelated local profile identity.
-     */
+    /** Adds the local mirror of a child profile created by the trusted cloud API. */
     fun addChildWithId(profileId: String, displayName: String, guardianProfileIds: List<String>): FamilyProfile {
         require(profileId.isNotBlank())
         val existing = profiles().firstOrNull { it.id == profileId }
@@ -49,15 +45,60 @@ class FamilyStore(context: Context) {
             require(existing.role == FamilyRole.CHILD)
             return existing
         }
-        val profile = FamilyProfile(
-            profileId,
-            displayName.ifBlank { "Perfil infantil" },
-            FamilyRole.CHILD,
-            System.currentTimeMillis(),
-            guardianProfileIds.distinct()
-        )
+        val profile = FamilyProfile(profileId, displayName.ifBlank { "Perfil infantil" }, FamilyRole.CHILD, System.currentTimeMillis(), guardianProfileIds.distinct())
         saveProfiles(profiles() + profile)
         return profile
+    }
+
+    /**
+     * Rebuilds only the cloud-family mirror. Server identifiers are retained and any
+     * previous cloud mirror entries are removed; supervised secrets and other prefs remain untouched.
+     */
+    fun applyCloudFamilySnapshot(snapshot: FamilySnapshot) {
+        val previousProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
+        val previousDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
+        val currentProfiles = profiles().filterNot { it.id in previousProfileIds }.toMutableList()
+        val currentDevices = devices().filterNot { it.id in previousDeviceIds }.toMutableList()
+
+        val adultProfiles = snapshot.adults.map { adult ->
+            FamilyProfile(
+                id = adult.uid,
+                displayName = adult.displayName,
+                role = if (adult.uid == snapshot.ownerUid) FamilyRole.OWNER else FamilyRole.ADULT,
+                createdAtMs = adult.createdAtMs.takeIf { it > 0L } ?: System.currentTimeMillis()
+            )
+        }
+        val parentIds = adultProfiles.map { it.id }
+        val childProfiles = snapshot.children.map { child ->
+            FamilyProfile(
+                id = child.memberId,
+                displayName = child.displayName,
+                role = FamilyRole.CHILD,
+                createdAtMs = child.createdAtMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
+                guardianProfileIds = parentIds
+            )
+        }
+        val mirroredProfiles = (currentProfiles + adultProfiles + childProfiles).distinctBy { it.id }
+        val mirroredDevices = snapshot.devices.mapNotNull { device ->
+            val memberId = device.famyrexMemberId ?: return@mapNotNull null
+            val deviceId = device.famyrexDeviceId ?: device.uid
+            if (deviceId.isBlank()) return@mapNotNull null
+            FamilyDevice(
+                id = deviceId,
+                displayName = "Dispositivo infantil",
+                ownerProfileId = memberId,
+                linkState = if (device.linkedAtMs > 0L) DeviceLinkState.LINKED else DeviceLinkState.PENDING,
+                linkedAtMs = device.linkedAtMs.takeIf { it > 0L }
+            )
+        }
+        val allDevices = (currentDevices + mirroredDevices).distinctBy { it.id }
+
+        prefs.edit()
+            .putString(KEY_CLOUD_PROFILE_IDS, JSONArray(adultProfiles.map { it.id } + childProfiles.map { it.id }).toString())
+            .putString(KEY_CLOUD_DEVICE_IDS, JSONArray(mirroredDevices.map { it.id }).toString())
+            .apply()
+        saveProfiles(mirroredProfiles)
+        saveDevices(allDevices)
     }
 
     fun ensureSupervisedChild(profileId: String, displayName: String): FamilyProfile {
@@ -141,6 +182,17 @@ class FamilyStore(context: Context) {
     }
 
     companion object {
+        private const val KEY_CLOUD_PROFILE_IDS = "cloud_mirror_profile_ids"
+        private const val KEY_CLOUD_DEVICE_IDS = "cloud_mirror_device_ids"
+
+        private fun parseStringSet(raw: String?): Set<String> {
+            if (raw.isNullOrBlank()) return emptySet()
+            return runCatching {
+                val array = JSONArray(raw)
+                buildSet { for (i in 0 until array.length()) array.optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) }
+            }.getOrDefault(emptySet())
+        }
+
         internal fun parseProfiles(raw: String?): List<FamilyProfile> {
             if (raw.isNullOrBlank()) return emptyList()
             return runCatching { val array = JSONArray(raw); buildList { for (i in 0 until array.length()) runCatching { val o = array.getJSONObject(i); val id = o.getString("id").trim(); val displayName = o.getString("displayName").trim(); val role = FamilyRole.valueOf(o.getString("role")); val createdAtMs = o.getLong("createdAtMs"); require(id.isNotBlank() && displayName.isNotBlank() && createdAtMs > 0L); val guardians = o.optJSONArray("guardianProfileIds")?.let { ids -> buildList { for (j in 0 until ids.length()) ids.optString(j).trim().takeIf { it.isNotBlank() }?.let(::add) } } ?: emptyList(); add(FamilyProfile(id, displayName, role, createdAtMs, guardians.distinct())) } } }.getOrDefault(emptyList())
