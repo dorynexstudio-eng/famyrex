@@ -16,6 +16,7 @@ object FamyrexWorkScheduler {
     private const val AI_ANALYSIS_WORK = "famyrex_ai_analysis_daily"
     private const val REMOTE_COMMAND_WORK = "famyrex_remote_command_recovery"
     private const val FAMILY_LOCATION_WORK = "famyrex_family_location_sync"
+    private const val DEVICE_TOKEN_WORK = "famyrex_device_token_registration"
 
     fun scheduleProtectionHealth(context: Context) {
         val appContext = context.applicationContext
@@ -45,6 +46,11 @@ object FamyrexWorkScheduler {
             .setConstraints(remoteConstraints)
             .build()
         workManager.enqueueUniquePeriodicWork(REMOTE_COMMAND_WORK, ExistingPeriodicWorkPolicy.KEEP, remoteRequest)
+
+        val tokenRequest = PeriodicWorkRequestBuilder<DeviceTokenRegistrationWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(remoteConstraints)
+            .build()
+        workManager.enqueueUniquePeriodicWork(DEVICE_TOKEN_WORK, ExistingPeriodicWorkPolicy.KEEP, tokenRequest)
 
         val locationRequest = PeriodicWorkRequestBuilder<FamilyLocationWorker>(15, TimeUnit.MINUTES)
             .setConstraints(remoteConstraints)
