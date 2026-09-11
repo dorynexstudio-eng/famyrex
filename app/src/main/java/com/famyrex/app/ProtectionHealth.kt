@@ -1,10 +1,12 @@
 package com.famyrex.app
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.view.accessibility.AccessibilityManager
 import androidx.core.content.ContextCompat
 
 /** Estado real de la capacidad de vigilancia local. */
@@ -50,10 +52,34 @@ object ProtectionHealthChecker {
             }
         }
 
+        val parentalConfig = ParentalControlStore(context).load()
+        if (context.isParentalEnforcementRequired(parentalConfig) &&
+            !isParentalAccessibilityServiceEnabled(context)) {
+            reasons += "El control parental de aplicaciones no está disponible; el servicio de accesibilidad está desactivado."
+        }
+
         return ProtectionHealth(
             active = reasons.isEmpty(),
             reasons = reasons,
             checkedAtMs = System.currentTimeMillis()
         )
     }
+
+    private fun Context.isParentalEnforcementRequired(config: ParentalControlConfig): Boolean {
+        if (FamilyStore(this).appMode() != FamyrexAppMode.SUPERVISED) return false
+        if (!AccessibilityConsentStore(this).isAccepted()) return false
+
+        val screenTimeEnabled = config.screenTimeLimit?.enabled == true
+        return screenTimeEnabled || config.appRestrictions.isNotEmpty() || config.pauseSchedules.any { it.enabled }
+    }
+
+    private fun isParentalAccessibilityServiceEnabled(context: Context): Boolean = runCatching {
+        val manager = context.getSystemService(AccessibilityManager::class.java) ?: return false
+        manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            .any { service ->
+                val info = service.resolveInfo?.serviceInfo ?: return@any false
+                info.packageName == context.packageName &&
+                    info.name == FamyrexParentalAccessibilityService::class.java.name
+            }
+    }.getOrDefault(false)
 }
