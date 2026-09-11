@@ -21,11 +21,16 @@ import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,44 +41,79 @@ import androidx.compose.ui.unit.sp
 
 class ParentFirstSetupActivity : ComponentActivity() {
     private lateinit var googleAuth: FamyrexGoogleAuth
+    private val pairingService by lazy { FamyrexPairingService(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         googleAuth = FamyrexGoogleAuth(applicationContext)
 
+        val inviteFromIntent = intent.getStringExtra(EXTRA_PARENT_INVITE).orEmpty().trim()
         val currentUser = googleAuth.currentUser()
         if (currentUser != null) {
-            finishParentSetup(currentUser.uid, currentUser.displayName, currentUser.email)
+            if (inviteFromIntent.isNotBlank()) {
+                acceptInvitation(inviteFromIntent, currentUser.displayName, currentUser.email)
+            } else {
+                finishParentSetup(currentUser.uid, currentUser.displayName, currentUser.email)
+            }
             return
         }
 
-        render(configured = googleAuth.isConfigured())
+        render(configured = googleAuth.isConfigured(), initialInviteId = inviteFromIntent)
     }
 
-    private fun render(configured: Boolean, loading: Boolean = false, errorMessage: String? = null) {
+    private fun render(configured: Boolean, loading: Boolean = false, errorMessage: String? = null, initialInviteId: String = "") {
         setContent {
             MaterialTheme {
                 ParentGoogleSignInScreen(
                     configured = configured,
                     loading = loading,
                     errorMessage = errorMessage,
-                    onGoogle = { signInWithGoogle() },
+                    initialInviteId = initialInviteId,
+                    onGoogle = { inviteId -> signInWithGoogle(inviteId) },
                     onLater = { continueLocally() }
                 )
             }
         }
     }
 
-    private fun signInWithGoogle() {
-        render(configured = googleAuth.isConfigured(), loading = true)
+    private fun signInWithGoogle(inviteId: String) {
+        render(configured = googleAuth.isConfigured(), loading = true, initialInviteId = inviteId)
         googleAuth.signInAsParent(
             activity = this,
             scope = lifecycleScope,
             onSuccess = { user ->
-                runOnUiThread { finishParentSetup(user.uid, user.displayName, user.email) }
+                runOnUiThread {
+                    if (inviteId.isNotBlank()) {
+                        acceptInvitation(inviteId, user.displayName, user.email)
+                    } else {
+                        finishParentSetup(user.uid, user.displayName, user.email)
+                    }
+                }
             },
             onError = { message ->
-                runOnUiThread { render(googleAuth.isConfigured(), errorMessage = message) }
+                runOnUiThread { render(googleAuth.isConfigured(), errorMessage = message, initialInviteId = inviteId) }
+            }
+        )
+    }
+
+    private fun acceptInvitation(inviteId: String, displayName: String?, email: String?) {
+        render(configured = googleAuth.isConfigured(), loading = true, initialInviteId = inviteId)
+        val resolvedName = displayName?.trim().orEmpty()
+            .ifBlank { email?.substringBefore('@').orEmpty().ifBlank { "Adulto autorizado" } }
+        pairingService.acceptParentInvite(
+            inviteId = inviteId,
+            displayName = resolvedName,
+            onSuccess = { familyId ->
+                getSharedPreferences("famyrex_family", MODE_PRIVATE).edit()
+                    .putBoolean("parent_setup_completed", true)
+                    .putString("cloud_family_id", familyId)
+                    .putString("google_parent_uid", googleAuth.currentUser()?.uid.orEmpty())
+                    .putString("google_parent_email", email.orEmpty())
+                    .apply()
+                runOnUiThread { openPremium() }
+            },
+            onError = { message ->
+                runOnUiThread { render(googleAuth.isConfigured(), errorMessage = message, initialInviteId = inviteId) }
             }
         )
     }
@@ -117,6 +157,10 @@ class ParentFirstSetupActivity : ComponentActivity() {
         startActivity(Intent(this, PremiumMainActivity::class.java))
         finish()
     }
+
+    companion object {
+        const val EXTRA_PARENT_INVITE = "parent_invite_id"
+    }
 }
 
 @Composable
@@ -124,11 +168,13 @@ private fun ParentGoogleSignInScreen(
     configured: Boolean,
     loading: Boolean = false,
     errorMessage: String? = null,
-    onGoogle: () -> Unit,
+    initialInviteId: String = "",
+    onGoogle: (inviteId: String) -> Unit,
     onLater: () -> Unit
 ) {
     val navy = Color(0xFF071B3A)
     val surface = Color(0xFFF5F8FC)
+    var inviteId by remember(initialInviteId) { mutableStateOf(initialInviteId) }
 
     Column(
         Modifier.fillMaxSize().background(surface).navigationBarsPadding().padding(22.dp),
@@ -139,7 +185,7 @@ private fun ParentGoogleSignInScreen(
         Spacer(Modifier.size(12.dp))
         Text("Tu cuenta de adulto", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = navy)
         Text(
-            "Inicia sesión con Google para crear y administrar tu familia Famyrex.",
+            "Inicia sesión con Google para crear o unirte a una familia Famyrex.",
             textAlign = TextAlign.Center,
             color = Color(0xFF64748B),
             fontSize = 15.sp
@@ -159,13 +205,22 @@ private fun ParentGoogleSignInScreen(
                     color = Color(0xFF64748B),
                     fontSize = 13.sp
                 )
+                OutlinedTextField(
+                    value = inviteId,
+                    onValueChange = { inviteId = it.filter { char -> char.isDigit() || char.lowercaseChar() in 'a'..'f' }.take(64) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Identificador de invitación (opcional)") },
+                    supportingText = { Text("Si te ha invitado otro adulto, pega aquí el identificador que te ha entregado.") },
+                    singleLine = true,
+                    enabled = !loading
+                )
                 Button(
-                    onClick = onGoogle,
+                    onClick = { onGoogle(inviteId.trim()) },
                     enabled = configured && !loading,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(if (loading) "Conectando con Google…" else "Continuar con Google", fontWeight = FontWeight.Bold)
+                    Text(if (loading) "Conectando…" else if (inviteId.isBlank()) "Crear mi familia con Google" else "Aceptar invitación con Google", fontWeight = FontWeight.Bold)
                 }
 
                 if (!configured) {
@@ -187,7 +242,7 @@ private fun ParentGoogleSignInScreen(
 
         Spacer(Modifier.size(14.dp))
         Text(
-            "Más adelante podrás invitar a otro adulto a la misma familia con su propia cuenta de Google.",
+            "Una invitación de adulto es temporal y solo puede utilizarse una vez.",
             textAlign = TextAlign.Center,
             color = Color(0xFF64748B),
             fontSize = 12.sp
