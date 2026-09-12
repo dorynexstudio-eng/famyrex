@@ -13,7 +13,7 @@ import org.robolectric.RobolectricTestRunner
 class FamilyRemoteCommandExecutorTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
-    private fun identity(deviceId: String, memberId: String, familyId: String) = FamyrexDeviceIdentity(
+    private fun testIdentity(deviceId: String, memberId: String, familyId: String) = FamyrexDeviceIdentity(
         deviceId = deviceId,
         famyrexMemberId = memberId,
         familyId = familyId,
@@ -26,7 +26,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `accepted command changes local policy and replay is rejected`() {
         clearState()
-        val identity = identity("device-1", "member-1", "family-1")
+        val identity = testIdentity("device-1", "member-1", "family-1")
         val command = FamilyControlCommand(
             commandId = "cmd-1", familyId = "family-1", memberId = "member-1", deviceId = "device-1",
             action = FamilyControlAction.BLOCK_APP, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
@@ -46,7 +46,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `remote lock is applied and unlock clears it`() {
         clearState()
-        val identity = identity("device-lock", "member-lock", "family-lock")
+        val identity = testIdentity("device-lock", "member-lock", "family-lock")
         val executor = FamilyRemoteCommandExecutor(context)
 
         val lock = FamilyControlCommand(
@@ -64,7 +64,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `remote extra time is accumulated for the current day`() {
         clearState()
-        val identity = identity("device-extra", "member-extra", "family-extra")
+        val identity = testIdentity("device-extra", "member-extra", "family-extra")
         val executor = FamilyRemoteCommandExecutor(context)
         val command = FamilyControlCommand(
             commandId = "cmd-extra", familyId = "family-extra", memberId = "member-extra", deviceId = "device-extra",
@@ -80,7 +80,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `invalid extra time is rejected and not consumed`() {
         clearState()
-        val identity = identity("device-extra-invalid", "member-extra-invalid", "family-extra-invalid")
+        val identity = testIdentity("device-extra-invalid", "member-extra-invalid", "family-extra-invalid")
         val command = FamilyControlCommand(
             commandId = "cmd-extra-invalid", familyId = "family-extra-invalid", memberId = "member-extra-invalid", deviceId = "device-extra-invalid",
             action = FamilyControlAction.GRANT_EXTRA_TIME, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
@@ -95,7 +95,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `replayed lock command is rejected without changing state twice`() {
         clearState()
-        val identity = identity("device-replay", "member-replay", "family-replay")
+        val identity = testIdentity("device-replay", "member-replay", "family-replay")
         val command = FamilyControlCommand(
             commandId = "cmd-lock-replay", familyId = "family-replay", memberId = "member-replay", deviceId = "device-replay",
             action = FamilyControlAction.LOCK_DEVICE, issuedAtMs = 1_000L, expiresAtMs = 10_000L
@@ -113,7 +113,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `sync policy accepts nullable fields and multiple apps`() {
         clearState()
-        val identity = identity("device-sync", "member-sync", "family-sync")
+        val identity = testIdentity("device-sync", "member-sync", "family-sync")
         val snapshot = DevicePolicySnapshot(
             deviceId = "device-sync",
             dailyLimitMinutes = null,
@@ -144,7 +144,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `sync policy rejects snapshot for another device`() {
         clearState()
-        val identity = identity("device-real", "member-1", "family-1")
+        val identity = testIdentity("device-real", "member-1", "family-1")
         val snapshot = DevicePolicySnapshot(deviceId = "device-other", revision = 1L)
         val command = FamilyControlCommand(
             commandId = "cmd-wrong-device", familyId = "family-1", memberId = "member-1", deviceId = "device-real",
