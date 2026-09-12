@@ -27,7 +27,8 @@ class UsageCumulativeSnapshotStore(context: Context) {
 
     fun save(dateKey: String, snapshot: UsageCumulativeSnapshot) {
         val updated = (load(dateKey) + snapshot)
-            .distinctBy { it.timestampMs }
+            .associateBy { it.timestampMs }
+            .values
             .sortedBy { it.timestampMs }
             .takeLast(96)
 
