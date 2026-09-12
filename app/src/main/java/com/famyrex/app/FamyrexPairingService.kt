@@ -100,13 +100,17 @@ class FamyrexPairingService(context: Context) {
 
     fun createParentInvite(
         familyId: String,
+        invitedEmail: String,
         onSuccess: (inviteId: String, expiresAtMs: Long) -> Unit,
         onError: (String) -> Unit
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
+        val email = invitedEmail.trim().lowercase()
+        if (!validEmail(email)) { onError("Introduce una dirección de Gmail válida."); return }
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para invitar a otro adulto."); return }
-        functions().getHttpsCallable("createSecureParentInvite").call(hashMapOf("familyId" to familyId))
+        functions().getHttpsCallable("createSecureParentInvite")
+            .call(hashMapOf("familyId" to familyId, "invitedEmail" to email))
             .addOnSuccessListener { result ->
                 val data = result.data as? Map<*, *>
                 val inviteId = data?.get("inviteId") as? String
@@ -130,6 +134,9 @@ class FamyrexPairingService(context: Context) {
                 if (resolvedFamilyId.isNullOrBlank()) onError("Firebase no confirmó la incorporación a la familia.") else onSuccess(resolvedFamilyId)
             }.addOnFailureListener { onError(it.toUserMessage()) }
     }
+
+    private fun validEmail(email: String): Boolean =
+        email.length <= 254 && Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email)
 
     private fun Throwable.toUserMessage(): String {
         val firebase = this as? FirebaseFunctionsException
