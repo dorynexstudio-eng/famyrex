@@ -18,7 +18,10 @@ service cloud.firestore {
     match /families/{familyId}/members/{memberUid} {
       allow read: if memberExists(familyId);
       allow create: if signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com' && memberUid == request.auth.uid && request.resource.data.uid == memberUid && request.resource.data.role == 'parent' && get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid;
-      allow update: if isParent(familyId) && request.resource.data.uid == resource.data.uid && request.resource.data.role == resource.data.role;
+      allow update: if isParent(familyId) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName']);
       allow delete: if isParent(familyId) && memberUid != resource.data.uid;
 
       match /location/{locationId} {
