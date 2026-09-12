@@ -120,6 +120,26 @@ class FamyrexPairingService(context: Context) {
             }.addOnFailureListener { onError(it.toUserMessage()) }
     }
 
+    /** Backward-compatible path for existing family UI; new callers should bind the invite to an email. */
+    fun createParentInvite(
+        familyId: String,
+        onSuccess: (inviteId: String, expiresAtMs: Long) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para invitar a otro adulto."); return }
+        functions().getHttpsCallable("createSecureParentInvite")
+            .call(hashMapOf("familyId" to familyId))
+            .addOnSuccessListener { result ->
+                val data = result.data as? Map<*, *>
+                val inviteId = data?.get("inviteId") as? String
+                val expiresAtMs = (data?.get("expiresAtMs") as? Number)?.toLong()
+                if (inviteId.isNullOrBlank() || expiresAtMs == null) onError("Firebase devolvió una invitación de adulto incompleta.")
+                else onSuccess(inviteId, expiresAtMs)
+            }.addOnFailureListener { onError(it.toUserMessage()) }
+    }
+
     fun acceptParentInvite(
         inviteId: String, displayName: String,
         onSuccess: (familyId: String) -> Unit, onError: (String) -> Unit
