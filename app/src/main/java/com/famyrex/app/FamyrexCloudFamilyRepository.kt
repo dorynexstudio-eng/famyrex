@@ -36,7 +36,7 @@ class FamyrexCloudFamilyRepository(context: Context) {
             db.document("families/$cachedId/members/${user.uid}")
                 .get()
                 .addOnSuccessListener { member ->
-                    if (member.exists() && member.data()?.get("role") == "parent") {
+                    if (member.exists() && member.getString("role") == "parent") {
                         onSuccess(cachedId)
                     } else {
                         prefs.edit().remove("cloud_family_id").apply()
