@@ -26,7 +26,7 @@ export const createSecureParentInvite = onCall(async (request) => {
   const familyId = String(request.data?.familyId ?? "").trim();
   const invitedEmail = normalizeEmail(request.data?.invitedEmail);
   if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
-  if (!validEmail(invitedEmail)) throw new HttpsError("invalid-argument", "Introduce una dirección de Gmail válida.");
+  if (invitedEmail && !validEmail(invitedEmail)) throw new HttpsError("invalid-argument", "La dirección de Gmail no es válida.");
 
   const parentRef = db.doc(`families/${familyId}/members/${parentUid}`);
   const familyRef = db.doc(`families/${familyId}`);
@@ -42,13 +42,13 @@ export const createSecureParentInvite = onCall(async (request) => {
     inviteId,
     familyId,
     createdByUid: parentUid,
-    invitedEmail,
+    ...(invitedEmail ? { invitedEmail } : {}),
     createdAt: Timestamp.now(),
     expiresAt,
     status: "active",
   });
 
-  return { inviteId, expiresAtMs: expiresAt.toMillis(), invitedEmail };
+  return { inviteId, expiresAtMs: expiresAt.toMillis(), invitedEmail: invitedEmail || null };
 });
 
 export const acceptSecureParentInvite = onCall(async (request) => {
