@@ -17,8 +17,8 @@ function normalizeEmail(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function validEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+function validGmail(email: string): boolean {
+  return /^[^\s@]+@gmail\.com$/.test(email) && email.length <= 254;
 }
 
 export const createSecureParentInvite = onCall(async (request) => {
@@ -26,7 +26,7 @@ export const createSecureParentInvite = onCall(async (request) => {
   const familyId = String(request.data?.familyId ?? "").trim();
   const invitedEmail = normalizeEmail(request.data?.invitedEmail);
   if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
-  if (invitedEmail && !validEmail(invitedEmail)) throw new HttpsError("invalid-argument", "La dirección de Gmail no es válida.");
+  if (invitedEmail && !validGmail(invitedEmail)) throw new HttpsError("invalid-argument", "La dirección debe ser una cuenta de Gmail válida.");
 
   const parentRef = db.doc(`families/${familyId}/members/${parentUid}`);
   const familyRef = db.doc(`families/${familyId}`);
@@ -93,6 +93,15 @@ export const acceptSecureParentInvite = onCall(async (request) => {
     const freshInvite = await tx.get(inviteRef);
     if (!freshInvite.exists || freshInvite.data()?.status !== "active") {
       throw new HttpsError("already-exists", "La invitación ya ha sido utilizada.");
+    }
+    const freshExpiresAt = freshInvite.data()?.expiresAt as Timestamp | undefined;
+    const freshInvitedEmail = normalizeEmail(freshInvite.data()?.invitedEmail);
+    const currentEmail = normalizeEmail(request.auth?.token?.email);
+    if (!freshExpiresAt || freshExpiresAt.toMillis() <= Date.now()) {
+      throw new HttpsError("deadline-exceeded", "La invitación de adulto ha caducado.");
+    }
+    if (freshInvitedEmail && currentEmail !== freshInvitedEmail) {
+      throw new HttpsError("permission-denied", "Esta invitación está vinculada a otra cuenta de Google.");
     }
     tx.set(memberRef, {
       uid: newParentUid,
