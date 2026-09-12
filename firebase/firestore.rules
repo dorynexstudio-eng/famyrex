@@ -77,10 +77,14 @@ service cloud.firestore {
           request.resource.data.keys().hasOnly(['deviceId', 'memberId', 'action', 'acceptedAtMs', 'completedAtMs', 'success', 'reason']) &&
           request.resource.data.deviceId == deviceId &&
           request.resource.data.memberId is string &&
+          request.resource.data.memberId == get(/databases/$(database)/documents/families/$(familyId)/commands/$(commandId)).data.memberId &&
           request.resource.data.action is string &&
+          request.resource.data.action == get(/databases/$(database)/documents/families/$(familyId)/commands/$(commandId)).data.action &&
           request.resource.data.acceptedAtMs is int &&
           request.resource.data.completedAtMs is int &&
-          request.resource.data.success is bool;
+          request.resource.data.completedAtMs >= request.resource.data.acceptedAtMs &&
+          request.resource.data.success is bool &&
+          (!request.resource.data.keys().hasAny(['reason']) || request.resource.data.reason == null || request.resource.data.reason is string);
         allow update, delete: if false;
       }
     }
