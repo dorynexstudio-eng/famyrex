@@ -47,10 +47,10 @@ class AiSummaryStore(context: Context) {
                         val title = item.optString("title")
                         val summary = item.optString("summary")
                         val confidenceValue = item.opt("confidence")
-                        val confidence = when (confidenceValue) {
-                            is Number -> confidenceValue.toInt().coerceIn(0, 100)
-                            else -> throw IllegalArgumentException("invalid confidence")
-                        }
+                        val confidence = (confidenceValue as? Number)
+                            ?.toInt()
+                            ?.coerceIn(0, 100)
+                            ?: throw IllegalArgumentException("invalid confidence")
                         val signals = mutableListOf<String>()
                         val signalArray = item.optJSONArray("supportingSignals")
                         if (signalArray != null) {
