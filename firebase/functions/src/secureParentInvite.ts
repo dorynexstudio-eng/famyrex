@@ -13,10 +13,20 @@ function requireGoogleAdult(request: any): string {
   return request.auth.uid;
 }
 
+function normalizeEmail(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function validEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+}
+
 export const createSecureParentInvite = onCall(async (request) => {
   const parentUid = requireGoogleAdult(request);
   const familyId = String(request.data?.familyId ?? "").trim();
+  const invitedEmail = normalizeEmail(request.data?.invitedEmail);
   if (!familyId) throw new HttpsError("invalid-argument", "Falta el identificador de familia.");
+  if (!validEmail(invitedEmail)) throw new HttpsError("invalid-argument", "Introduce una dirección de Gmail válida.");
 
   const parentRef = db.doc(`families/${familyId}/members/${parentUid}`);
   const familyRef = db.doc(`families/${familyId}`);
@@ -32,12 +42,13 @@ export const createSecureParentInvite = onCall(async (request) => {
     inviteId,
     familyId,
     createdByUid: parentUid,
+    invitedEmail,
     createdAt: Timestamp.now(),
     expiresAt,
     status: "active",
   });
 
-  return { inviteId, expiresAtMs: expiresAt.toMillis() };
+  return { inviteId, expiresAtMs: expiresAt.toMillis(), invitedEmail };
 });
 
 export const acceptSecureParentInvite = onCall(async (request) => {
@@ -54,11 +65,17 @@ export const acceptSecureParentInvite = onCall(async (request) => {
 
   const data = invite.data()!;
   const familyId = String(data.familyId ?? "").trim();
+  const invitedEmail = normalizeEmail(data.invitedEmail);
   const expiresAt = data.expiresAt as Timestamp | undefined;
   if (!familyId || !expiresAt) throw new HttpsError("internal", "La invitación está incompleta.");
   if (expiresAt.toMillis() <= Date.now()) {
     await inviteRef.update({ status: "expired" });
     throw new HttpsError("deadline-exceeded", "La invitación de adulto ha caducado.");
+  }
+
+  const authenticatedEmail = normalizeEmail(request.auth?.token?.email);
+  if (invitedEmail && authenticatedEmail !== invitedEmail) {
+    throw new HttpsError("permission-denied", "Esta invitación está vinculada a otra cuenta de Google.");
   }
 
   const familyRef = db.doc(`families/${familyId}`);
