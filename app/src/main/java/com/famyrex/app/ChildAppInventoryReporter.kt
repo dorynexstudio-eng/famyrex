@@ -35,7 +35,7 @@ object ChildAppInventoryReporter {
         val recentlyPublished = now - prefs.getLong(KEY_LAST_PUBLISHED_MS, 0L) < REFRESH_INTERVAL_MS
         if (unchanged && recentlyPublished) return
 
-        val familyId = identity.familyId ?: return
+        val familyId = identity.familyId
         val payload = mapOf(
             "uid" to user.uid,
             "memberUid" to user.uid,
