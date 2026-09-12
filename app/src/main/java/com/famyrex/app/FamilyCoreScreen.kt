@@ -94,8 +94,17 @@ fun FamilyCoreScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Adultos autorizados", style = MaterialTheme.typography.titleMedium)
                     adults.forEach { adult -> Text("👑 ${adult.displayName} · ${if (adult.role == FamilyRole.OWNER) "Administrador" else "Adulto autorizado"}") }
-                    OutlinedTextField(adultName, { adultName = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del segundo padre/madre") })
-                    Button(enabled = adultName.isNotBlank() && !adultInviteLoading, onClick = {
+                    OutlinedTextField(
+                        adultName,
+                        { adultName = it },
+                        Modifier.fillMaxWidth(),
+                        label = { Text(if (cloudFamilyId.isNullOrBlank()) "Nombre del segundo padre/madre" else "Gmail del segundo padre/madre") },
+                        supportingText = if (!cloudFamilyId.isNullOrBlank()) ({ Text("Usa una cuenta @gmail.com. La invitación quedará vinculada a ese Gmail y solo podrá aceptarla esa cuenta.") }) else null,
+                        singleLine = true
+                    )
+                    val cloudAdultEmail = adultName.trim().lowercase()
+                    val cloudAdultEmailValid = cloudAdultEmail.length <= 254 && Regex("^[^\\s@]+@gmail\\.com$").matches(cloudAdultEmail)
+                    Button(enabled = adultName.isNotBlank() && !adultInviteLoading && (cloudFamilyId.isNullOrBlank() || cloudAdultEmailValid), onClick = {
                         val name = adultName.trim()
                         if (cloudFamilyId.isNullOrBlank()) {
                             store.addAdult(name)
@@ -107,12 +116,13 @@ fun FamilyCoreScreen(
                             adultInviteLoading = true
                             pairingService.createParentInvite(
                                 familyId = cloudFamilyId,
+                                invitedEmail = cloudAdultEmail,
                                 onSuccess = { inviteId, expiresAtMs ->
                                     adultName = ""
                                     adultInviteId = inviteId
                                     adultInviteExpiresAtMs = expiresAtMs
                                     adultInviteLoading = false
-                                    message = "Invitación segura de adulto generada. Entrégale el identificador para que inicie sesión con Google y la acepte."
+                                    message = "Invitación segura enviada a la identidad Gmail indicada. El adulto deberá iniciar sesión con esa cuenta de Google para aceptarla."
                                 },
                                 onError = { error ->
                                     adultInviteLoading = false
@@ -121,7 +131,7 @@ fun FamilyCoreScreen(
                             )
                         }
                     }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (adultInviteLoading) "Generando invitación…" else if (cloudFamilyId.isNullOrBlank()) "Añadir adulto" else "Generar invitación de adulto")
+                        Text(if (adultInviteLoading) "Generando invitación…" else if (cloudFamilyId.isNullOrBlank()) "Añadir adulto" else "Invitar por Gmail")
                     }
                     if (!cloudFamilyId.isNullOrBlank()) {
                         Text("En una familia cloud no se crea un adulto solo en el dispositivo: la incorporación se hace mediante una invitación segura del backend.", style = MaterialTheme.typography.bodySmall)
