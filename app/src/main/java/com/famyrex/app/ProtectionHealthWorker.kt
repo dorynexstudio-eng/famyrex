@@ -32,7 +32,8 @@ class ProtectionHealthWorker(
         transitions.forEach { event ->
             val critical = event.component.key == "notifications" ||
                 (event.component.key == "location" && FamilyZoneStore(context).load().any { it.enabled }) ||
-                event.component.key == "geofences"
+                event.component.key == "geofences" ||
+                event.component.key == "parental_controls"
 
             when (event.transition) {
                 ProtectionTransition.DEGRADED -> {
