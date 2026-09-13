@@ -16,6 +16,12 @@ object ProtectionComponentChecker {
         val locationReady = health.reasons.none { it.contains("ubicación necesaria") || it.contains("segundo plano") }
         val notificationsReady = health.reasons.none { it.contains("notificaciones") }
         val listenerReady = CommunicationMonitoringSettings.isNotificationListenerEnabled(context)
+        val parentalConfig = ParentalControlStore(context).load()
+        val parentalEnforcementRequired = context.isParentalEnforcementRequiredForComponents(parentalConfig)
+        val parentalReasons = health.reasons.filter {
+            it.contains("control parental") || it.contains("acceso al uso de aplicaciones")
+        }
+        val parentalReady = parentalEnforcementRequired && parentalReasons.isEmpty()
 
         return listOf(
             ProtectionComponent(
@@ -35,9 +41,31 @@ object ProtectionComponentChecker {
                 if (listenerReady) "El análisis autorizado de notificaciones está disponible y no conserva el texto original." else "La supervisión transparente de notificaciones no está activada."
             ),
             ProtectionComponent(
+                "parental_controls", "Control parental de aplicaciones",
+                when {
+                    !parentalEnforcementRequired -> ProtectionComponentStatus.NOT_CONFIGURED
+                    parentalReady -> ProtectionComponentStatus.ACTIVE
+                    else -> ProtectionComponentStatus.DEGRADED
+                },
+                when {
+                    !parentalEnforcementRequired -> "No hay límites, restricciones o pausas parentales activos que requieran este componente."
+                    parentalReady -> "El servicio de accesibilidad y el acceso al uso de aplicaciones necesarios para aplicar las reglas están disponibles."
+                    else -> "El control parental no está completamente disponible; revisa la accesibilidad y el acceso al uso de aplicaciones."
+                }
+            ),
+            ProtectionComponent(
                 "periodic_check", "Comprobación periódica", ProtectionComponentStatus.ACTIVE,
                 "Famyrex ejecuta comprobaciones periódicas de salud y señales disponibles."
             )
         )
+    }
+
+    private fun android.content.Context.isParentalEnforcementRequiredForComponents(config: ParentalControlConfig): Boolean {
+        if (FamilyStore(this).appMode() != FamyrexAppMode.SUPERVISED) return false
+        if (!AccessibilityConsentStore(this).isAccepted()) return false
+
+        return config.screenTimeLimit?.enabled == true ||
+            config.appRestrictions.isNotEmpty() ||
+            config.pauseSchedules.any { it.enabled }
     }
 }
