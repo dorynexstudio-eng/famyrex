@@ -73,7 +73,7 @@ class FamyrexParentalAccessibilityService : AccessibilityService() {
         }
         val monitor = ParentalUsageMonitor(this)
         if (!monitor.hasUsageAccess()) {
-            removeBlockingOverlay()
+            showBlockingOverlay(targetPackage, listOf("La supervisión necesita que el acceso al uso de aplicaciones esté activado."))
             return
         }
 
