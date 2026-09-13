@@ -163,6 +163,10 @@ class FamilyStore(context: Context) {
         // This is a security-critical boundary: wait until the identity/mode reset is
         // durably written before returning, so a process death cannot leave the old
         // verified enrollment temporarily restorable.
+        val cloudProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
+        val cloudDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
+        val remainingProfiles = profiles().filterNot { it.id in cloudProfileIds }
+        val remainingDevices = devices().filterNot { it.id in cloudDeviceIds }
         prefs.edit()
             .remove("verified_family_id")
             .remove("verified_family_secret")
@@ -170,8 +174,13 @@ class FamilyStore(context: Context) {
             .remove("verified_family_fingerprint")
             .remove("verified_family_at_ms")
             .remove("supervised_child_profile_id")
+            .remove(KEY_CLOUD_PROFILE_IDS)
+            .remove(KEY_CLOUD_DEVICE_IDS)
+            .putString("profiles", profilesJson(remainingProfiles).toString())
+            .putString("devices", devicesJson(remainingDevices).toString())
             .putString("app_mode", FamyrexAppMode.PARENT.name)
             .commit()
+        syncDashboardFamily()
         ExtraTimeAllowanceStore(appContext).clear()
         AppApprovalStore(appContext).clear()
         AccessibilityConsentStore(appContext).clear()
@@ -180,15 +189,23 @@ class FamilyStore(context: Context) {
     }
 
     private fun saveProfiles(items: List<FamilyProfile>) {
-        val a = JSONArray()
-        items.forEach { a.put(JSONObject().apply { put("id", it.id); put("displayName", it.displayName); put("role", it.role.name); put("createdAtMs", it.createdAtMs); put("guardianProfileIds", JSONArray(it.guardianProfileIds)) }) }
-        prefs.edit().putString("profiles", a.toString()).apply(); syncDashboardFamily()
+        prefs.edit().putString("profiles", profilesJson(items).toString()).apply(); syncDashboardFamily()
     }
 
     private fun saveDevices(items: List<FamilyDevice>) {
+        prefs.edit().putString("devices", devicesJson(items).toString()).apply(); syncDashboardFamily()
+    }
+
+    private fun profilesJson(items: List<FamilyProfile>): JSONArray {
+        val a = JSONArray()
+        items.forEach { a.put(JSONObject().apply { put("id", it.id); put("displayName", it.displayName); put("role", it.role.name); put("createdAtMs", it.createdAtMs); put("guardianProfileIds", JSONArray(it.guardianProfileIds)) }) }
+        return a
+    }
+
+    private fun devicesJson(items: List<FamilyDevice>): JSONArray {
         val a = JSONArray()
         items.forEach { a.put(JSONObject().apply { put("id", it.id); put("displayName", it.displayName); put("ownerProfileId", it.ownerProfileId); put("linkState", it.linkState.name); put("linkedAtMs", it.linkedAtMs ?: 0L) }) }
-        prefs.edit().putString("devices", a.toString()).apply(); syncDashboardFamily()
+        return a
     }
 
     private fun syncDashboardFamily() {
