@@ -2,6 +2,7 @@ package com.famyrex.app
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -39,5 +40,20 @@ class AppApprovalStoreTest {
 
         assertTrue(AppApprovalStore(context).isApproved(packageName))
         AppApprovalStore(context).revoke(packageName)
+    }
+
+    @Test
+    fun `new approval is rejected when the package cap is already full`() {
+        val store = AppApprovalStore(context)
+        store.clear()
+
+        repeat(100) { index ->
+            assertTrue(store.approve("com.example.approved$index"))
+        }
+
+        assertEquals(100, store.approvedPackages().size)
+        assertFalse(store.approve("com.example.approved100"))
+        assertFalse(store.isApproved("com.example.approved100"))
+        assertEquals(100, store.approvedPackages().size)
     }
 }
