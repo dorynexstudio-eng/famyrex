@@ -19,6 +19,8 @@ class AppApprovalStore(context: Context) {
     fun approve(packageName: String): Boolean {
         if (!isValidPackageName(packageName)) return false
         val packages = loadApprovedPackages().toMutableSet()
+        if (packageName in packages) return true
+        if (packages.size >= MAX_PACKAGES) return false
         packages.add(packageName)
         return persist(packages)
     }
