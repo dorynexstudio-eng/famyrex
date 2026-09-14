@@ -12,6 +12,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class FamilyRemoteCommandExecutorPolicySyncTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private fun executor() = FamilyRemoteCommandExecutor(context) { null }
 
     @Test
     fun `remote sync policy is decoded and applied`() {
@@ -41,7 +42,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
             value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
-        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        val receipt = executor().execute(command, identity, nowMs = 2_000L)
         val config = ParentalControlStore(context).load()
 
         assertTrue(receipt.success)
@@ -74,7 +75,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
             value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
-        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        val receipt = executor().execute(command, identity, nowMs = 2_000L)
 
         assertFalse(receipt.success)
         assertTrue(receipt.reason.orEmpty().contains("deviceId"))
