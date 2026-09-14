@@ -26,7 +26,7 @@ class FamilyRemoteCommandExecutorTest {
     private fun executor() = FamilyRemoteCommandExecutor(context) { null }
 
     @Test
-    fun `accepted command changes local policy and replay is rejected`() {
+    fun `accepted command changes local policy and replay is idempotently acknowledged`() {
         clearState()
         val identity = testIdentity("device-1", "member-1", "family-1")
         val command = FamilyControlCommand(
@@ -40,7 +40,7 @@ class FamilyRemoteCommandExecutorTest {
         val second = executor.execute(command, identity, nowMs = 3_000L)
 
         assertTrue(first.success)
-        assertFalse(second.success)
+        assertTrue(second.success)
         assertTrue(second.reason.orEmpty().contains("procesado"))
         assertTrue(ParentalControlStore(context).load().appRestrictions.any { it.packageName == "com.example.app" && it.blocked })
     }
@@ -95,7 +95,7 @@ class FamilyRemoteCommandExecutorTest {
     }
 
     @Test
-    fun `replayed lock command is rejected without changing state twice`() {
+    fun `replayed lock command is idempotently acknowledged without changing state twice`() {
         clearState()
         val identity = testIdentity("device-replay", "member-replay", "family-replay")
         val command = FamilyControlCommand(
@@ -108,7 +108,8 @@ class FamilyRemoteCommandExecutorTest {
         val second = executor.execute(command, identity, nowMs = 3_000L)
 
         assertTrue(first.success)
-        assertFalse(second.success)
+        assertTrue(second.success)
+        assertTrue(second.reason.orEmpty().contains("procesado"))
         assertTrue(DeviceEmergencyLockStore(context).isLocked(identity.deviceId))
     }
 
