@@ -23,6 +23,8 @@ class FamilyRemoteCommandExecutorTest {
         isSupervised = true
     )
 
+    private fun executor() = FamilyRemoteCommandExecutor(context) { null }
+
     @Test
     fun `accepted command changes local policy and replay is rejected`() {
         clearState()
@@ -33,7 +35,7 @@ class FamilyRemoteCommandExecutorTest {
             value = "com.example.app"
         )
 
-        val executor = FamilyRemoteCommandExecutor(context)
+        val executor = executor()
         val first = executor.execute(command, identity, nowMs = 2_000L)
         val second = executor.execute(command, identity, nowMs = 3_000L)
 
@@ -47,7 +49,7 @@ class FamilyRemoteCommandExecutorTest {
     fun `remote lock is applied and unlock clears it`() {
         clearState()
         val identity = testIdentity("device-lock", "member-lock", "family-lock")
-        val executor = FamilyRemoteCommandExecutor(context)
+        val executor = executor()
 
         val lock = FamilyControlCommand(
             commandId = "cmd-lock", familyId = "family-lock", memberId = "member-lock", deviceId = "device-lock",
@@ -65,7 +67,7 @@ class FamilyRemoteCommandExecutorTest {
     fun `remote extra time is accumulated for the current day`() {
         clearState()
         val identity = testIdentity("device-extra", "member-extra", "family-extra")
-        val executor = FamilyRemoteCommandExecutor(context)
+        val executor = executor()
         val command = FamilyControlCommand(
             commandId = "cmd-extra", familyId = "family-extra", memberId = "member-extra", deviceId = "device-extra",
             action = FamilyControlAction.GRANT_EXTRA_TIME, issuedAtMs = 1_000L, expiresAtMs = 10_000L,
@@ -87,7 +89,7 @@ class FamilyRemoteCommandExecutorTest {
             value = "0"
         )
 
-        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        val receipt = executor().execute(command, identity, nowMs = 2_000L)
         assertFalse(receipt.success)
         assertEquals(0, ExtraTimeAllowanceStore(context).grantedMinutes())
     }
@@ -100,7 +102,7 @@ class FamilyRemoteCommandExecutorTest {
             commandId = "cmd-lock-replay", familyId = "family-replay", memberId = "member-replay", deviceId = "device-replay",
             action = FamilyControlAction.LOCK_DEVICE, issuedAtMs = 1_000L, expiresAtMs = 10_000L
         )
-        val executor = FamilyRemoteCommandExecutor(context)
+        val executor = executor()
 
         val first = executor.execute(command, identity, nowMs = 2_000L)
         val second = executor.execute(command, identity, nowMs = 3_000L)
@@ -132,7 +134,7 @@ class FamilyRemoteCommandExecutorTest {
             value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
-        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        val receipt = executor().execute(command, identity, nowMs = 2_000L)
         val stored = ParentalControlStore(context).load()
 
         assertTrue(receipt.success)
@@ -152,7 +154,7 @@ class FamilyRemoteCommandExecutorTest {
             value = DevicePolicySnapshotCodec.encode(snapshot)
         )
 
-        val receipt = FamilyRemoteCommandExecutor(context).execute(command, identity, nowMs = 2_000L)
+        val receipt = executor().execute(command, identity, nowMs = 2_000L)
         assertFalse(receipt.success)
         assertTrue(receipt.reason.orEmpty().contains("no coincide"))
     }
