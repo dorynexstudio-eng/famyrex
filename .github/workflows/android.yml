@@ -33,7 +33,7 @@ jobs:
       - name: Validate Firebase Functions
         working-directory: firebase/functions
         run: |
-          npm ci
+          npm install --ignore-scripts
           npm run lint
 
       - name: Set up Gradle
