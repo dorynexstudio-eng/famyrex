@@ -56,9 +56,9 @@ class FamilyRemoteCommandExecutorTest {
         val unlock = lock.copy(commandId = "cmd-unlock", action = FamilyControlAction.UNLOCK_DEVICE)
 
         assertTrue(executor.execute(lock, identity, nowMs = 2_000L).success)
-        assertTrue(DeviceEmergencyLockStore(context).isLocked())
+        assertTrue(DeviceEmergencyLockStore(context).isLocked(identity.deviceId))
         assertTrue(executor.execute(unlock, identity, nowMs = 3_000L).success)
-        assertFalse(DeviceEmergencyLockStore(context).isLocked())
+        assertFalse(DeviceEmergencyLockStore(context).isLocked(identity.deviceId))
     }
 
     @Test
@@ -107,7 +107,7 @@ class FamilyRemoteCommandExecutorTest {
 
         assertTrue(first.success)
         assertFalse(second.success)
-        assertTrue(DeviceEmergencyLockStore(context).isLocked())
+        assertTrue(DeviceEmergencyLockStore(context).isLocked(identity.deviceId))
     }
 
     @Test
