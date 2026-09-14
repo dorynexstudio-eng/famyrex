@@ -7,7 +7,10 @@ import com.google.firebase.auth.FirebaseAuth
  * Single entry point for executing a remote family command on this device.
  * Transport code (Firestore/FCM) decodes the payload and delegates here.
  */
-class FamilyRemoteCommandExecutor(context: Context) {
+class FamilyRemoteCommandExecutor(
+    context: Context,
+    private val preflightOverride: ((FamyrexDeviceIdentity) -> String?)? = null
+) {
     private val appContext = context.applicationContext
     private val gate = FamilyCommandGate(appContext)
     private val policyStore = ParentalControlStore(appContext)
@@ -20,7 +23,7 @@ class FamilyRemoteCommandExecutor(context: Context) {
         identity: FamyrexDeviceIdentity,
         nowMs: Long = System.currentTimeMillis()
     ): FamilyControlReceipt = synchronized(EXECUTION_LOCK) {
-        val preflightFailure = supervisedPreflightFailure(identity)
+        val preflightFailure = (preflightOverride ?: ::supervisedPreflightFailure)(identity)
         if (preflightFailure != null) {
             return@synchronized receipt(command, nowMs, preflightFailure)
         }
@@ -28,9 +31,6 @@ class FamilyRemoteCommandExecutor(context: Context) {
         val gateResult = gate.check(command, identity, nowMs)
         if (gateResult.status != CommandGateStatus.ACCEPTED) {
             return@synchronized if (gateResult.status == CommandGateStatus.REPLAY) {
-                // A replay means this exact command already completed successfully. Report it
-                // as successful so recovery after a lost receipt cannot overwrite a real success
-                // with a misleading failure when the queue retries the same command.
                 receiptSuccess(command, nowMs, gateResult.reason)
             } else {
                 receipt(command, nowMs, gateResult.reason)
