@@ -114,6 +114,21 @@ class FamilyRemoteCommandExecutorTest {
     }
 
     @Test
+    fun `expired command is rejected without consuming or changing state`() {
+        clearState()
+        val identity = testIdentity("device-expired", "member-expired", "family-expired")
+        val command = FamilyControlCommand(
+            commandId = "cmd-expired", familyId = "family-expired", memberId = "member-expired", deviceId = "device-expired",
+            action = FamilyControlAction.LOCK_DEVICE, issuedAtMs = 1_000L, expiresAtMs = 2_000L
+        )
+
+        val receipt = executor().execute(command, identity, nowMs = 2_001L)
+
+        assertFalse(receipt.success)
+        assertFalse(DeviceEmergencyLockStore(context).isLocked(identity.deviceId))
+    }
+
+    @Test
     fun `sync policy accepts nullable fields and multiple apps`() {
         clearState()
         val identity = testIdentity("device-sync", "member-sync", "family-sync")
