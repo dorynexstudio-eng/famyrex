@@ -98,6 +98,10 @@ class CommunicationRiskIncidentStore(context: Context) {
         val raw = prefs.getString("items", null) ?: return emptyList()
         return parseRiskIncidentsJson(raw)
     }
+
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
 }
 
 internal fun parseRiskIncidentsJson(raw: String): List<CommunicationRiskIncident> {
