@@ -3,9 +3,6 @@ package com.famyrex.app
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.Manifest
-import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
@@ -59,5 +56,10 @@ class GeofenceManager(private val context: Context) {
         client.removeGeofences(listOf(zoneId))
             .addOnSuccessListener { onResult(true, null) }
             .addOnFailureListener { onResult(false, it.message) }
+    }
+
+    /** Removes every geofence registered by Famyrex through its shared PendingIntent. */
+    fun clearAll() {
+        client.removeGeofences(pendingIntent)
     }
 }
