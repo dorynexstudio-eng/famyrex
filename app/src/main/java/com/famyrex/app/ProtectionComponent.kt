@@ -19,7 +19,9 @@ object ProtectionComponentChecker {
         val parentalConfig = ParentalControlStore(context).load()
         val parentalEnforcementRequired = context.isParentalEnforcementRequiredForComponents(parentalConfig)
         val parentalReasons = health.reasons.filter {
-            it.contains("control parental") || it.contains("acceso al uso de aplicaciones")
+            it.contains("control parental") ||
+                it.contains("acceso al uso de aplicaciones") ||
+                it.contains("autorización del control parental")
         }
         val parentalReady = parentalEnforcementRequired && parentalReasons.isEmpty()
 
@@ -50,7 +52,7 @@ object ProtectionComponentChecker {
                 when {
                     !parentalEnforcementRequired -> "No hay límites, restricciones o pausas parentales activos que requieran este componente."
                     parentalReady -> "El servicio de accesibilidad y el acceso al uso de aplicaciones necesarios para aplicar las reglas están disponibles."
-                    else -> "El control parental no está completamente disponible; revisa la accesibilidad y el acceso al uso de aplicaciones."
+                    else -> "El control parental no está completamente disponible; revisa la autorización, la accesibilidad y el acceso al uso de aplicaciones."
                 }
             ),
             ProtectionComponent(
@@ -62,7 +64,6 @@ object ProtectionComponentChecker {
 
     private fun android.content.Context.isParentalEnforcementRequiredForComponents(config: ParentalControlConfig): Boolean {
         if (FamilyStore(this).appMode() != FamyrexAppMode.SUPERVISED) return false
-        if (!AccessibilityConsentStore(this).isAccepted()) return false
 
         return config.screenTimeLimit?.enabled == true ||
             config.appRestrictions.isNotEmpty() ||
