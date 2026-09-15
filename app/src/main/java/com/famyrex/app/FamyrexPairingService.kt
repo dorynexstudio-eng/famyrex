@@ -14,6 +14,20 @@ class FamyrexPairingService(context: Context) {
 
     private fun functions(): FirebaseFunctions = FirebaseFunctions.getInstance(FirebaseApp.getInstance(), "europe-west1")
 
+    private fun openParentInviteEmail(email: String, inviteId: String, expiresAtMs: Long): Boolean {
+        val expiryText = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(expiresAtMs))
+        val intent = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:${Uri.encode(email)}")
+            putExtra(Intent.EXTRA_SUBJECT, "Invitación a tu familia en Famyrex")
+            putExtra(Intent.EXTRA_TEXT, "Hola,\n\nTe han invitado a unirte como adulto autorizado a una familia en Famyrex.\n\nIdentificador de invitación: $inviteId\nCaduca: $expiryText\n\nAbre Famyrex, inicia sesión con esta misma cuenta de Google y acepta la invitación usando el identificador anterior.\n\nEste mensaje se ha preparado desde Famyrex; el envío final lo confirma tu aplicación de correo.")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return runCatching {
+            appContext.startActivity(Intent.createChooser(intent, "Enviar invitación por correo").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        }.getOrDefault(false)
+    }
+
     fun createPendingChildProfile(
         familyId: String,
         displayName: String,
@@ -106,7 +120,7 @@ class FamyrexPairingService(context: Context) {
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
         val email = invitedEmail.trim().lowercase()
-        if (!validEmail(email)) { onError("Introduce una dirección de Gmail válida."); return }
+        if (!validGmail(email)) { onError("Introduce una dirección de Gmail válida."); return }
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para invitar a otro adulto."); return }
         functions().getHttpsCallable("createSecureParentInvite")
@@ -116,7 +130,7 @@ class FamyrexPairingService(context: Context) {
                 val inviteId = data?.get("inviteId") as? String
                 val expiresAtMs = (data?.get("expiresAtMs") as? Number)?.toLong()
                 if (inviteId.isNullOrBlank() || expiresAtMs == null) onError("Firebase devolvió una invitación de adulto incompleta.")
-                else onSuccess(inviteId, expiresAtMs)
+                else { openParentInviteEmail(email, inviteId, expiresAtMs); onSuccess(inviteId, expiresAtMs) }
             }.addOnFailureListener { onError(it.toUserMessage()) }
     }
 
@@ -135,8 +149,7 @@ class FamyrexPairingService(context: Context) {
                 val data = result.data as? Map<*, *>
                 val inviteId = data?.get("inviteId") as? String
                 val expiresAtMs = (data?.get("expiresAtMs") as? Number)?.toLong()
-                if (inviteId.isNullOrBlank() || expiresAtMs == null) onError("Firebase devolvió una invitación de adulto incompleta.")
-                else onSuccess(inviteId, expiresAtMs)
+                if (inviteId.isNullOrBlank() || expiresAtMs == null) onError("Firebase devolvió una invitación de adulto incompleta.") else onSuccess(inviteId, expiresAtMs)
             }.addOnFailureListener { onError(it.toUserMessage()) }
     }
 
@@ -155,8 +168,8 @@ class FamyrexPairingService(context: Context) {
             }.addOnFailureListener { onError(it.toUserMessage()) }
     }
 
-    private fun validEmail(email: String): Boolean =
-        email.length <= 254 && Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email)
+    private fun validGmail(email: String): Boolean =
+        email.length <= 254 && Regex("^[^\\s@]+@gmail\\.com$").matches(email)
 
     private fun Throwable.toUserMessage(): String {
         val firebase = this as? FirebaseFunctionsException
