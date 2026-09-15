@@ -33,8 +33,8 @@ object ProtectionComponentChecker {
                 when { !zones -> "No hay geozonas activas que vigilar."; locationReady -> "Los permisos necesarios para las geozonas están disponibles."; else -> "Revisa los permisos de ubicación para mantener la vigilancia de las geozonas." }
             ),
             ProtectionComponent(
-                "geofences", "Geozonas", if (zones && locationReady) ProtectionComponentStatus.ACTIVE else ProtectionComponentStatus.NOT_CONFIGURED,
-                if (zones && locationReady) "Las geozonas configuradas pueden vigilarse." else "Configura una geozona y los permisos de ubicación para activarla."
+                "geofences", "Geozonas", when { !zones -> ProtectionComponentStatus.NOT_CONFIGURED; locationReady -> ProtectionComponentStatus.ACTIVE; else -> ProtectionComponentStatus.DEGRADED },
+                when { !zones -> "No hay geozonas activas que vigilar."; locationReady -> "Las geozonas configuradas pueden vigilarse."; else -> "Hay geozonas configuradas, pero los permisos de ubicación no permiten mantener su vigilancia." }
             ),
             ProtectionComponent(
                 "communications", "Señales de comunicación", if (listenerReady) ProtectionComponentStatus.ACTIVE else ProtectionComponentStatus.NOT_CONFIGURED,
