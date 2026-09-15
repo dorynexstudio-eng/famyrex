@@ -122,7 +122,7 @@ fun FamilyCoreScreen(
                                     adultInviteId = inviteId
                                     adultInviteExpiresAtMs = expiresAtMs
                                     adultInviteLoading = false
-                                    message = "Invitación segura enviada a la identidad Gmail indicada. El adulto deberá iniciar sesión con esa cuenta de Google para aceptarla."
+                                    message = "Invitación creada y vinculada a $cloudAdultEmail. Se ha abierto el correo para preparar el envío; el envío final lo confirma Gmail."
                                 },
                                 onError = { error ->
                                     adultInviteLoading = false
@@ -137,9 +137,10 @@ fun FamilyCoreScreen(
                         Text("En una familia cloud no se crea un adulto solo en el dispositivo: la incorporación se hace mediante una invitación segura del backend.", style = MaterialTheme.typography.bodySmall)
                     }
                     if (adultInviteId.isNotBlank()) {
-                        Text("Identificador de invitación", style = MaterialTheme.typography.labelLarge)
-                        Text(adultInviteId, style = MaterialTheme.typography.bodyMedium)
-                        Text("Compártelo solo con el adulto invitado. Caduca en aproximadamente ${((adultInviteExpiresAtMs?.minus(System.currentTimeMillis()) ?: 0L).coerceAtLeast(0L) / 3_600_000L) + 1} h.", style = MaterialTheme.typography.bodySmall)
+                        Text("Invitación pendiente", style = MaterialTheme.typography.labelLarge)
+                        Text("🟠 $adultInviteId", style = MaterialTheme.typography.bodyMedium)
+                        Text("La invitación permanece activa en Firebase hasta que se acepte o caduque. El adulto debe iniciar sesión con el mismo Gmail indicado.", style = MaterialTheme.typography.bodySmall)
+                        Text("Caduca en aproximadamente ${((adultInviteExpiresAtMs?.minus(System.currentTimeMillis()) ?: 0L).coerceAtLeast(0L) / 3_600_000L) + 1} h.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
