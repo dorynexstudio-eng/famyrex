@@ -27,7 +27,12 @@ fun DeviceSecurityCard(context: android.content.Context, modifier: Modifier = Mo
     val lifecycleOwner = LocalLifecycleOwner.current
 
     fun refresh() {
-        snapshot = DeviceSecurityStore(context).load()
+        // Recompute the live state instead of only reading the last worker snapshot.
+        // This prevents the card from showing stale "GOOD" after a permission is revoked
+        // while the screen is open or before the periodic worker runs again.
+        val current = DeviceSecurityChecker(context).check()
+        DeviceSecurityStore(context).save(current)
+        snapshot = current
     }
 
     LaunchedEffect(Unit) { refresh() }
