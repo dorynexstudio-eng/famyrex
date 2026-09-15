@@ -59,4 +59,8 @@ class FamilyZoneStore(context: Context) {
         }
         prefs.edit().putString("zones", a.toString()).apply()
     }
+
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
 }
