@@ -180,6 +180,18 @@ class FamilyStore(context: Context) {
             .putString("devices", devicesJson(remainingDevices).toString())
             .putString("app_mode", FamyrexAppMode.PARENT.name)
             .commit()
+
+        // Unlink is also the lifecycle boundary for location protection: remove the
+        // Android registrations first and then erase the local family-specific state,
+        // including the legacy zone mirror so the next bootstrap cannot recreate it.
+        GeofenceManager(appContext).clearAll()
+        FamilyZoneStore(appContext).clear()
+        GeofenceEventStore(appContext).clear()
+        appContext.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .remove("geo_zones")
+            .apply()
+
         syncDashboardFamily()
         ExtraTimeAllowanceStore(appContext).clear()
         AppApprovalStore(appContext).clear()
