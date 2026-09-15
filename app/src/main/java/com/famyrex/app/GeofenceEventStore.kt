@@ -46,4 +46,8 @@ class GeofenceEventStore(context: Context) {
             }
         }.getOrDefault(emptyList())
     }
+
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
 }
