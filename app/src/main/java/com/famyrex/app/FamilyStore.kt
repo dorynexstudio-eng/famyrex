@@ -192,6 +192,11 @@ class FamilyStore(context: Context) {
             .remove("geo_zones")
             .apply()
 
+        // Communication monitoring and its stored incidents are family-specific state.
+        // A new family enrollment must not inherit consent or historical risk data.
+        CommunicationMonitoringConsentStore(appContext).clear()
+        CommunicationRiskIncidentStore(appContext).clear()
+
         syncDashboardFamily()
         ExtraTimeAllowanceStore(appContext).clear()
         AppApprovalStore(appContext).clear()
