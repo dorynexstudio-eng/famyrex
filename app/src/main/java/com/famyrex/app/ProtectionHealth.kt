@@ -54,11 +54,15 @@ object ProtectionHealthChecker {
 
         val parentalConfig = ParentalControlStore(context).load()
         if (context.isParentalEnforcementRequired(parentalConfig)) {
-            if (!isParentalAccessibilityServiceEnabled(context)) {
-                reasons += "El control parental de aplicaciones no está disponible; el servicio de accesibilidad está desactivado."
-            }
-            if (!ParentalUsageMonitor(context).hasUsageAccess()) {
-                reasons += "El acceso al uso de aplicaciones está desactivado; Famyrex no puede aplicar correctamente los límites de tiempo."
+            if (!AccessibilityConsentStore(context).isAccepted()) {
+                reasons += "La autorización del control parental no está aceptada; Famyrex no puede aplicar las reglas configuradas."
+            } else {
+                if (!isParentalAccessibilityServiceEnabled(context)) {
+                    reasons += "El control parental de aplicaciones no está disponible; el servicio de accesibilidad está desactivado."
+                }
+                if (!ParentalUsageMonitor(context).hasUsageAccess()) {
+                    reasons += "El acceso al uso de aplicaciones está desactivado; Famyrex no puede aplicar correctamente los límites de tiempo."
+                }
             }
         }
 
@@ -71,7 +75,6 @@ object ProtectionHealthChecker {
 
     private fun Context.isParentalEnforcementRequired(config: ParentalControlConfig): Boolean {
         if (FamilyStore(this).appMode() != FamyrexAppMode.SUPERVISED) return false
-        if (!AccessibilityConsentStore(this).isAccepted()) return false
 
         val screenTimeEnabled = config.screenTimeLimit?.enabled == true
         return screenTimeEnabled || config.appRestrictions.isNotEmpty() || config.pauseSchedules.any { it.enabled }
