@@ -30,6 +30,11 @@ class AiSummaryStore(context: Context) {
         return parse(raw)
     }
 
+    /** Removes the last family member-specific analysis so another enrollment cannot inherit it. */
+    fun clear() {
+        prefs.edit().remove("latest").commit()
+    }
+
     companion object {
         internal fun parse(raw: String): AiDailySummary? {
             val root = try {
