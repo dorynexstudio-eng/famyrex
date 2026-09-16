@@ -29,6 +29,11 @@ class DeviceSecurityStore(context: Context) {
         return parse(raw)
     }
 
+    /** Removes the previous enrollment's security snapshot at a family/session boundary. */
+    fun clear() {
+        prefs.edit().remove("latest").commit()
+    }
+
     companion object {
         private val REQUIRED_KEYS = listOf(
             "timestampMs", "androidVersion", "sdkInt", "debuggable", "secureLock",
