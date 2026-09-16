@@ -160,9 +160,7 @@ class FamilyStore(context: Context) {
     }
 
     fun clearVerifiedFamilyIdentity() {
-        // This is a security-critical boundary: wait until the identity/mode reset is
-        // durably written before returning, so a process death cannot leave the old
-        // verified enrollment temporarily restorable.
+        // Security boundary: persist the identity and mode reset before returning.
         val cloudProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
         val cloudDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
         val remainingProfiles = profiles().filterNot { it.id in cloudProfileIds }
@@ -176,33 +174,39 @@ class FamilyStore(context: Context) {
             .remove("supervised_child_profile_id")
             .remove(KEY_CLOUD_PROFILE_IDS)
             .remove(KEY_CLOUD_DEVICE_IDS)
+            .remove("cloud_family_id")
+            .remove("google_parent_uid")
+            .remove("google_parent_email")
+            .remove("parent_setup_completed")
+            .remove("role_selected")
             .putString("profiles", profilesJson(remainingProfiles).toString())
             .putString("devices", devicesJson(remainingDevices).toString())
             .putString("app_mode", FamyrexAppMode.PARENT.name)
             .commit()
 
-        // Unlink is also the lifecycle boundary for location protection: remove the
-        // Android registrations first and then erase the local family-specific state,
-        // including the legacy zone mirror so the next bootstrap cannot recreate it.
         GeofenceManager(appContext).clearAll()
         FamilyZoneStore(appContext).clear()
         GeofenceEventStore(appContext).clear()
         appContext.getSharedPreferences("famyrex_prefs", Context.MODE_PRIVATE)
             .edit()
             .remove("geo_zones")
+            .remove("parent_name")
+            .remove("child_name")
+            .remove("link_code")
             .apply()
 
-        // Communication monitoring and its stored incidents are family-specific state.
-        // A new family enrollment must not inherit consent or historical risk data.
         CommunicationMonitoringConsentStore(appContext).clear()
         CommunicationRiskIncidentStore(appContext).clear()
-
-        syncDashboardFamily()
         ExtraTimeAllowanceStore(appContext).clear()
         AppApprovalStore(appContext).clear()
         AccessibilityConsentStore(appContext).clear()
         DeviceEmergencyLockStore(appContext).clear()
         FamilyCommandGate(appContext).clear()
+        FamilyAgreementStore(appContext).clear()
+        ParentalControlStore(appContext).clear()
+        AlertStore(appContext).clear()
+        AiSummaryStore(appContext).clear()
+        DeviceSecurityStore(appContext).clear()
     }
 
     private fun saveProfiles(items: List<FamilyProfile>) {
