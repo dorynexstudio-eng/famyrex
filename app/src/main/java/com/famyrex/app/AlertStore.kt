@@ -72,6 +72,11 @@ class AlertStore(context: Context) {
         return parseAlertsJson(raw)
     }
 
+    /** Removes family-specific alerts and delivery history at an enrollment boundary. */
+    fun clear() {
+        prefs.edit().clear().commit()
+    }
+
     fun isNotificationDelivered(alertId: String): Boolean =
         alertId in loadDeliveredIds()
 
