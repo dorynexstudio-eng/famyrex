@@ -163,8 +163,11 @@ class FamilyStore(context: Context) {
         // Security boundary: persist the identity and mode reset before returning.
         val cloudProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
         val cloudDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
-        val remainingProfiles = profiles().filterNot { it.id in cloudProfileIds }
-        val remainingDevices = devices().filterNot { it.id in cloudDeviceIds }
+        // Also remove generated local profile/device records. These can predate the
+        // cloud mirror tracking keys, so relying only on the tracked IDs could leave
+        // legacy local members available to the next enrollment on this installation.
+        val remainingProfiles = profiles().filterNot { it.id in cloudProfileIds || it.id.startsWith("profile-") }
+        val remainingDevices = devices().filterNot { it.id in cloudDeviceIds || it.id.startsWith("device-") }
         prefs.edit()
             .remove("verified_family_id")
             .remove("verified_family_secret")
