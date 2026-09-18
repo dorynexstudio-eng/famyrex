@@ -55,6 +55,11 @@ class FamilyStore(context: Context) {
      * previous/legacy local mirror entries are removed; supervised secrets and other prefs remain untouched.
      */
     fun applyCloudFamilySnapshot(snapshot: FamilySnapshot) {
+        // Ignore late Firestore responses from a family that is no longer the
+        // active local enrollment. This closes the async callback race where an
+        // old snapshot could otherwise repopulate members after unlink/re-enroll.
+        val activeFamilyId = prefs.getString("cloud_family_id", null)?.trim()
+        if (snapshot.familyId.isBlank() || activeFamilyId != snapshot.familyId) return
         val previousProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
         val previousDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
         val currentProfiles = profiles().filterNot { it.id in previousProfileIds || it.id.startsWith("profile-") }.toMutableList()
