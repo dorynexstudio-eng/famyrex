@@ -21,6 +21,7 @@ class AiAnalysisWorker(
 
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return Result.success()
         val historyStore = UsageSnapshotStore(context)
         val intervals = UsageIntervalStore(context).load(
             SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
