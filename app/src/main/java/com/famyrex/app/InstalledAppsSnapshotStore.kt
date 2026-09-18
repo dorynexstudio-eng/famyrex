@@ -21,6 +21,8 @@ class InstalledAppsSnapshotStore(context: Context) {
         }.getOrDefault(emptySet())
     }
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun save(packages: Set<String>) {
         val array = JSONArray()
         packages.sorted().forEach(array::put)
