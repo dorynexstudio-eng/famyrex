@@ -7,6 +7,8 @@ import org.json.JSONObject
 class UsageCumulativeSnapshotStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_usage_cumulative", Context.MODE_PRIVATE)
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun load(dateKey: String): List<UsageCumulativeSnapshot> {
         val raw = prefs.getString(dateKey, null) ?: return emptyList()
         return runCatching {
