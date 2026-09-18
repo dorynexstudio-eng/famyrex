@@ -228,7 +228,6 @@ class FamilyStore(context: Context) {
         HourlyUsageSnapshotStore(appContext).clear()
         ReportStore(appContext).clear()
         ProtectionHealthStore(appContext).clear()
-        ProtectionIncidentStore(appContext).clear()
         ProtectionWatchdog(appContext).clear()
     }
 
