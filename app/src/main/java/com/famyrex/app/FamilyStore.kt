@@ -115,6 +115,15 @@ class FamilyStore(context: Context) {
         return profile
     }
 
+    /** True only while this installation has a complete, locally verified supervised enrollment. */
+    fun isSupervisedEnrollmentActive(): Boolean {
+        if (appMode() != FamyrexAppMode.SUPERVISED) return false
+        val identity = verifiedFamilyIdentity() ?: return false
+        val childId = supervisedChildProfileId() ?: return false
+        if (identity.familyId.isBlank() || identity.verifiedAtMs <= 0L) return false
+        return devices().any { it.ownerProfileId == childId && it.linkState == DeviceLinkState.LINKED }
+    }
+
     fun supervisedChildProfileId(): String? = prefs.getString("supervised_child_profile_id", null)?.trim()?.takeIf { it.isNotBlank() }
     fun supervisedChild(): FamilyProfile? = supervisedChildProfileId()?.let { id -> profiles().firstOrNull { it.id == id && it.role == FamilyRole.CHILD } }
 
