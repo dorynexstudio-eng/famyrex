@@ -18,6 +18,23 @@ object FamyrexWorkScheduler {
     private const val FAMILY_LOCATION_WORK = "famyrex_family_location_sync"
     private const val DEVICE_TOKEN_WORK = "famyrex_device_token_registration"
 
+    /** Cancels every family/monitoring worker during unlink or account reset. */
+    fun cancelFamilyScopedWork(context: Context) {
+        val workManager = WorkManager.getInstance(context.applicationContext)
+        listOf(
+            PROTECTION_WORK,
+            DEVICE_SECURITY_WORK,
+            HOURLY_USAGE_WORK,
+            REPORT_WORK,
+            AI_ANALYSIS_WORK,
+            REMOTE_COMMAND_WORK,
+            FAMILY_LOCATION_WORK,
+            DEVICE_TOKEN_WORK,
+            "famyrex_usage_periodic",
+            "famyrex_ai_analysis"
+        ).forEach(workManager::cancelUniqueWork)
+    }
+
     fun scheduleProtectionHealth(context: Context) {
         val appContext = context.applicationContext
         GeofenceBootstrap.sync(appContext)
