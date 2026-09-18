@@ -16,6 +16,8 @@ class ProtectionSettingsStore(context: Context) {
         )
     )
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun save(settings: ProtectionSettings) {
         val safe = normalize(settings)
         prefs.edit()
