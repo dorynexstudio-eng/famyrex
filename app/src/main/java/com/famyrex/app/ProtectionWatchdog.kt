@@ -22,6 +22,8 @@ class ProtectionWatchdog(context: Context) {
             .apply()
     }
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun lastSuccessMs(): Long? =
         if (prefs.contains(KEY_LAST_SUCCESS)) prefs.getLong(KEY_LAST_SUCCESS, 0L) else null
 
