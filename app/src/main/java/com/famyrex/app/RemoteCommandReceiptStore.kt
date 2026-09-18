@@ -17,6 +17,8 @@ class RemoteCommandReceiptStore(context: Context) {
             .apply()
     }
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun load(): FamilyControlReceipt? {
         val commandId = prefs.getString(KEY_COMMAND_ID, null) ?: return null
         val action = runCatching { FamilyControlAction.valueOf(prefs.getString(KEY_ACTION, "")!!) }.getOrNull() ?: return null
