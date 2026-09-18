@@ -11,6 +11,9 @@ import java.util.Locale
 class AppChangeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val packageName = intent.data?.schemeSpecificPart ?: return
+        // Package changes are a supervised-device signal; never create family alerts
+        // while this installation is not currently enrolled as a supervised device.
+        if (!FamilyStore(context.applicationContext).isSupervisedEnrollmentActive()) return
         if (packageName == context.packageName) return
 
         // Android emits these while replacing/updating an app. Do not report an update as
