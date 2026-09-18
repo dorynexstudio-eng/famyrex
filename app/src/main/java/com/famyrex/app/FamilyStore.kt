@@ -171,6 +171,7 @@ class FamilyStore(context: Context) {
     fun clearVerifiedFamilyIdentity() {
         // Stop queued/running family work before clearing its identity and data.
         FamyrexWorkScheduler.cancelFamilyScopedWork(appContext)
+        FamilyDeviceTokenRegistrar.clear(appContext)
 
         // Security boundary: persist the identity and mode reset before returning.
         val cloudProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
