@@ -169,6 +169,9 @@ class FamilyStore(context: Context) {
     }
 
     fun clearVerifiedFamilyIdentity() {
+        // Stop queued/running family work before clearing its identity and data.
+        FamyrexWorkScheduler.cancelFamilyScopedWork(appContext)
+
         // Security boundary: persist the identity and mode reset before returning.
         val cloudProfileIds = parseStringSet(prefs.getString(KEY_CLOUD_PROFILE_IDS, null))
         val cloudDeviceIds = parseStringSet(prefs.getString(KEY_CLOUD_DEVICE_IDS, null))
@@ -219,6 +222,14 @@ class FamilyStore(context: Context) {
         AlertStore(appContext).clear()
         AiSummaryStore(appContext).clear()
         DeviceSecurityStore(appContext).clear()
+        UsageSnapshotStore(appContext).clear()
+        UsageIntervalStore(appContext).clear()
+        UsageCumulativeSnapshotStore(appContext).clear()
+        HourlyUsageSnapshotStore(appContext).clear()
+        ReportStore(appContext).clear()
+        ProtectionHealthStore(appContext).clear()
+        ProtectionIncidentStore(appContext).clear()
+        ProtectionWatchdog(appContext).clear()
     }
 
     private fun saveProfiles(items: List<FamilyProfile>) {
