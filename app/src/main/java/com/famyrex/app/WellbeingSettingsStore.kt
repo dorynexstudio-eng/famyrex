@@ -16,6 +16,8 @@ class WellbeingSettingsStore(context: Context) {
         }.getOrDefault(WellbeingGoal.BALANCED_USE)
     )
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun save(settings: WellbeingSettings) {
         prefs.edit()
             .putLong("dailyGoal", settings.dailyGoalMinutes.coerceIn(30L, 1440L))
