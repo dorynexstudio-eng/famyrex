@@ -15,6 +15,8 @@ class ProtectionHealthStore(context: Context) {
         prefs.edit().putString("latest", json.toString()).apply()
     }
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun load(): ProtectionHealth? {
         val raw = prefs.getString("latest", null) ?: return null
         return runCatching {
