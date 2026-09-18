@@ -11,6 +11,7 @@ class ReportWorker(
 
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return Result.success()
         val history = UsageSnapshotStore(context).loadHistory()
         val alerts = AlertStore(context).load()
 
