@@ -8,6 +8,8 @@ import java.time.LocalDate
 class ReportStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_reports", Context.MODE_PRIVATE)
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun save(report: UsageReport) {
         val obj = JSONObject().apply {
             put("period", report.period.name)
