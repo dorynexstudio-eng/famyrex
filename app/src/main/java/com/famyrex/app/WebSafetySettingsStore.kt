@@ -13,6 +13,8 @@ class WebSafetySettingsStore(context: Context) {
         allowedDomains = prefs.getStringSet("allowedDomains", emptySet())?.map(::normalizeHost)?.toSet().orEmpty()
     )
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun save(settings: WebSafetySettings) {
         prefs.edit()
             .putBoolean("enabled", settings.enabled)
