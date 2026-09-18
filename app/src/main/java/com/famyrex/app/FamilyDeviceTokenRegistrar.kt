@@ -43,6 +43,15 @@ object FamilyDeviceTokenRegistrar {
             .apply()
     }
 
+    /** Removes the locally cached delivery token when the family enrollment ends. */
+    fun clear(context: Context) {
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_FCM_TOKEN)
+            .commit()
+    }
+
     fun rememberedToken(context: Context): String? =
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
