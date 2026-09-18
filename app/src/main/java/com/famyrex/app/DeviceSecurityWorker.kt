@@ -10,6 +10,7 @@ class DeviceSecurityWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runCatching {
+        if (!FamilyStore(applicationContext).isSupervisedEnrollmentActive()) return Result.success()
         val snapshot = DeviceSecurityChecker(applicationContext).check()
         DeviceSecurityStore(applicationContext).save(snapshot)
         Result.success()
