@@ -25,6 +25,9 @@ class RemoteCommandAuditStore(context: Context) {
         prefs.edit().putString(KEY_ITEMS, trimmed.toString()).apply()
     }
 
+    @Synchronized
+    fun clear() { prefs.edit().clear().commit() }
+
     fun recent(limit: Int = 20): List<RemoteCommandAuditEntry> {
         val items = JSONArray(prefs.getString(KEY_ITEMS, "[]"))
         val start = (items.length() - limit.coerceIn(1, MAX_ENTRIES)).coerceAtLeast(0)
