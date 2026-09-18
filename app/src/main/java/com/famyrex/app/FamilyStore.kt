@@ -230,6 +230,13 @@ class FamilyStore(context: Context) {
         ReportStore(appContext).clear()
         ProtectionHealthStore(appContext).clear()
         ProtectionWatchdog(appContext).clear()
+        InstalledAppsSnapshotStore(appContext).clear()
+        PairingCodeStore(appContext).clear()
+        RemoteCommandAuditStore(appContext).clear()
+        RemoteCommandReceiptStore(appContext).clear()
+        ProtectionSettingsStore(appContext).clear()
+        WebSafetySettingsStore(appContext).clear()
+        WellbeingSettingsStore(appContext).clear()
     }
 
     private fun saveProfiles(items: List<FamilyProfile>) {
