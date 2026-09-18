@@ -43,6 +43,8 @@ class HourlyUsageSnapshotStore(private val context: Context) {
         prefs.edit().putString("history", array.toString()).apply()
     }
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun loadHistory(): List<HourlyUsageSnapshot> =
         prefs.getString("history", null)?.let(::parseHistory).orEmpty()
 
