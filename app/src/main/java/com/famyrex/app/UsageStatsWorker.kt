@@ -10,6 +10,7 @@ import java.time.LocalTime
 class UsageStatsWorker(appContext: Context, workerParams: WorkerParameters) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result = try {
         val context = applicationContext
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return Result.success()
         val zone = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
         val today = LocalDate.now(zone)
