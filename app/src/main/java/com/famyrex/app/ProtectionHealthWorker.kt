@@ -13,6 +13,7 @@ class ProtectionHealthWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return Result.success()
         val alertStore = AlertStore(context)
         GeofenceBootstrap.sync(context)
         InstalledAppsReconciler.reconcile(context)
