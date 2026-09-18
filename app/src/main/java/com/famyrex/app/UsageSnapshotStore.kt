@@ -44,6 +44,8 @@ class UsageSnapshotStore(private val context: Context) {
             .apply()
     }
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun loadHistory(): List<DailyUsage> {
         val raw = prefs.getString("history", null) ?: return emptyList()
         return parseHistory(raw)
