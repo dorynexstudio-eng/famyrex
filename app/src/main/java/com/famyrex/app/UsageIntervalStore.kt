@@ -7,6 +7,8 @@ import org.json.JSONObject
 class UsageIntervalStore(context: Context) {
     private val prefs = context.getSharedPreferences("famyrex_usage_intervals", Context.MODE_PRIVATE)
 
+    fun clear() { prefs.edit().clear().commit() }
+
     fun load(dateKey: String): List<UsageInterval> {
         val raw = prefs.getString(dateKey, null) ?: return emptyList()
         return runCatching {
