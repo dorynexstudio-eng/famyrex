@@ -13,6 +13,7 @@ import java.util.Locale
  */
 object InstalledAppsReconciler {
     fun reconcile(context: Context) {
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return
         val store = InstalledAppsSnapshotStore(context)
         val current = visiblePackages(context)
         if (current.isEmpty()) return
