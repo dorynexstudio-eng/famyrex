@@ -12,6 +12,7 @@ class HourlyUsageWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return Result.success()
         val now = LocalDateTime.now(ZoneId.systemDefault())
         val completedHour = now.withMinute(0).withSecond(0).withNano(0).minusHours(1)
         HourlyUsageSnapshotStore(context).save(
