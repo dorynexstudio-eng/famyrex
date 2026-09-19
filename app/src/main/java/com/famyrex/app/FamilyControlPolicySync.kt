@@ -13,6 +13,16 @@ object FamilyControlPolicySync {
         }
 
         val appContext = context.applicationContext
+        // Defense in depth: policy application must be bound to the enrollment that is
+        // active at the moment of the write, not merely to a caller-provided deviceId.
+        val currentIdentity = FamilyDeviceIdentityStore(appContext).current()
+        if (currentIdentity == null || !currentIdentity.isSupervised) {
+            return failure(snapshot, now, "No existe una inscripción supervisada activa.")
+        }
+        if (currentIdentity.deviceId != snapshot.deviceId) {
+            return failure(snapshot, now, "La política no pertenece al dispositivo actualmente inscrito.")
+        }
+
         val state = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val lastRevision = state.getLong(revisionKey(snapshot.deviceId), -1L)
         if (snapshot.revision <= lastRevision) {
@@ -23,10 +33,7 @@ object FamilyControlPolicySync {
             )
         }
 
-        // Persist the complete policy synchronously before advancing the revision. This prevents
-        // the revision marker from becoming durable while the actual policy is still only queued
-        // in SharedPreferences.apply(). If the process dies afterwards, replaying the same
-        // revision remains safe and idempotent.
+        // Persist the complete policy synchronously before advancing the revision.
         val persisted = runCatching {
             ParentalControlStore(appContext)
                 .saveBlocking(DevicePolicySnapshotAdapter.toLocalConfig(snapshot))
@@ -39,9 +46,6 @@ object FamilyControlPolicySync {
             .putLong(revisionKey(snapshot.deviceId), snapshot.revision)
             .commit()
         if (!revisionPersisted) {
-            // The policy is already durable but the revision marker is not. A later delivery may
-            // replay this revision; because applying a complete snapshot is idempotent, that is
-            // preferable to reporting a successful revision that was never durably recorded.
             return failure(snapshot, now, "No se pudo guardar la revisión de la política")
         }
 
@@ -53,6 +57,15 @@ object FamilyControlPolicySync {
             success = true,
             reason = "Política sincronizada localmente"
         )
+    }
+
+    /** Removes revision markers so a later enrollment cannot inherit old policy state. */
+    fun clear(context: Context) {
+        context.applicationContext
+            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
     }
 
     private fun failure(snapshot: DevicePolicySnapshot, now: Long, reason: String) = FamilyControlReceipt(
