@@ -289,7 +289,7 @@ class FamilyStore(context: Context) {
         }
         internal fun parseDevices(raw: String?): List<FamilyDevice> {
             if (raw.isNullOrBlank()) return emptyList()
-            return runCatching { val array = JSONArray(raw); buildList { for (i in 0 until array.length()) runCatching { val o = array.getJSONObject(i); val id = o.getString("id").trim(); val displayName = o.getString("displayName").trim(); val ownerProfileId = o.getString("ownerProfileId").trim(); val linkState = DeviceLinkState.valueOf(o.getString("linkState")); val linkedAtMs = o.optLong("linkedAtMs", 0L).takeIf { it > 0L }; require(id.isNotBlank() && displayName.isNotBlank() && ownerProfileId.isNotBlank()); add(FamilyDevice(id, displayName, ownerProfileId, linkState, linkedAtMs) } } }.getOrDefault(emptyList())
+            return runCatching { val array = JSONArray(raw); buildList { for (i in 0 until array.length()) runCatching { val o = array.getJSONObject(i); val id = o.getString("id").trim(); val displayName = o.getString("displayName").trim(); val ownerProfileId = o.getString("ownerProfileId").trim(); val linkState = DeviceLinkState.valueOf(o.getString("linkState")); val linkedAtMs = o.optLong("linkedAtMs", 0L).takeIf { it > 0L }; require(id.isNotBlank() && displayName.isNotBlank() && ownerProfileId.isNotBlank()); add(FamilyDevice(id, displayName, ownerProfileId, linkState, linkedAtMs)) } } }.getOrDefault(emptyList())
         }
         internal fun parseAppMode(raw: String?): FamyrexAppMode = runCatching { FamyrexAppMode.valueOf(raw ?: FamyrexAppMode.PARENT.name) }.getOrDefault(FamyrexAppMode.PARENT)
     }
