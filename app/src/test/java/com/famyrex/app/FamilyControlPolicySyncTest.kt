@@ -15,7 +15,7 @@ class FamilyControlPolicySyncTest {
 
     @Before
     fun setUp() {
-        FamilyStore(context).clearVerifiedFamilyIdentity()
+        context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE).edit().clear().commit()
         val family = FamilyStore(context)
         val child = family.ensureSupervisedChild("child-sync", "Perfil sincronizado")
         family.addDeviceWithId("device-sync", "Dispositivo sincronizado", child.id)
