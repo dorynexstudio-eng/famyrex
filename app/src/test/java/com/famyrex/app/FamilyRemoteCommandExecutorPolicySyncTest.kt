@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,6 +14,18 @@ import org.robolectric.RobolectricTestRunner
 class FamilyRemoteCommandExecutorPolicySyncTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private fun executor() = FamilyRemoteCommandExecutor(context) { null }
+
+    @Before
+    fun setUp() {
+        FamilyStore(context).clearVerifiedFamilyIdentity()
+        val family = FamilyStore(context)
+        val child = family.ensureSupervisedChild("member-1", "Perfil infantil")
+        family.addDeviceWithId("device-sync", "Dispositivo infantil", child.id)
+        family.setDeviceState("device-sync", DeviceLinkState.LINKED)
+        val secret = "0123456789abcdef0123456789abcdef"
+        family.saveVerifiedFamilyIdentity("family-1", secret, OfflinePairingTokenCodec.fingerprint(secret))
+        family.setAppMode(FamyrexAppMode.SUPERVISED)
+    }
 
     @Test
     fun `remote sync policy is decoded and applied`() {
