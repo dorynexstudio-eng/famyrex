@@ -17,7 +17,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
 
     @Before
     fun setUp() {
-        FamilyStore(context).clearVerifiedFamilyIdentity()
+        context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE).edit().clear().commit()
         val family = FamilyStore(context)
         val child = family.ensureSupervisedChild("member-1", "Perfil infantil")
         family.addDeviceWithId("device-sync", "Dispositivo infantil", child.id)
