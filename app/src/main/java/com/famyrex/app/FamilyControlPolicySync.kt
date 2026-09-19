@@ -15,11 +15,17 @@ object FamilyControlPolicySync {
         val appContext = context.applicationContext
         // Defense in depth: policy application must be bound to the enrollment that is
         // active at the moment of the write, not merely to a caller-provided deviceId.
-        val currentIdentity = FamilyDeviceIdentityStore(appContext).current()
-        if (currentIdentity == null || !currentIdentity.isSupervised) {
+        val familyStore = FamilyStore(appContext)
+        if (!familyStore.isSupervisedEnrollmentActive()) {
             return failure(snapshot, now, "No existe una inscripción supervisada activa.")
         }
-        if (currentIdentity.deviceId != snapshot.deviceId) {
+        val supervisedChildId = familyStore.supervisedChildProfileId()
+        val currentDevice = supervisedChildId?.let { childId ->
+            familyStore.devices().firstOrNull {
+                it.ownerProfileId == childId && it.linkState == DeviceLinkState.LINKED
+            }
+        }
+        if (currentDevice?.id != snapshot.deviceId) {
             return failure(snapshot, now, "La política no pertenece al dispositivo actualmente inscrito.")
         }
 
