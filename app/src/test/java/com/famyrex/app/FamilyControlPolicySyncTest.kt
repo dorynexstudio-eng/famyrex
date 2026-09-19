@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -11,6 +12,22 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class FamilyControlPolicySyncTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun setUp() {
+        FamilyStore(context).clearVerifiedFamilyIdentity()
+        val family = FamilyStore(context)
+        val child = family.ensureSupervisedChild("child-sync", "Perfil sincronizado")
+        family.addDeviceWithId("device-sync", "Dispositivo sincronizado", child.id)
+        family.setDeviceState("device-sync", DeviceLinkState.LINKED)
+        val secret = "0123456789abcdef0123456789abcdef"
+        family.saveVerifiedFamilyIdentity(
+            "family-sync",
+            secret,
+            OfflinePairingTokenCodec.fingerprint(secret)
+        )
+        family.setAppMode(FamyrexAppMode.SUPERVISED)
+    }
 
     @Test
     fun `complete snapshot is applied to local policy`() {
