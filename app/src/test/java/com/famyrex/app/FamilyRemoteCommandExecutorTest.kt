@@ -131,6 +131,7 @@ class FamilyRemoteCommandExecutorTest {
     @Test
     fun `sync policy accepts nullable fields and multiple apps`() {
         clearState()
+        prepareSupervisedEnrollment("family-sync", "member-sync", "device-sync")
         val identity = testIdentity("device-sync", "member-sync", "family-sync")
         val snapshot = DevicePolicySnapshot(
             deviceId = "device-sync",
@@ -173,6 +174,18 @@ class FamilyRemoteCommandExecutorTest {
         val receipt = executor().execute(command, identity, nowMs = 2_000L)
         assertFalse(receipt.success)
         assertTrue(receipt.reason.orEmpty().contains("no coincide"))
+    }
+
+
+    private fun prepareSupervisedEnrollment(familyId: String, memberId: String, deviceId: String) {
+        context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE).edit().clear().commit()
+        val family = FamilyStore(context)
+        family.ensureSupervisedChild(memberId, "Perfil infantil")
+        family.addDeviceWithId(deviceId, "Dispositivo infantil", memberId)
+        family.setDeviceState(deviceId, DeviceLinkState.LINKED)
+        val secret = "0123456789abcdef0123456789abcdef"
+        family.saveVerifiedFamilyIdentity(familyId, secret, OfflinePairingTokenCodec.fingerprint(secret))
+        family.setAppMode(FamyrexAppMode.SUPERVISED)
     }
 
     private fun clearState() {
