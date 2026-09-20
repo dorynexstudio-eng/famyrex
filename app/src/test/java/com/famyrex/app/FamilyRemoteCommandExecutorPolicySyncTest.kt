@@ -17,6 +17,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
 
     @Before
     fun setUp() {
+        FamilyControlPolicySync.clear(context)
         context.getSharedPreferences("famyrex_family", Context.MODE_PRIVATE).edit().clear().commit()
         val family = FamilyStore(context)
         val child = family.ensureSupervisedChild("member-1", "Perfil infantil")
