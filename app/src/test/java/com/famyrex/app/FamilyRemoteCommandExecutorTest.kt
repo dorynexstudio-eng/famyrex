@@ -184,7 +184,7 @@ class FamilyRemoteCommandExecutorTest {
         family.addDeviceWithId(deviceId, "Dispositivo infantil", memberId)
         family.setDeviceState(deviceId, DeviceLinkState.LINKED)
         val secret = "0123456789abcdef0123456789abcdef"
-        family.saveVerifiedFamilyIdentity(familyId, secret, OfflinePairingTokenCodec.fingerprint(secret))
+        family.saveVerifiedFamilyIdentityForTest(familyId, secret, OfflinePairingTokenCodec.fingerprint(secret))
         family.setAppMode(FamyrexAppMode.SUPERVISED)
     }
 
