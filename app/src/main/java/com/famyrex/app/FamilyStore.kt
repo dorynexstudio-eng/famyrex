@@ -161,6 +161,19 @@ class FamilyStore(context: Context) {
         prefs.edit().putString("verified_family_id", familyId).putString("verified_family_secret_enc", secretProtector.encrypt(secret.lowercase())).remove("verified_family_secret").putString("verified_family_fingerprint", fingerprint.lowercase()).putLong("verified_family_at_ms", System.currentTimeMillis()).apply()
     }
 
+    /** Test-only enrollment fixture that avoids Android Keystore, which Robolectric does not provide. */
+    @androidx.annotation.VisibleForTesting
+    internal fun saveVerifiedFamilyIdentityForTest(familyId: String, secret: String, fingerprint: String) {
+        require(familyId.isNotBlank()); require(secret.length == 32); require(fingerprint.length == 12)
+        prefs.edit()
+            .putString("verified_family_id", familyId)
+            .remove("verified_family_secret_enc")
+            .putString("verified_family_secret", secret.lowercase())
+            .putString("verified_family_fingerprint", fingerprint.lowercase())
+            .putLong("verified_family_at_ms", System.currentTimeMillis())
+            .commit()
+    }
+
     fun verifiedFamilyIdentity(): VerifiedFamilyIdentity? {
         val id = prefs.getString("verified_family_id", null) ?: return null
         val fingerprint = prefs.getString("verified_family_fingerprint", null) ?: return null
