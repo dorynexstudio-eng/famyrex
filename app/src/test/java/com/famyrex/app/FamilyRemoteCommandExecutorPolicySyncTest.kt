@@ -24,7 +24,7 @@ class FamilyRemoteCommandExecutorPolicySyncTest {
         family.addDeviceWithId("device-sync", "Dispositivo infantil", child.id)
         family.setDeviceState("device-sync", DeviceLinkState.LINKED)
         val secret = "0123456789abcdef0123456789abcdef"
-        family.saveVerifiedFamilyIdentity("family-1", secret, OfflinePairingTokenCodec.fingerprint(secret))
+        family.saveVerifiedFamilyIdentityForTest("family-1", secret, OfflinePairingTokenCodec.fingerprint(secret))
         family.setAppMode(FamyrexAppMode.SUPERVISED)
     }
 
