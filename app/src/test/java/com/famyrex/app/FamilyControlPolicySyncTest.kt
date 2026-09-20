@@ -21,7 +21,7 @@ class FamilyControlPolicySyncTest {
         family.addDeviceWithId("device-sync", "Dispositivo sincronizado", child.id)
         family.setDeviceState("device-sync", DeviceLinkState.LINKED)
         val secret = "0123456789abcdef0123456789abcdef"
-        family.saveVerifiedFamilyIdentity(
+        family.saveVerifiedFamilyIdentityForTest(
             "family-sync",
             secret,
             OfflinePairingTokenCodec.fingerprint(secret)
