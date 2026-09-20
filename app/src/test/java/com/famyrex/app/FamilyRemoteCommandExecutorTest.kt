@@ -189,6 +189,7 @@ class FamilyRemoteCommandExecutorTest {
     }
 
     private fun clearState() {
+        FamilyControlPolicySync.clear(context)
         context.getSharedPreferences("famyrex_parental_controls", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("famyrex_command_gate", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("famyrex_emergency_lock", Context.MODE_PRIVATE).edit().clear().commit()
