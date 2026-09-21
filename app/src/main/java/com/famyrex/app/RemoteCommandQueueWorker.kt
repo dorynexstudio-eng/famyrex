@@ -7,59 +7,52 @@ import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
-/** Recovery path for remote commands missed by FCM while the device was offline. */
 class RemoteCommandQueueWorker(
     appContext: Context,
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val context = applicationContext
-        val identity = FamilyDeviceIdentityStore(context).current()
-            ?: return Result.success()
+        val familyStore = FamilyStore(context)
+        if (!familyStore.isSupervisedEnrollmentActive()) return Result.success()
+        val identity = FamilyDeviceIdentityStore(context).current() ?: return Result.success()
         if (!identity.isSupervised) return Result.success()
-
-        val currentUser = FirebaseAuth.getInstance().currentUser
-            ?: return Result.success()
+        val currentUser = FirebaseAuth.getInstance().currentUser ?: return Result.success()
         if (!currentUser.isAnonymous) return Result.success()
         val firebaseUid = identity.firebaseUid ?: currentUser.uid
         if (firebaseUid != currentUser.uid) return Result.success()
-
         val familyId = identity.familyId ?: return Result.success()
         val snapshot = Tasks.await(
             FirebaseFirestore.getInstance()
                 .collection("families").document(familyId).collection("commands")
                 .whereEqualTo("targetDeviceUid", firebaseUid)
                 .whereEqualTo("status", "sent")
-                // The backend creates issuedAtMs for every command. Ordering in Firestore
-                // before applying the limit guarantees that an old command cannot be
-                // starved forever by a stream of newer commands filling the first 50.
                 .orderBy("issuedAtMs")
                 .limit(50)
                 .get()
         )
-
         val executor = FamilyRemoteCommandExecutor(context)
         val receiptStore = RemoteCommandReceiptStore(context)
         val now = System.currentTimeMillis()
-        snapshot.documents
-            .asSequence()
-            .forEach { document ->
-                val command = document.toRemoteCommand() ?: return@forEach
-                if (command.familyId != familyId ||
-                    command.memberId != identity.famyrexMemberId ||
-                    command.deviceId != identity.deviceId
-                ) return@forEach
-
-                // The canonical executor handles expiry, validation and replay protection.
-                val receipt = executor.execute(command, identity, now)
-                receiptStore.save(receipt)
-
-                // Recovery must not report success locally and then silently lose the
-                // cloud receipt. If Firestore is temporarily unavailable, retry the worker.
-                RemoteCommandReceiptReporter.report(context, receipt)?.let { task ->
-                    Tasks.await(task)
-                }
+        snapshot.documents.asSequence().forEach { document ->
+            if (!familyStore.isSupervisedEnrollmentActive()) return@forEach
+            val currentIdentity = FamilyDeviceIdentityStore(context).current() ?: return@forEach
+            if (currentIdentity.familyId != familyId ||
+                currentIdentity.famyrexMemberId != identity.famyrexMemberId ||
+                currentIdentity.deviceId != identity.deviceId ||
+                currentIdentity.firebaseUid != currentUser.uid
+            ) return@forEach
+            val command = document.toRemoteCommand() ?: return@forEach
+            if (command.familyId != familyId ||
+                command.memberId != identity.famyrexMemberId ||
+                command.deviceId != identity.deviceId
+            ) return@forEach
+            val receipt = executor.execute(command, currentIdentity, now)
+            receiptStore.save(receipt)
+            RemoteCommandReceiptReporter.report(context, receipt, currentIdentity)?.let { task ->
+                Tasks.await(task)
             }
+        }
         Result.success()
     }.getOrElse { Result.retry() }
 
