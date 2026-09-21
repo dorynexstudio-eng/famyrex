@@ -5,59 +5,36 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 
-/** Registers the current device's FCM delivery token through the trusted backend. */
 object FamilyDeviceTokenRegistrar {
-    /**
-     * Returns the callable task so WorkManager can retry a transient registration failure.
-     * UI/FCM callers may safely ignore the returned task.
-     */
     fun register(context: Context, token: String? = null): Task<*>? {
         val appContext = context.applicationContext
+        if (!FamilyStore(appContext).isSupervisedEnrollmentActive()) return null
         val identity = FamilyDeviceIdentityStore(appContext).current() ?: return null
         val firebaseUid = FirebaseAuth.getInstance().currentUser?.uid ?: return null
         if (!identity.isSupervised || identity.firebaseUid != firebaseUid) return null
-
         val resolvedToken = token?.trim()?.takeIf { it.isNotBlank() }
             ?: appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_FCM_TOKEN, null)
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
+                .getString(KEY_FCM_TOKEN, null)?.trim()?.takeIf { it.isNotBlank() }
             ?: return null
-
         return FirebaseFunctions.getInstance(REGION)
             .getHttpsCallable("registerDeviceToken")
-            .call(
-                hashMapOf(
-                    "familyId" to identity.familyId.orEmpty(),
-                    "token" to resolvedToken
-                )
-            )
+            .call(hashMapOf("familyId" to identity.familyId.orEmpty(), "token" to resolvedToken))
     }
 
     fun rememberToken(context: Context, token: String) {
         if (token.isBlank()) return
-        context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_FCM_TOKEN, token)
-            .apply()
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(KEY_FCM_TOKEN, token).apply()
     }
 
-    /** Removes the locally cached delivery token when the family enrollment ends. */
     fun clear(context: Context) {
-        context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_FCM_TOKEN)
-            .commit()
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().remove(KEY_FCM_TOKEN).commit()
     }
 
     fun rememberedToken(context: Context): String? =
-        context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_FCM_TOKEN, null)
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_FCM_TOKEN, null)?.trim()?.takeIf { it.isNotBlank() }
 
     private const val REGION = "europe-west1"
     private const val PREFS = "famyrex_messaging"
