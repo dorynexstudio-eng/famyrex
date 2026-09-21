@@ -251,6 +251,7 @@ class FamilyStore(context: Context) {
         ProtectionHealthStore(appContext).clear()
         ProtectionWatchdog(appContext).clear()
         InstalledAppsSnapshotStore(appContext).clear()
+        ChildAppInventoryReporter.clear(appContext)
         PairingCodeStore(appContext).clear()
         RemoteCommandAuditStore(appContext).clear()
         RemoteCommandReceiptStore(appContext).clear()
