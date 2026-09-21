@@ -11,6 +11,8 @@ import java.util.Locale
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val appContext = context.applicationContext
+        if (!FamilyStore(appContext).isSupervisedEnrollmentActive()) return
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) return
 
