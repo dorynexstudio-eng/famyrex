@@ -32,6 +32,8 @@ object ChildDeviceStatusReporter {
             .take(MAX_REASONS)
             .toList()
 
+        if (!FamilyStore(appContext).isSupervisedEnrollmentActive()) return
+
         FirebaseFirestore.getInstance()
             .collection("families").document(familyId)
             .collection("devices").document(user.uid)
