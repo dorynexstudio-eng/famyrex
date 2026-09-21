@@ -49,11 +49,29 @@ object ChildAppInventoryReporter {
             .collection("devices").document(user.uid)
             .set(payload, SetOptions.merge())
             .addOnSuccessListener {
+                // Do not let a late cloud callback from the previous enrollment
+                // seed local cache state after unlink/re-enrollment.
+                val current = FamilyDeviceIdentityStore(appContext).current()
+                if (!FamilyStore(appContext).isSupervisedEnrollmentActive() ||
+                    current == null ||
+                    !current.isSupervised ||
+                    current.familyId != familyId ||
+                    current.firebaseUid != user.uid
+                ) return@addOnSuccessListener
                 prefs.edit()
                     .putString(KEY_FINGERPRINT, fingerprint)
                     .putLong(KEY_LAST_PUBLISHED_MS, now)
                     .apply()
             }
+    }
+
+    /** Clears inventory cache when the supervised enrollment ends. */
+    fun clear(context: Context) {
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
     }
 
     private data class InventoryApp(val packageName: String, val label: String)
