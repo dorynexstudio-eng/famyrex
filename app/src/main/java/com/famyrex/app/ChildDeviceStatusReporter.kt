@@ -18,6 +18,8 @@ object ChildDeviceStatusReporter {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         if (!user.isAnonymous) return
 
+        if (!FamilyStore(appContext).isSupervisedEnrollmentActive()) return
+
         val identity = FamilyDeviceIdentityStore(appContext).current() ?: return
         val familyId = identity.familyId?.takeIf { it.isNotBlank() } ?: return
         if (!identity.isSupervised || identity.firebaseUid != user.uid) return
