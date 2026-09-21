@@ -31,7 +31,9 @@ class FamilyLocationRepository(context: Context) {
         accuracyMeters: Float,
         capturedAtMs: Long
     ): Task<Void>? {
-        val identity = FamilyStore(appContext).verifiedFamilyIdentity() ?: return null
+        val familyStore = FamilyStore(appContext)
+        if (!familyStore.isSupervisedEnrollmentActive()) return null
+        val identity = familyStore.verifiedFamilyIdentity() ?: return null
         val user = FirebaseAuth.getInstance().currentUser ?: return null
         if (!user.isAnonymous || !identity.familyId.isNotBlank()) return null
 
@@ -43,6 +45,13 @@ class FamilyLocationRepository(context: Context) {
             deviceIdentity.familyId != identity.familyId ||
             deviceIdentity.deviceId.isBlank() ||
             deviceIdentity.famyrexMemberId.isBlank()
+        ) return null
+
+        // Re-check immediately before creating the Firestore write task so an
+        // unlink/re-enrollment between validation and the write cannot reuse the old family.
+        if (!familyStore.isSupervisedEnrollmentActive() ||
+            familyStore.verifiedFamilyIdentity()?.familyId != identity.familyId ||
+            FamilyDeviceIdentityStore(appContext).current()?.deviceId != deviceIdentity.deviceId
         ) return null
 
         return db.document("families/${identity.familyId}/members/${user.uid}/location/latest")
@@ -61,7 +70,12 @@ class FamilyLocationRepository(context: Context) {
         onSuccess: (FamilyChildLocation?) -> Unit,
         onError: (Exception) -> Unit = {}
     ) {
-        val familyId = FamilyStore(appContext).verifiedFamilyIdentity()?.familyId
+        val familyStore = FamilyStore(appContext)
+        if (!familyStore.isSupervisedEnrollmentActive()) {
+            onSuccess(null)
+            return
+        }
+        val familyId = familyStore.verifiedFamilyIdentity()?.familyId
             ?: run { onSuccess(null); return }
 
         db.collection("families/$familyId/members")
@@ -69,6 +83,12 @@ class FamilyLocationRepository(context: Context) {
             .limit(1)
             .get()
             .addOnSuccessListener { snapshot ->
+                if (!familyStore.isSupervisedEnrollmentActive() ||
+                    familyStore.verifiedFamilyIdentity()?.familyId != familyId
+                ) {
+                    onSuccess(null)
+                    return@addOnSuccessListener
+                }
                 val childUid = snapshot.documents.firstOrNull()?.id
                 if (childUid == null) {
                     onSuccess(null)
@@ -77,6 +97,12 @@ class FamilyLocationRepository(context: Context) {
                 db.document("families/$familyId/members/$childUid/location/latest")
                     .get()
                     .addOnSuccessListener { doc ->
+                        if (!familyStore.isSupervisedEnrollmentActive() ||
+                            familyStore.verifiedFamilyIdentity()?.familyId != familyId
+                        ) {
+                            onSuccess(null)
+                            return@addOnSuccessListener
+                        }
                         if (!doc.exists()) {
                             onSuccess(null)
                             return@addOnSuccessListener
