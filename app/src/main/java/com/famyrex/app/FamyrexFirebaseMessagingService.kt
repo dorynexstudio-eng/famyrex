@@ -4,21 +4,21 @@ import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
-/** Receives command-only FCM data messages; sensitive data is never placed in notifications. */
 class FamyrexFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
+        val appContext = applicationContext
+        if (!FamilyStore(appContext).isSupervisedEnrollmentActive()) return
         val raw = message.data[KEY_COMMAND] ?: return
         val command = FamilyControlCommandCodec.decode(raw) ?: return
-        val identity = FamilyDeviceIdentityStore(this).current() ?: return
+        val identity = FamilyDeviceIdentityStore(appContext).current() ?: return
         if (command.familyId != identity.familyId ||
             command.memberId != identity.famyrexMemberId ||
             command.deviceId != identity.deviceId
         ) return
-
-        val receipt = FamilyRemoteCommandExecutor(this).execute(command, identity)
-        RemoteCommandReceiptStore(this).save(receipt)
-        RemoteCommandReceiptReporter.report(this, receipt)
-        if (!receipt.success) Log.w(TAG, "Remote command rejected: ${receipt.reason}")
+        val receipt = FamilyRemoteCommandExecutor(appContext).execute(command, identity)
+        RemoteCommandReceiptStore(appContext).save(receipt)
+        RemoteCommandReceiptReporter.report(appContext, receipt, identity)
+        if (!receipt.success) Log.w(TAG, "Remote command rejected: " + receipt.reason)
     }
 
     override fun onNewToken(token: String) {
