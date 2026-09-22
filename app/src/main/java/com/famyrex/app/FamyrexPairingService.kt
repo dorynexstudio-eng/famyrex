@@ -94,6 +94,10 @@ class FamyrexPairingService(context: Context) {
         if (token.isBlank()) { onError("Falta la clave de vinculación."); return }
         if (!famyrexMemberId.isNullOrBlank() && famyrexMemberId.length !in 8..128) { onError("La identidad del perfil infantil no es válida."); return }
         if (famyrexDeviceId.isBlank()) { onError("La identidad local del dispositivo está incompleta."); return }
+        if (FamilyStore(appContext).isSupervisedEnrollmentActive()) {
+            onError("Este dispositivo ya está vinculado a una familia.")
+            return
+        }
         val auth = FirebaseAuth.getInstance()
         fun redeem() {
             val payload = hashMapOf<String, Any>("code" to code, "token" to token, "childLabel" to childLabel, "famyrexDeviceId" to famyrexDeviceId)
