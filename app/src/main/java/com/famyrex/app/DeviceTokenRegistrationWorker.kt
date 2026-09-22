@@ -12,17 +12,20 @@ class DeviceTokenRegistrationWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
+        val context = applicationContext
+        if (!FamilyStore(context).isSupervisedEnrollmentActive()) return Result.success()
+
         val authUser = FirebaseAuth.getInstance().currentUser
             ?: return Result.success()
         if (!authUser.isAnonymous) return Result.success()
 
-        val identity = FamilyDeviceIdentityStore(applicationContext).current()
+        val identity = FamilyDeviceIdentityStore(context).current()
             ?: return Result.success()
         if (!identity.isSupervised || identity.firebaseUid != authUser.uid) return Result.success()
 
-        val token = FamilyDeviceTokenRegistrar.rememberedToken(applicationContext)
+        val token = FamilyDeviceTokenRegistrar.rememberedToken(context)
             ?: return Result.success()
-        val task = FamilyDeviceTokenRegistrar.register(applicationContext, token)
+        val task = FamilyDeviceTokenRegistrar.register(context, token)
             ?: return Result.success()
         Tasks.await(task)
         Result.success()
