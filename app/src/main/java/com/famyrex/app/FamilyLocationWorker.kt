@@ -14,15 +14,12 @@ class FamilyLocationWorker(
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
         val store = FamilyStore(applicationContext)
-        if (store.appMode() != FamyrexAppMode.SUPERVISED || store.verifiedFamilyIdentity() == null) return Result.success()
+        if (!store.isSupervisedEnrollmentActive()) return Result.success()
 
         val fine = applicationContext.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = applicationContext.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!fine && !coarse) return Result.success()
 
-        // The worker can execute while the app is not visible. On Android 10+
-        // that requires explicit background-location access. Do not attempt
-        // background collection unless the user has granted that capability.
         val backgroundGranted = android.os.Build.VERSION.SDK_INT < 29 ||
             applicationContext.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!backgroundGranted) return Result.success()
@@ -34,6 +31,10 @@ class FamilyLocationWorker(
             val location = cached?.takeIf { it.time > 0L && now - it.time <= MAX_CACHED_AGE_MS }
                 ?: Tasks.await(client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null))
                 ?: return Result.retry()
+
+            if (!FamilyStore(applicationContext).isSupervisedEnrollmentActive()) {
+                return Result.success()
+            }
 
             val task = FamilyLocationRepository(applicationContext).publishChildLocationTask(
                 latitude = location.latitude,
