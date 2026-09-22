@@ -37,6 +37,7 @@ class FamyrexPairingService(context: Context) {
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
         if (familyId.isBlank() || displayName.isBlank() || ageRange.isBlank()) { onError("Faltan datos del perfil infantil."); return }
+        if (FamilyStore(appContext).cloudFamilyId() != familyId) { onError("La familia activa ya no coincide con esta operación."); return }
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null || user.providerData.none { it.providerId == "google.com" }) { onError("Inicia sesión con Google para crear el perfil infantil."); return }
         functions().getHttpsCallable("createPendingChildProfile")
@@ -57,6 +58,7 @@ class FamyrexPairingService(context: Context) {
     ) {
         if (FirebaseApp.getApps(appContext).isEmpty()) { onError("Firebase todavía no está configurado."); return }
         if (familyId.isBlank() || famyrexMemberId.isBlank()) { onError("La identidad de la familia o del perfil infantil está incompleta."); return }
+        if (FamilyStore(appContext).cloudFamilyId() != familyId) { onError("La familia activa ya no coincide con esta invitación."); return }
         functions().getHttpsCallable("createPairingInvite")
             .call(hashMapOf("familyId" to familyId, "childLabel" to childLabel, "famyrexMemberId" to famyrexMemberId))
             .addOnSuccessListener { result ->
