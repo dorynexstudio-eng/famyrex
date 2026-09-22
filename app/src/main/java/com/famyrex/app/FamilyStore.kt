@@ -10,6 +10,7 @@ class FamilyStore(context: Context) {
     private val secretProtector = FamilySecretProtector(appContext)
 
     fun profiles(): List<FamilyProfile> = parseProfiles(prefs.getString("profiles", null))
+    fun cloudFamilyId(): String? = prefs.getString("cloud_family_id", null)?.trim()?.takeIf { it.isNotBlank() }
     fun devices(): List<FamilyDevice> = parseDevices(prefs.getString("devices", null))
 
     fun ensureLocalOwner(): FamilyProfile {
