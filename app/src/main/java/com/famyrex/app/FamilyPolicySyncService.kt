@@ -25,6 +25,10 @@ class FamilyPolicySyncService(context: Context) {
             onError("La cuenta de adulto todavía no está conectada a Firebase.")
             return
         }
+        if (FamilyStore(appContext).cloudFamilyId() != familyId) {
+            onError("La familia activa ya no coincide con esta sincronización.")
+            return
+        }
 
         val revision = nextRevision(child.deviceId)
         val snapshot = DevicePolicySnapshotAdapter.fromLocalConfig(
@@ -44,6 +48,11 @@ class FamilyPolicySyncService(context: Context) {
         }
 
         val commandId = UUID.randomUUID().toString()
+        if (FamilyStore(appContext).cloudFamilyId() != familyId) {
+            onError("La familia activa ha cambiado antes de enviar la sincronización.")
+            return
+        }
+
         FirebaseFunctions.getInstance(REGION)
             .getHttpsCallable("issueFamilyCommand")
             .call(
@@ -56,15 +65,14 @@ class FamilyPolicySyncService(context: Context) {
                     "value" to encoded
                 )
             )
-            .addOnSuccessListener { onSuccess(commandId) }
+            .addOnSuccessListener {
+                if (FamilyStore(appContext).cloudFamilyId() == familyId) {
+                    onSuccess(commandId)
+                }
+            }
             .addOnFailureListener { onError(it.toUserMessage()) }
     }
 
-    /**
-     * Revision allocation is process-local but can be reached concurrently by multiple
-     * UI callbacks. Serialize the read/increment/write sequence so two sync requests for
-     * the same device can never receive the same revision within this process.
-     */
     @Synchronized
     private fun nextRevision(deviceId: String): Long {
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
